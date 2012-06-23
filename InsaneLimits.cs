@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2011 Miguel Mendoza - miguel@micovery.com, PapaCharlie9
  *
  * Insane Balancer is free software: you can redistribute it and/or modify it under the terms of the 
@@ -5718,7 +5718,7 @@ public interface DataDictionaryInterface
 
                 if (action.Equals(Limit.LimitAction.None))
                 {
-                    DebugWrite("^b" + target.Name + "^n activated " + limit.ShortDisplayName, 1);
+                    DebugWrite("^b" + target.Name + "^n activated " + limit.ShortDisplayName, 3);
                     return true;
                 }
 
@@ -6602,7 +6602,7 @@ public interface DataDictionaryInterface
                           players.ContainsKey(cpbiPlayer.SoldierName) ||
                           new_players_batch.ContainsKey(cpbiPlayer.SoldierName)))
                     {
-                        DebugWrite("Queueing ^b" + cpbiPlayer.SoldierName + "^n for stats fetching", 2);
+                        DebugWrite("Queueing ^b" + cpbiPlayer.SoldierName + "^n for stats fetching", 3);
                         new_player_queue.Add(cpbiPlayer.SoldierName, cpbiPlayer);
                         fetch_handle.Set();
                     }
@@ -6729,8 +6729,9 @@ public interface DataDictionaryInterface
 
         public void UpdateStats(PlayerInfo killer, PlayerInfo victim, BaseEvent type, Kill info, String weapon)
         {
+        try {
 
-            if (serverInfo == null)
+            if (serverInfo == null || killer == null || victim == null || info == null)
                 return;
 
             if (info.Headshot)
@@ -6771,7 +6772,7 @@ public interface DataDictionaryInterface
                 serverInfo.W[weapon].KillsRound++;
                 serverInfo.W[weapon].DeathsRound++;
             }
-
+        } catch (Exception e) {}
         }
 
 
@@ -6866,6 +6867,8 @@ public interface DataDictionaryInterface
                 String command = ExtractCommand(text);
 
 
+				DebugWrite(@"^bOriginal command^n: " +text, 4);
+
                 Match one1StatMatch = Regex.Match(command, @"^\s*(round|total|(?:online|battlelog|web))\s+(.+)", RegexOptions.IgnoreCase);
                 Match one2StatMatch = Regex.Match(command, @"^\s*(my|[^ ]+)(?:\s+(round|total|(?:online|battlelog|web)))?\s+(.+)", RegexOptions.IgnoreCase);
 
@@ -6943,6 +6946,8 @@ public interface DataDictionaryInterface
         public void OneStatCmd(String sender, String prefix, String player, String scope, String type)
         {
 
+        	DebugWrite(@"^bParsed command^n: " +((sender==null)?"(null)":sender)+", "+((player==null)?"(null)":player)+", "+((scope==null)?"(null)":scope)+", "+((type==null)?"(null)":type), 4); // IGC
+
             if (sender == null)
                 return;
 
@@ -6952,7 +6957,7 @@ public interface DataDictionaryInterface
                 player = sender;
 
             // avoid command collision
-            if (Regex.Match(player, @"^\s*(ban|tban|kick|kill|nuke|say|move|fmove|help|rules)\s*$").Success)
+            if (Regex.Match(player, @"^\s*(ban|tban|kick|kill|nuke|say|move|fmove|help|rules|grab|maps|setnext|nextlevel|restart)\s*$").Success) // IGC
                 return;
 
             if (scope == null || scope.Length == 0 || !(scope.Equals("round") || scope.Equals("total")))
@@ -6970,6 +6975,8 @@ public interface DataDictionaryInterface
             String new_player = null;
             if ((new_player = bestMatch(player, new List<string>(players.Keys), out edit_distance)) == null)
                 return;
+
+        	DebugWrite(@"^bFinal command^n: " +sender+", "+new_player+", "+scope+", "+((type==null)?"(null)":type), 4); // IGC
 
             //Only allow partial matches if the commnand prefix is ?
             if (edit_distance > 0 && !prefix.Equals("?"))
