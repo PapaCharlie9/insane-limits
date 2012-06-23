@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2011 Miguel Mendoza - miguel@micovery.com, PapaCharlie9, Singh400
  *
  * Insane Balancer is free software: you can redistribute it and/or modify it under the terms of the 
@@ -6899,8 +6899,13 @@ public interface DataDictionaryInterface
                 String prefix = ExtractCommandPrefix(text);
                 String command = ExtractCommand(text);
 
-                DebugWrite(@"^bOriginal command^n: " +text, 4);
 
+// IGC begin
+				DebugWrite(@"^bOriginal command^n: " +text, 4);
+
+                Match bstatMatch = Regex.Match(command, @"^\s*bstat\s+([^\s]+)\s+([^\s]+)", RegexOptions.IgnoreCase);
+                Match rstatMatch = Regex.Match(command, @"^\s*rstat\s+([^\s]+)\s+([^\s]+)", RegexOptions.IgnoreCase);
+// IGC end
                 Match one1StatMatch = Regex.Match(command, @"^\s*(round|total|(?:online|battlelog|web))\s+(.+)", RegexOptions.IgnoreCase);
                 Match one2StatMatch = Regex.Match(command, @"^\s*(my|[^ ]+)(?:\s+(round|total|(?:online|battlelog|web)))?\s+(.+)", RegexOptions.IgnoreCase);
 
@@ -6913,6 +6918,13 @@ public interface DataDictionaryInterface
                     ListStatCmd(sender, list1StatMatch.Groups[1].Value);
                 else if (list2StatMatch.Success)
                     ListStatCmd(sender, list2StatMatch.Groups[1].Value);
+// IGC begin
+				else if (bstatMatch.Success) {
+					OneStatCmd(sender, "?", bstatMatch.Groups[1].Value, "battlelog", bstatMatch.Groups[2].Value);
+				} else if (rstatMatch.Success) {
+					OneStatCmd(sender, "?", rstatMatch.Groups[1].Value, "round", rstatMatch.Groups[2].Value);
+				}
+// IGC end
                 else if (one1StatMatch.Success)
                     OneStatCmd(sender, prefix, String.Empty, one1StatMatch.Groups[1].Value, one1StatMatch.Groups[2].Value);
                 else if (one2StatMatch.Success)
@@ -6977,8 +6989,9 @@ public interface DataDictionaryInterface
 
         public void OneStatCmd(String sender, String prefix, String player, String scope, String type)
         {
-            DebugWrite(@"^bParsed command^n: " +((sender==null)?"(null)":sender)+", "+((player==null)?"(null)":player)+", "+((scope==null)?"(null)":scope)+", "+((type==null)?"(null)":type), 4);
-            
+
+        	DebugWrite(@"^bParsed command^n: " +((sender==null)?"(null)":sender)+", "+((player==null)?"(null)":player)+", "+((scope==null)?"(null)":scope)+", "+((type==null)?"(null)":type), 4); // IGC
+
             if (sender == null)
                 return;
 
@@ -6988,7 +7001,7 @@ public interface DataDictionaryInterface
                 player = sender;
 
             // avoid command collision
-            if (Regex.Match(player, @"^\s*(ban|tban|kick|kill|nuke|say|move|fmove|help|rules|grab|maps|setnext|nextlevel|restart)\s*$").Success)
+            if (Regex.Match(player, @"^\s*(ban|tban|kick|kill|nuke|say|move|fmove|help|rules|grab|maps|setnext|nextlevel|restart)\s*$").Success) // IGC
                 return;
 
             if (scope == null || scope.Length == 0 || !(scope.Equals("round") || scope.Equals("total")))
@@ -7007,7 +7020,7 @@ public interface DataDictionaryInterface
             if ((new_player = bestMatch(player, new List<string>(players.Keys), out edit_distance)) == null)
                 return;
 
-            DebugWrite(@"^bFinal command^n: " +sender+", "+new_player+", "+scope+", "+((type==null)?"(null)":type), 4);
+        	DebugWrite(@"^bFinal command^n: " +sender+", "+new_player+", "+scope+", "+((type==null)?"(null)":type), 4); // IGC
 
             //Only allow partial matches if the commnand prefix is ?
             if (edit_distance > 0 && !prefix.Equals("?"))
