@@ -1,4 +1,4 @@
 insane-limits
 =============
 
-PRoCon plugin Insane Limits
+PRoCon plugin Insane Limits by micovery
