@@ -1,0 +1,19 @@
+Finish rebase from master
+Merge branch 'pc9-mod' of https://github.com/PapaCharlie9/insane-limits into pc9-mod
+
+Conflicts:
+	InsaneLimits.cs
+#
+# It looks like you may be committing a merge.
+# If this is not correct, please remove the file
+#	.git/MERGE_HEAD
+# and try again.
+
+
+# Please enter the commit message for your changes. Lines starting
+# with '#' will be ignored, and an empty message aborts the commit.
+# On branch pc9-mod
+# Your branch and 'origin/pc9-mod' have diverged,
+# and have 6 and 1 different commit each, respectively.
+#
+
