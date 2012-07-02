@@ -3374,7 +3374,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.0.0.8-patch-3";
+            return "0.0.0.8-patch-3-PC9-mod";
         }
 
         public string GetPluginAuthor()
@@ -6867,8 +6867,12 @@ public interface DataDictionaryInterface
                 String command = ExtractCommand(text);
 
 
+// IGC begin
 				DebugWrite(@"^bOriginal command^n: " +text, 4);
 
+                Match bstatMatch = Regex.Match(command, @"^\s*bstat\s+([^\s]+)\s+([^\s]+)", RegexOptions.IgnoreCase);
+                Match rstatMatch = Regex.Match(command, @"^\s*rstat\s+([^\s]+)\s+([^\s]+)", RegexOptions.IgnoreCase);
+// IGC end
                 Match one1StatMatch = Regex.Match(command, @"^\s*(round|total|(?:online|battlelog|web))\s+(.+)", RegexOptions.IgnoreCase);
                 Match one2StatMatch = Regex.Match(command, @"^\s*(my|[^ ]+)(?:\s+(round|total|(?:online|battlelog|web)))?\s+(.+)", RegexOptions.IgnoreCase);
 
@@ -6881,6 +6885,13 @@ public interface DataDictionaryInterface
                     ListStatCmd(sender, list1StatMatch.Groups[1].Value);
                 else if (list2StatMatch.Success)
                     ListStatCmd(sender, list2StatMatch.Groups[1].Value);
+// IGC begin
+				else if (bstatMatch.Success) {
+					OneStatCmd(sender, "?", bstatMatch.Groups[1].Value, "battlelog", bstatMatch.Groups[2].Value);
+				} else if (rstatMatch.Success) {
+					OneStatCmd(sender, "?", rstatMatch.Groups[1].Value, "round", rstatMatch.Groups[2].Value);
+				}
+// IGC end
                 else if (one1StatMatch.Success)
                     OneStatCmd(sender, prefix, String.Empty, one1StatMatch.Groups[1].Value, one1StatMatch.Groups[2].Value);
                 else if (one2StatMatch.Success)
