@@ -426,18 +426,17 @@ namespace PRoConEvents
         double ScoreObjective { get; }
         double VehiclesKilled { get; }
         double KillStreakBonus { get; }
-		double Kpm { get; }
-		//Singh-mod
-		double killAssists { get; }
-		double rsDeaths { get; }
-		double rsKills { get; }
-		double rsNumLosses { get; }
-		double rsNumWins { get; }
-		double rsScore { get; }
-		double rsShotsFired { get; }
-		double rsShotsHit { get; }
-		double rsTimePlayed { get; }
-		
+        double Kpm { get; }
+        double killAssists { get; }
+        double rsDeaths { get; }
+        double rsKills { get; }
+        double rsNumLosses { get; }
+        double rsNumWins { get; }
+        double rsScore { get; }
+        double rsShotsFired { get; }
+        double rsShotsHit { get; }
+        double rsTimePlayed { get; }
+
         double ReconTime { get; }
         double EngineerTime { get; }
         double AssaultTime { get; }
@@ -3395,7 +3394,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.0.0.8-patch-3-singh-reset";
+            return "0.0.0.8-patch-4";
         }
 
         public string GetPluginAuthor()
