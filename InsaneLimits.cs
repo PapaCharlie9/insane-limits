@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2011 Miguel Mendoza - miguel@micovery.com, PapaCharlie9
+ * Copyright 2011 Miguel Mendoza - miguel@micovery.com, PapaCharlie9, Singh400
  *
  * Insane Balancer is free software: you can redistribute it and/or modify it under the terms of the 
  * GNU General Public License as published by the Free Software Foundation, either version 3 of the License, 
@@ -427,6 +427,15 @@ namespace PRoConEvents
         double VehiclesKilled { get; }
         double KillStreakBonus { get; }
         double Kpm { get; }
+        double killAssists { get; }
+        double rsDeaths { get; }
+        double rsKills { get; }
+        double rsNumLosses { get; }
+        double rsNumWins { get; }
+        double rsScore { get; }
+        double rsShotsFired { get; }
+        double rsShotsHit { get; }
+        double rsTimePlayed { get; }
 
         double ReconTime { get; }
         double EngineerTime { get; }
@@ -1272,6 +1281,15 @@ namespace PRoConEvents
                 json2key.Add("sc_objective", "sc_objective");
                 json2key.Add("vehiclesDestroyed", "vehicles_killed");
                 json2key.Add("killStreakBonus", "killStreakBonus");
+                json2key.Add("killAssists", "killAssists");
+                json2key.Add("rsDeaths", "rsDeaths");
+                json2key.Add("rsKills", "rsKills");
+                json2key.Add("rsNumLosses", "rsNumLosses");
+                json2key.Add("rsNumWins", "rsNumWins");
+                json2key.Add("rsScore", "rsScore");
+                json2key.Add("rsShotsFired", "rsShotsFired");
+                json2key.Add("rsShotsHit", "rsShotsHit");
+                json2key.Add("rsTimePlayed", "rsTimePlayed");
 
                 /* Game keys */
 
@@ -3374,7 +3392,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.0.0.8-patch-3-PC9-mod";
+            return "0.0.0.8-patch-3";
         }
 
         public string GetPluginAuthor()
@@ -3797,6 +3815,15 @@ public interface PlayerInfoInterface
     double VehiclesKilled { get; }
     double KillStreakBonus { get; }
     double Kpm { get; }
+    double killAssists { get; }
+    double rsDeaths { get; }
+    double rsKills { get; }
+    double rsNumLosses { get; }
+    double rsNumWins { get; }
+    double rsScore { get; }
+    double rsShotsFired { get; }
+    double rsShotsHit { get; }
+    double rsTimePlayed { get; }
 
     double ReconTime { get; }
     double EngineerTime { get; }
@@ -6867,12 +6894,8 @@ public interface DataDictionaryInterface
                 String command = ExtractCommand(text);
 
 
-// IGC begin
 				DebugWrite(@"^bOriginal command^n: " +text, 4);
 
-                Match bstatMatch = Regex.Match(command, @"^\s*bstat\s+([^\s]+)\s+([^\s]+)", RegexOptions.IgnoreCase);
-                Match rstatMatch = Regex.Match(command, @"^\s*rstat\s+([^\s]+)\s+([^\s]+)", RegexOptions.IgnoreCase);
-// IGC end
                 Match one1StatMatch = Regex.Match(command, @"^\s*(round|total|(?:online|battlelog|web))\s+(.+)", RegexOptions.IgnoreCase);
                 Match one2StatMatch = Regex.Match(command, @"^\s*(my|[^ ]+)(?:\s+(round|total|(?:online|battlelog|web)))?\s+(.+)", RegexOptions.IgnoreCase);
 
@@ -6885,13 +6908,6 @@ public interface DataDictionaryInterface
                     ListStatCmd(sender, list1StatMatch.Groups[1].Value);
                 else if (list2StatMatch.Success)
                     ListStatCmd(sender, list2StatMatch.Groups[1].Value);
-// IGC begin
-				else if (bstatMatch.Success) {
-					OneStatCmd(sender, "?", bstatMatch.Groups[1].Value, "battlelog", bstatMatch.Groups[2].Value);
-				} else if (rstatMatch.Success) {
-					OneStatCmd(sender, "?", rstatMatch.Groups[1].Value, "round", rstatMatch.Groups[2].Value);
-				}
-// IGC end
                 else if (one1StatMatch.Success)
                     OneStatCmd(sender, prefix, String.Empty, one1StatMatch.Groups[1].Value, one1StatMatch.Groups[2].Value);
                 else if (one2StatMatch.Success)
@@ -12198,6 +12214,24 @@ public interface DataDictionaryInterface
         public double VehiclesKilled { get { return ovalue["vehicles_killed"]; } }
         [A("web", "KillStreak Bonus", @"ki[^ ]*\s*(st).*")]
         public double KillStreakBonus { get { return ovalue["killStreakBonus"]; } }
+        [A("web", "Kill Assists", @"killAssists")]
+        public double killAssists { get { return ovalue["killAssists"]; } }
+        [A("web", "rsDeaths", @"rsDeaths")]
+        public double rsDeaths { get { return ovalue["rsDeaths"]; } }
+        [A("web", "rsKills", @"rsKills")]
+        public double rsKills { get { return ovalue["rsKills"]; } }
+        [A("web", "rsNumLosses", @"rsNumLosses")]
+        public double rsNumLosses { get { return ovalue["rsNumLosses"]; } }
+        [A("web", "rsNumWins", @"rsNumWins")]
+        public double rsNumWins { get { return ovalue["rsNumWins"]; } }
+        [A("web", "rsScore", @"rsScore")]
+        public double rsScore { get { return ovalue["rsScore"]; } }
+        [A("web", "rsShotsFired", @"rsShotsFired")]
+        public double rsShotsFired { get { return ovalue["rsShotsFired"]; } }
+        [A("web", "rsShotsHit", @"rsShotsHit")]
+        public double rsShotsHit { get { return ovalue["rsShotsHit"]; } }
+        [A("web", "rsTimePlayed", @"rsTimePlayed")]
+        public double rsTimePlayed { get { return ovalue["rsTimePlayed"]; } }
 
 
         /* Online statistics (extra) */
