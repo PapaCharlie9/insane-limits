@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2011 Miguel Mendoza - miguel@micovery.com, PapaCharlie9
  *
  * Insane Balancer is free software: you can redistribute it and/or modify it under the terms of the 
@@ -427,6 +427,15 @@ namespace PRoConEvents
         double VehiclesKilled { get; }
         double KillStreakBonus { get; }
         double Kpm { get; }
+        double killAssists { get; }
+        double rsDeaths { get; }
+        double rsKills { get; }
+        double rsNumLosses { get; }
+        double rsNumWins { get; }
+        double rsScore { get; }
+        double rsShotsFired { get; }
+        double rsShotsHit { get; }
+        double rsTimePlayed { get; }
 
         double ReconTime { get; }
         double EngineerTime { get; }
@@ -1272,6 +1281,17 @@ namespace PRoConEvents
                 json2key.Add("sc_objective", "sc_objective");
                 json2key.Add("vehiclesDestroyed", "vehicles_killed");
                 json2key.Add("killStreakBonus", "killStreakBonus");
+				//Singh-mod
+				json2key.Add("killAssists", "killAssists");
+				json2key.Add("rsDeaths", "rsDeaths");
+				json2key.Add("rsKills", "rsKills");
+				json2key.Add("rsNumLosses", "rsNumLosses");
+				json2key.Add("rsNumWins", "rsNumWins");
+				json2key.Add("rsScore", "rsScore");
+				json2key.Add("rsShotsFired", "rsShotsFired");
+				json2key.Add("rsShotsHit", "rsShotsHit");
+				json2key.Add("rsTimePlayed", "rsTimePlayed");
+
 
                 /* Game keys */
 
@@ -3374,7 +3394,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.0.0.8-patch-3";
+            return "0.0.0.8-patch-4";
         }
 
         public string GetPluginAuthor()
@@ -3797,6 +3817,16 @@ public interface PlayerInfoInterface
     double VehiclesKilled { get; }
     double KillStreakBonus { get; }
     double Kpm { get; }
+    //Singh-mod
+    double killAssists { get; }
+    double rsDeaths { get; }
+    double rsKills { get; }
+    double rsNumLosses { get; }
+    double rsNumWins { get; }
+    double rsScore { get; }
+    double rsShotsFired { get; }
+    double rsShotsHit { get; }
+    double rsTimePlayed { get; }
 
     double ReconTime { get; }
     double EngineerTime { get; }
@@ -5718,7 +5748,7 @@ public interface DataDictionaryInterface
 
                 if (action.Equals(Limit.LimitAction.None))
                 {
-                    DebugWrite("^b" + target.Name + "^n activated " + limit.ShortDisplayName, 3);
+                    DebugWrite("^b" + target.Name + "^n activated " + limit.ShortDisplayName, 1);
                     return true;
                 }
 
@@ -6602,7 +6632,7 @@ public interface DataDictionaryInterface
                           players.ContainsKey(cpbiPlayer.SoldierName) ||
                           new_players_batch.ContainsKey(cpbiPlayer.SoldierName)))
                     {
-                        DebugWrite("Queueing ^b" + cpbiPlayer.SoldierName + "^n for stats fetching", 3);
+                        DebugWrite("Queueing ^b" + cpbiPlayer.SoldierName + "^n for stats fetching", 2);
                         new_player_queue.Add(cpbiPlayer.SoldierName, cpbiPlayer);
                         fetch_handle.Set();
                     }
@@ -6729,9 +6759,8 @@ public interface DataDictionaryInterface
 
         public void UpdateStats(PlayerInfo killer, PlayerInfo victim, BaseEvent type, Kill info, String weapon)
         {
-        try {
 
-            if (serverInfo == null || killer == null || victim == null || info == null)
+            if (serverInfo == null)
                 return;
 
             if (info.Headshot)
@@ -6772,7 +6801,7 @@ public interface DataDictionaryInterface
                 serverInfo.W[weapon].KillsRound++;
                 serverInfo.W[weapon].DeathsRound++;
             }
-        } catch (Exception e) {}
+
         }
 
 
@@ -6867,8 +6896,6 @@ public interface DataDictionaryInterface
                 String command = ExtractCommand(text);
 
 
-				DebugWrite(@"^bOriginal command^n: " +text, 4);
-
                 Match one1StatMatch = Regex.Match(command, @"^\s*(round|total|(?:online|battlelog|web))\s+(.+)", RegexOptions.IgnoreCase);
                 Match one2StatMatch = Regex.Match(command, @"^\s*(my|[^ ]+)(?:\s+(round|total|(?:online|battlelog|web)))?\s+(.+)", RegexOptions.IgnoreCase);
 
@@ -6946,8 +6973,6 @@ public interface DataDictionaryInterface
         public void OneStatCmd(String sender, String prefix, String player, String scope, String type)
         {
 
-        	DebugWrite(@"^bParsed command^n: " +((sender==null)?"(null)":sender)+", "+((player==null)?"(null)":player)+", "+((scope==null)?"(null)":scope)+", "+((type==null)?"(null)":type), 4); // IGC
-
             if (sender == null)
                 return;
 
@@ -6957,7 +6982,7 @@ public interface DataDictionaryInterface
                 player = sender;
 
             // avoid command collision
-            if (Regex.Match(player, @"^\s*(ban|tban|kick|kill|nuke|say|move|fmove|help|rules|grab|maps|setnext|nextlevel|restart)\s*$").Success) // IGC
+            if (Regex.Match(player, @"^\s*(ban|tban|kick|kill|nuke|say|move|fmove|help|rules)\s*$").Success)
                 return;
 
             if (scope == null || scope.Length == 0 || !(scope.Equals("round") || scope.Equals("total")))
@@ -6975,8 +7000,6 @@ public interface DataDictionaryInterface
             String new_player = null;
             if ((new_player = bestMatch(player, new List<string>(players.Keys), out edit_distance)) == null)
                 return;
-
-        	DebugWrite(@"^bFinal command^n: " +sender+", "+new_player+", "+scope+", "+((type==null)?"(null)":type), 4); // IGC
 
             //Only allow partial matches if the commnand prefix is ?
             if (edit_distance > 0 && !prefix.Equals("?"))
@@ -12187,7 +12210,25 @@ public interface DataDictionaryInterface
         public double VehiclesKilled { get { return ovalue["vehicles_killed"]; } }
         [A("web", "KillStreak Bonus", @"ki[^ ]*\s*(st).*")]
         public double KillStreakBonus { get { return ovalue["killStreakBonus"]; } }
-
+		//Singh-mod
+		[A("web", "Kill Assists", @"killAssists")]
+        public double killAssists { get { return ovalue["killAssists"]; } }
+		[A("web", "rsDeaths", @"rsDeaths")]
+        public double rsDeaths { get { return ovalue["rsDeaths"]; } }
+		[A("web", "rsKills", @"rsKills")]
+        public double rsKills { get { return ovalue["rsKills"]; } }
+		[A("web", "rsNumLosses", @"rsNumLosses")]
+        public double rsNumLosses { get { return ovalue["rsNumLosses"]; } }
+		[A("web", "rsNumWins", @"rsNumWins")]
+        public double rsNumWins { get { return ovalue["rsNumWins"]; } }
+		[A("web", "rsScore", @"rsScore")]
+        public double rsScore { get { return ovalue["rsScore"]; } }
+		[A("web", "rsShotsFired", @"rsShotsFired")]
+        public double rsShotsFired { get { return ovalue["rsShotsFired"]; } }
+		[A("web", "rsShotsHit", @"rsShotsHit")]
+        public double rsShotsHit { get { return ovalue["rsShotsHit"]; } }
+		[A("web", "rsTimePlayed", @"rsTimePlayed")]
+        public double rsTimePlayed { get { return ovalue["rsTimePlayed"]; } }
 
         /* Online statistics (extra) */
         [A("web", "Recon Time", @"re[^ ]*\s*ti.*")]
