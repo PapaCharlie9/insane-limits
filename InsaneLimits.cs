@@ -3827,7 +3827,7 @@ public interface PlayerInfoInterface
     double ResetScore { get; }
     double ResetShotsFired { get; }
     double ResetShotsHit { get; }
-    double ResetTimePlayed { get; }
+    double ResetTime { get; }
 
     double ReconTime { get; }
     double EngineerTime { get; }
