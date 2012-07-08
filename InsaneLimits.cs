@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2011 Miguel Mendoza - miguel@micovery.com, PapaCharlie9, Singh400
  *
  * Insane Balancer is free software: you can redistribute it and/or modify it under the terms of the 
@@ -3395,7 +3395,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.0.0.8-patch-4";
+            return "0.0.0.8-patch-4-pc9-mod";
         }
 
         public string GetPluginAuthor()
@@ -7001,7 +7001,7 @@ public interface DataDictionaryInterface
                 player = sender;
 
             // avoid command collision
-            if (Regex.Match(player, @"^\s*(ban|tban|kick|kill|nuke|say|move|fmove|help|rules|grab|maps|setnext|nextlevel|restart)\s*$").Success) // IGC
+            if (Regex.Match(player, @"^\s*(ban|tban|kick|kill|nuke|say|move|fmove|help|rules|grab|maps|setnext|nextlevel|restart)\s*$").Success)
                 return;
 
             if (scope == null || scope.Length == 0 || !(scope.Equals("round") || scope.Equals("total")))
