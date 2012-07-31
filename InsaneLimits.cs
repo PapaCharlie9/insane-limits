@@ -3010,10 +3010,9 @@ namespace PRoConEvents
 
                         recompile(field, val, ui);
 
-
                         // Warning for BF3 player say 
-                        if (field.Equals("say_audience") && fields[field].Equals("Player"))
-                            plugin.ConsoleWarn("Battlefield 3 does not support individual player messages");
+                        // if (field.Equals("say_audience") && fields[field].Equals("Player"))
+                        // plugin.ConsoleWarn("Battlefield 3 does not support individual player messages");
 
                         // Reset the activations when disbaling limits
                         if (field.Equals("state") && !Enabled)
@@ -8115,13 +8114,10 @@ public interface DataDictionaryInterface
 
         private void SendPlayerMessageV(string name, string message)
         {
-
             if (name == null)
                 return;
 
-            /* Disabled, BF3 does not support player messages
-             * ExecCommand("admin.say", StripModifiers(E(message)), "player", name);
-             */
+            ServerCommand("admin.say", StripModifiers(E(message)), "player", name);
         }
 
         private bool SendGlobalMessageV(String message)
