@@ -133,7 +133,7 @@ namespace PRoConEvents
         ServerCommand = 0x1000,
         PRoConEvent = 0x2000,
         PRoConChat = 0x4000,
-		SoundNotify = 0x8000 // EDIT E-Bastard.
+	SoundNotify = 0x8000
 
     }
 
@@ -596,7 +596,7 @@ namespace PRoConEvents
         bool Tweet(String status);
         bool PRoConChat(String text);
         bool PRoConEvent(String text, String player);
-		bool SendSoundNotification(String soundfile, String soundfilerepeat);  // EDIT E-Bastard		
+	bool SendSoundNotification(String soundfile, String soundfilerepeat);		
 
         void ServerCommand(params String[] arguments);
 
@@ -1711,7 +1711,7 @@ namespace PRoConEvents
                 ServerCommand = Actions.ServerCommand,
                 PRoConEvent = Actions.PRoConEvent,
                 PRoConChat = Actions.PRoConChat,
-				SoundNotify = Actions.SoundNotify // EDIT E-Bastard				
+		SoundNotify = Actions.SoundNotify				
             };
 
 
@@ -1768,12 +1768,12 @@ namespace PRoConEvents
                 "PRoConEvent Action", "procon_event_group", @"^procon_event_",
                 "PRoConChat Action", "procon_chat_group", @"^procon_chat_",
                 "ServerCommand Action", "server_command_group", @"^server_command_",
-				"Taskbar Notify Action", "taskbar_notify_group", @"^taskbar_", 
+		"Taskbar Notify Action", "taskbar_notify_group", @"^taskbar_", 
                 "Log Action", "log_group", @"^log_",
                 "SMS Action", "sms_group", @"^sms_",
                 "Mail Action", "mail_group", @"^mail_",
                 "Tweet Action", "tweet_group", @"^tweet_",
-                "Sound Notify Action", "sound_notify_group", @"^sound_"   // EDIT E-Bastard				
+                "Sound Notify Action", "sound_notify_group", @"^sound_"				
             };
 
 
@@ -1797,7 +1797,7 @@ namespace PRoConEvents
                 "sms_group", "sms_country", "sms_carrier", "sms_number", "sms_message", 
                 "mail_group", "mail_address", "mail_subject", "mail_body",
                 "tweet_group", "tweet_status",
-				"sound_notify_group", "sound_notify_file", "sound_notify_repeat", // EDIT E-Bastard				
+		"sound_notify_group", "sound_notify_file", "sound_notify_repeat",				
                 "delete"
                 });
 
@@ -2182,16 +2182,15 @@ namespace PRoConEvents
                 get { return fields["taskbar_notify_title"]; }
             }
 
-            // EDIT E-Bastard
-			public String SoundNotifyFile
+
+	    public String SoundNotifyFile
             {
                 get { return fields["sound_notify_file"]; }
             }
             public String SoundNotifyRepeat
             {
                 get { return fields["sound_notify_repeat"]; }
-            }
-            // EDIT E-Bastard		
+            }	
 
             public void RecordActivation(String PlayerName)
             {
@@ -2466,11 +2465,9 @@ namespace PRoConEvents
                         !((Action & LimitAction.TaskbarNotify) > 0))
                         return true;
 						
-           			 // EDIT E-Bastard
                     if (Regex.Match(field_key, @"sound_notify_.+").Success &&
                         !((Action & LimitAction.SoundNotify) > 0))
                         return true;
-            		// EDIT E-Bastard
 
                     if ((Regex.Match(field_key, @"second_check_.+").Success &&
                          SecondCheck.Equals(LimitType.Disabled)))
@@ -2638,11 +2635,9 @@ namespace PRoConEvents
                 setFieldValue("taskbar_notify_title", FullReplaceName + " activation");
                 setFieldValue("taskbar_notify_message", FullReplaceName + " was activated on %date%, at %time%");
 
-            // EDIT E-Bastard
                 setFieldValue("sound_notify_group", auto_hide);
                 setFieldValue("sound_notify_file", FullReplaceName + " activation");
                 setFieldValue("sound_notify_repeat", FullReplaceName + " was activated on %date%, at %time%");
-            // EDIT E-Bastard
 
                 setFieldValue("pb_ban_group", auto_hide);
                 setFieldValue("pb_ban_type", PBBanType.PB_GUID.ToString());
@@ -5949,7 +5944,6 @@ public interface DataDictionaryInterface
                         return !VMode;
                 }
 
-            // EDIT E-Bastard
                 if ((action & Limit.LimitAction.SoundNotify) > 0)
                 {
                     action = action & ~Limit.LimitAction.SoundNotify;
@@ -5961,7 +5955,6 @@ public interface DataDictionaryInterface
                     if (action.Equals(Limit.LimitAction.SoundNotify))
                         return !VMode;
                 }
-            // EDIT E-Bastard
 
                 /* Actions that possibly affect server state */
 
@@ -10729,7 +10722,6 @@ public interface DataDictionaryInterface
             return true;
         }
 
-        // EDIT E-Bastard
         public bool SendSoundNotification(String soundfile, String soundfilerepeat)
         {
             if (VMode)
@@ -10741,7 +10733,6 @@ public interface DataDictionaryInterface
             //ExecuteCommand("procon.protected.notification.write", title, message);
             return true;
         }
-        // EDIT E-Bastard
 
         public String FriendlySpan(TimeSpan span)
         {
