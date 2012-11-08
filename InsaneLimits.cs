@@ -1,5 +1,5 @@
 /*
- * Copyright 2011 Miguel Mendoza - miguel@micovery.com, PapaCharlie9, Singh400
+ * Copyright 2011 Miguel Mendoza - miguel@micovery.com, PapaCharlie9, Singh400, EBastard
  *
  * Insane Balancer is free software: you can redistribute it and/or modify it under the terms of the 
  * GNU General Public License as published by the Free Software Foundation, either version 3 of the License, 
@@ -132,7 +132,8 @@ namespace PRoConEvents
         PBCommand = 0x0800,
         ServerCommand = 0x1000,
         PRoConEvent = 0x2000,
-        PRoConChat = 0x4000
+        PRoConChat = 0x4000,
+        SoundNotify = 0x8000
 
     }
 
@@ -595,6 +596,7 @@ namespace PRoConEvents
         bool Tweet(String status);
         bool PRoConChat(String text);
         bool PRoConEvent(String text, String player);
+	bool SendSoundNotification(String soundfile, String soundfilerepeat);		
 
         void ServerCommand(params String[] arguments);
 
@@ -1708,7 +1710,8 @@ namespace PRoConEvents
                 PBCommand = Actions.PBCommand,
                 ServerCommand = Actions.ServerCommand,
                 PRoConEvent = Actions.PRoConEvent,
-                PRoConChat = Actions.PRoConChat
+                PRoConChat = Actions.PRoConChat,
+                SoundNotify = Actions.SoundNotify				
             };
 
 
@@ -1765,11 +1768,12 @@ namespace PRoConEvents
                 "PRoConEvent Action", "procon_event_group", @"^procon_event_",
                 "PRoConChat Action", "procon_chat_group", @"^procon_chat_",
                 "ServerCommand Action", "server_command_group", @"^server_command_",
-                "Taskbar Notify Action", "taskbar_notify_group", @"^taskbar_", 
+		"Taskbar Notify Action", "taskbar_notify_group", @"^taskbar_", 
                 "Log Action", "log_group", @"^log_",
                 "SMS Action", "sms_group", @"^sms_",
                 "Mail Action", "mail_group", @"^mail_",
-                "Tweet Action", "tweet_group", @"^tweet_"
+                "Tweet Action", "tweet_group", @"^tweet_",
+                "Sound Notify Action", "sound_notify_group", @"^sound_"				
             };
 
 
@@ -1793,6 +1797,7 @@ namespace PRoConEvents
                 "sms_group", "sms_country", "sms_carrier", "sms_number", "sms_message", 
                 "mail_group", "mail_address", "mail_subject", "mail_body",
                 "tweet_group", "tweet_status",
+                "sound_notify_group", "sound_notify_file", "sound_notify_repeat",				
                 "delete"
                 });
 
@@ -2164,7 +2169,7 @@ namespace PRoConEvents
                             FirstCheck.Equals(LimitType.Disabled) ||
                             FirstCheckEmpty;
                 }
-            }
+            }	
 
             public String TaskbarNotifyMessage
             {
@@ -2178,6 +2183,14 @@ namespace PRoConEvents
             }
 
 
+            public String SoundNotifyFile
+            {
+                get { return fields["sound_notify_file"]; }
+            }
+            public String SoundNotifyRepeat
+            {
+                get { return fields["sound_notify_repeat"]; }
+            }	
 
             public void RecordActivation(String PlayerName)
             {
@@ -2447,10 +2460,13 @@ namespace PRoConEvents
                     if ((Regex.Match(field_key, @"log_file").Success &&
                         !((LogDestination & LimitLogDestination.File) > 0)))
                         return true;
-
-
+					
                     if (Regex.Match(field_key, @"taskbar_notify_.+").Success &&
                         !((Action & LimitAction.TaskbarNotify) > 0))
+                        return true;
+						
+                    if (Regex.Match(field_key, @"sound_notify_.+").Success &&
+                        !((Action & LimitAction.SoundNotify) > 0))
                         return true;
 
                     if ((Regex.Match(field_key, @"second_check_.+").Success &&
@@ -2614,10 +2630,14 @@ namespace PRoConEvents
                 setFieldValue("ea_ban_duration", EABanDuration.Temporary.ToString());
                 setFieldValue("ea_ban_minutes", (10).ToString());
                 setFieldValue("ea_ban_message", "activated " + FullReplaceName);
-
+			
                 setFieldValue("taskbar_notify_group", auto_hide);
                 setFieldValue("taskbar_notify_title", FullReplaceName + " activation");
                 setFieldValue("taskbar_notify_message", FullReplaceName + " was activated on %date%, at %time%");
+
+                setFieldValue("sound_notify_group", auto_hide);
+                setFieldValue("sound_notify_file", FullReplaceName + " activation");
+                setFieldValue("sound_notify_repeat", FullReplaceName + " was activated on %date%, at %time%");
 
                 setFieldValue("pb_ban_group", auto_hide);
                 setFieldValue("pb_ban_type", PBBanType.PB_GUID.ToString());
@@ -3200,6 +3220,7 @@ namespace PRoConEvents
                 Match vmatch = Regex.Match(var, @"^limit_([^_]+)");
                 if (vmatch.Success)
                     return vmatch.Groups[1].Value;
+
 
                 Match hmatch = Regex.Match(var, @"^\s*\[\s*([^ \]]+)\s*\]", RegexOptions.IgnoreCase);
                 if (hmatch.Success)
@@ -5910,7 +5931,7 @@ public interface DataDictionaryInterface
                         return !VMode;
                 }
 
-
+			
                 if ((action & Limit.LimitAction.TaskbarNotify) > 0)
                 {
                     action = action & ~Limit.LimitAction.TaskbarNotify;
@@ -5920,6 +5941,18 @@ public interface DataDictionaryInterface
 
                     // exit early if action is only TaskbarNotify
                     if (action.Equals(Limit.LimitAction.TaskbarNotify))
+                        return !VMode;
+                }
+
+                if ((action & Limit.LimitAction.SoundNotify) > 0)
+                {
+                    action = action & ~Limit.LimitAction.SoundNotify;
+
+                    DebugWrite("playing soundnotification,  player ^b" + target.Name + "^n, (activated " + limit.ShortDisplayName + ")", 1);
+                    SendSoundNotification(R(limit.SoundNotifyFile), R(limit.SoundNotifyRepeat));
+
+                    // exit early if action is only TaskbarNotify
+                    if (action.Equals(Limit.LimitAction.SoundNotify))
                         return !VMode;
                 }
 
@@ -7320,6 +7353,7 @@ public interface DataDictionaryInterface
 
 
 
+
                 /* sleep a few seconds, to account of discrepancy between order of move events */
 
                 Thread delayed_change = new Thread(new ThreadStart(delegate()
@@ -8148,6 +8182,7 @@ public interface DataDictionaryInterface
 
 
         /* Messaging functions (Check for Virtual Mode) */
+
 
         public bool SendGlobalMessage(String message)
         {
@@ -9402,6 +9437,7 @@ public interface DataDictionaryInterface
 
             return true;
         }
+
 
         public bool DefaultTweet(String status)
         {
@@ -10672,8 +10708,8 @@ public interface DataDictionaryInterface
             return SendMail(gateway, "Limit Activation", message);
 
         }
-
-        public bool SendTaskbarNotification(String title, String message)
+        
+		public bool SendTaskbarNotification(String title, String message)
         {
             if (VMode)
             {
@@ -10681,7 +10717,20 @@ public interface DataDictionaryInterface
                 return false;
             }
 
-            ExecuteCommand("procon.protected.notification.write", title, message);
+            //ExecuteCommand("procon.protected.playsound", title, message);
+			ExecuteCommand("procon.protected.notification.write", title, message);
+            return true;
+        }
+
+        public bool SendSoundNotification(String soundfile, String soundfilerepeat)
+        {
+            if (VMode)
+            {
+                ConsoleWarn("not sending sound notification, ^bvirtual_mode^n is ^bon^n");
+                return false;
+            }
+			ExecuteCommand("procon.protected.playsound", soundfile, soundfilerepeat);
+            //ExecuteCommand("procon.protected.notification.write", title, message);
             return true;
         }
 
