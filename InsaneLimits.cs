@@ -133,7 +133,7 @@ namespace PRoConEvents
         ServerCommand = 0x1000,
         PRoConEvent = 0x2000,
         PRoConChat = 0x4000,
-	SoundNotify = 0x8000
+        SoundNotify = 0x8000
 
     }
 
@@ -1711,7 +1711,7 @@ namespace PRoConEvents
                 ServerCommand = Actions.ServerCommand,
                 PRoConEvent = Actions.PRoConEvent,
                 PRoConChat = Actions.PRoConChat,
-		SoundNotify = Actions.SoundNotify				
+                SoundNotify = Actions.SoundNotify				
             };
 
 
@@ -1797,7 +1797,7 @@ namespace PRoConEvents
                 "sms_group", "sms_country", "sms_carrier", "sms_number", "sms_message", 
                 "mail_group", "mail_address", "mail_subject", "mail_body",
                 "tweet_group", "tweet_status",
-		"sound_notify_group", "sound_notify_file", "sound_notify_repeat",				
+                "sound_notify_group", "sound_notify_file", "sound_notify_repeat",				
                 "delete"
                 });
 
@@ -2183,7 +2183,7 @@ namespace PRoConEvents
             }
 
 
-	    public String SoundNotifyFile
+            public String SoundNotifyFile
             {
                 get { return fields["sound_notify_file"]; }
             }
