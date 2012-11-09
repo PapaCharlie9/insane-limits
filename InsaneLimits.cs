@@ -5223,7 +5223,23 @@ public interface DataDictionaryInterface
 
                         plugin.DebugWrite("getting battlelog stats for ^b" + name + "^n, " + msg, 3);
                         if (new_players_batch.ContainsKey(info.SoldierName))
-                            new_players_batch[name] = plugin.blog.fetchStats(new PlayerInfo(plugin, info));
+                        {
+                            PlayerInfo ptmp = plugin.blog.fetchStats(new PlayerInfo(plugin, info));
+                            if (ptmp._web_exception != null)
+                            {
+                                // Retry 3 times
+                                for (int k = 1; k < 4; ++k)
+                                {
+                                    Thread.Sleep(k*1000);
+                                    ptmp._web_exception = null;
+                                    ptmp = plugin.blog.fetchStats(ptmp);
+                                    if (ptmp._web_exception == null) break;
+                                }
+                                
+                                if (ptmp._web_exception != null) ConsoleError("Fetching stats for " + name + ": " + ptmp._web_exception.Message);
+                            }
+                            new_players_batch[name] = ptmp;
+                        }
                     }
 
                     // abort the thread if the plugin was disabled
@@ -11599,6 +11615,12 @@ public interface DataDictionaryInterface
 
                 pinfo.StatsError = true;
             }
+            catch (WebException e)
+            {
+                plugin.DebugWrite("System.Net.WebException: " + e.Message, 4);
+                pinfo.StatsError = true;
+                pinfo._web_exception = e;
+            }
             catch (Exception e)
             {
                 plugin.DumpException(e);
@@ -12221,6 +12243,7 @@ public interface DataDictionaryInterface
         public DateTime ctime = DateTime.Now;
         public String _last_chat = "";
         public double _score = 0;
+        public WebException _web_exception = null;
 
         public WeaponStatsDictionary W = null;
         public DataDictionary DataDict = null;
