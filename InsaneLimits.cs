@@ -596,7 +596,7 @@ namespace PRoConEvents
         bool Tweet(String status);
         bool PRoConChat(String text);
         bool PRoConEvent(String text, String player);
-	bool SendSoundNotification(String soundfile, String soundfilerepeat);		
+        bool SendSoundNotification(String soundfile, String soundfilerepeat);
 
         void ServerCommand(params String[] arguments);
 
@@ -1285,8 +1285,8 @@ namespace PRoConEvents
                 json2key.Add("vehiclesDestroyed", "vehicles_killed");
                 json2key.Add("killStreakBonus", "killStreakBonus");
 
-				json2key.Add("killAssists", "killAssists");
-				json2key.Add("rsDeaths", "rsDeaths");
+                json2key.Add("killAssists", "killAssists");
+                json2key.Add("rsDeaths", "rsDeaths");
                 json2key.Add("rsKills", "rsKills");
                 json2key.Add("rsNumLosses", "rsNumLosses");
                 json2key.Add("rsNumWins", "rsNumWins");
@@ -1711,7 +1711,7 @@ namespace PRoConEvents
                 ServerCommand = Actions.ServerCommand,
                 PRoConEvent = Actions.PRoConEvent,
                 PRoConChat = Actions.PRoConChat,
-                SoundNotify = Actions.SoundNotify				
+                SoundNotify = Actions.SoundNotify
             };
 
 
@@ -1768,12 +1768,12 @@ namespace PRoConEvents
                 "PRoConEvent Action", "procon_event_group", @"^procon_event_",
                 "PRoConChat Action", "procon_chat_group", @"^procon_chat_",
                 "ServerCommand Action", "server_command_group", @"^server_command_",
-		"Taskbar Notify Action", "taskbar_notify_group", @"^taskbar_", 
+                "Taskbar Notify Action", "taskbar_notify_group", @"^taskbar_", 
                 "Log Action", "log_group", @"^log_",
                 "SMS Action", "sms_group", @"^sms_",
                 "Mail Action", "mail_group", @"^mail_",
                 "Tweet Action", "tweet_group", @"^tweet_",
-                "Sound Notify Action", "sound_notify_group", @"^sound_"				
+                "Sound Notify Action", "sound_notify_group", @"^sound_"
             };
 
 
@@ -1797,7 +1797,7 @@ namespace PRoConEvents
                 "sms_group", "sms_country", "sms_carrier", "sms_number", "sms_message", 
                 "mail_group", "mail_address", "mail_subject", "mail_body",
                 "tweet_group", "tweet_status",
-                "sound_notify_group", "sound_notify_file", "sound_notify_repeat",				
+                "sound_notify_group", "sound_notify_file", "sound_notify_repeat",
                 "delete"
                 });
 
@@ -2169,7 +2169,7 @@ namespace PRoConEvents
                             FirstCheck.Equals(LimitType.Disabled) ||
                             FirstCheckEmpty;
                 }
-            }	
+            }
 
             public String TaskbarNotifyMessage
             {
@@ -2190,7 +2190,7 @@ namespace PRoConEvents
             public String SoundNotifyRepeat
             {
                 get { return fields["sound_notify_repeat"]; }
-            }	
+            }
 
             public void RecordActivation(String PlayerName)
             {
@@ -2460,11 +2460,11 @@ namespace PRoConEvents
                     if ((Regex.Match(field_key, @"log_file").Success &&
                         !((LogDestination & LimitLogDestination.File) > 0)))
                         return true;
-					
+
                     if (Regex.Match(field_key, @"taskbar_notify_.+").Success &&
                         !((Action & LimitAction.TaskbarNotify) > 0))
                         return true;
-						
+
                     if (Regex.Match(field_key, @"sound_notify_.+").Success &&
                         !((Action & LimitAction.SoundNotify) > 0))
                         return true;
@@ -2630,7 +2630,7 @@ namespace PRoConEvents
                 setFieldValue("ea_ban_duration", EABanDuration.Temporary.ToString());
                 setFieldValue("ea_ban_minutes", (10).ToString());
                 setFieldValue("ea_ban_message", "activated " + FullReplaceName);
-			
+
                 setFieldValue("taskbar_notify_group", auto_hide);
                 setFieldValue("taskbar_notify_title", FullReplaceName + " activation");
                 setFieldValue("taskbar_notify_message", FullReplaceName + " was activated on %date%, at %time%");
@@ -3415,7 +3415,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.0.0.8-patch-4";
+            return "0.0.0.8-patch-5";
         }
 
         public string GetPluginAuthor()
@@ -3996,6 +3996,7 @@ public interface PluginInterface
     bool Tweet(String status);
     bool PRoConChat(String text);
     bool PRoConEvent(String text, String player);
+    bool SendSoundNotification(String soundfile, String soundfilerepeat);
 
     void ServerCommand(params String[] arguments);
 
@@ -5931,7 +5932,7 @@ public interface DataDictionaryInterface
                         return !VMode;
                 }
 
-			
+
                 if ((action & Limit.LimitAction.TaskbarNotify) > 0)
                 {
                     action = action & ~Limit.LimitAction.TaskbarNotify;
@@ -10709,7 +10710,7 @@ public interface DataDictionaryInterface
 
         }
         
-		public bool SendTaskbarNotification(String title, String message)
+        public bool SendTaskbarNotification(String title, String message)
         {
             if (VMode)
             {
@@ -10718,7 +10719,7 @@ public interface DataDictionaryInterface
             }
 
             //ExecuteCommand("procon.protected.playsound", title, message);
-			ExecuteCommand("procon.protected.notification.write", title, message);
+            ExecuteCommand("procon.protected.notification.write", title, message);
             return true;
         }
 
@@ -10729,7 +10730,7 @@ public interface DataDictionaryInterface
                 ConsoleWarn("not sending sound notification, ^bvirtual_mode^n is ^bon^n");
                 return false;
             }
-			ExecuteCommand("procon.protected.playsound", soundfile, soundfilerepeat);
+            ExecuteCommand("procon.protected.playsound", soundfile, soundfilerepeat);
             //ExecuteCommand("procon.protected.notification.write", title, message);
             return true;
         }
