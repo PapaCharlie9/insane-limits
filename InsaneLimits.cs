@@ -3415,7 +3415,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.0.0.8-patch-5x";
+            return "0.0.0.8-patch-6";
         }
 
         public string GetPluginAuthor()
@@ -5036,7 +5036,7 @@ public interface DataDictionaryInterface
 
         public void InitWaitHandles()
         {
-            DebugWrite("Initializing wait handles", 4);
+            DebugWrite("Initializing wait handles", 5);
             fetch_handle = new EventWaitHandle(false, EventResetMode.ManualReset);
             enforcer_handle = new EventWaitHandle(false, EventResetMode.ManualReset);
             settings_handle = new EventWaitHandle(false, EventResetMode.ManualReset);
@@ -5082,7 +5082,7 @@ public interface DataDictionaryInterface
 
         public void InitThreads()
         {
-            DebugWrite("Initializing threads", 4);
+            DebugWrite("Initializing threads", 5);
             this.fetching_thread = new Thread(new ThreadStart(fetch_thread_loop));
             this.enforcer_thread = new Thread(new ThreadStart(enforcer_thread_loop));
             this.say_thread = new Thread(new ThreadStart(say_thread_loop));
@@ -5096,7 +5096,7 @@ public interface DataDictionaryInterface
 
         public void StartThreads()
         {
-            DebugWrite("Starting threads", 4);
+            DebugWrite("Starting threads", 5);
             settings_thread.Start();
             say_thread.Start();
             enforcer_thread.Start();
@@ -5175,39 +5175,65 @@ public interface DataDictionaryInterface
             {
 
                 Thread.CurrentThread.Name = "fetch";
+                int retryCount = 0;
                 DebugWrite(" starting", 3);
+                int npqc = 0;
 
                 InsaneLimits plugin = this;
                 while (true)
                 {
-                    if (new_player_queue.Count == 0)
+                    lock (players_mutex)
+                    {
+                        npqc = new_player_queue.Count;
+                    }
+                    while (npqc == 0)
                     {
                         // if there are no more players, put yourself to sleep
-                        DebugWrite("no new players, will wait", 3);
+                        DebugWrite("no new players, will wait, signalling ^benforcer^n thread", 7);
                         enforcer_handle.Set();
                         fetch_handle.Reset();
                         fetch_handle.WaitOne();
-                        DebugWrite("awake!, will signal ^benforcer^n thread wait", 4);
+                        DebugWrite("awake!, block ^benforcer^n thread", 7);
                         enforcer_handle.Reset();
+                        lock (players_mutex)
+                        {
+                            npqc = new_player_queue.Count;
+                        }
                     }
 
 
-                    while (new_player_queue.Count > 0)
+                    while (npqc > 0)
                     {
                         if (!plugin_enabled)
                             break;
 
-                        List<String> keys = new List<string>(new_player_queue.Keys);
+                        List<String> keys = null;
+                        
+                        lock (players_mutex)
+                        {
+                            keys = new List<string>(new_player_queue.Keys);
+                        }
 
                         String name = keys[keys.Count - 1];
 
                         CPunkbusterInfo info = null;
-                        new_player_queue.TryGetValue(name, out info);
+                        
+                        lock (players_mutex)
+                        {
+                            new_player_queue.TryGetValue(name, out info);
+                        }
 
                         if (info == null)
-                            continue;
+                        {
+                            lock (players_mutex)
+                            {
+                                npqc = new_player_queue.Count;
+                            }
 
-                        // make sure I am the only one modifying these dictionarie at this time
+                            continue;
+                        }
+
+                        // make sure I am the only one modifying these dictionaries at this time
                         lock (players_mutex)
                         {
                             if (new_player_queue.ContainsKey(name))
@@ -5215,37 +5241,83 @@ public interface DataDictionaryInterface
 
                             if (!new_players_batch.ContainsKey(name))
                                 new_players_batch.Add(name, null);
+                            
+                            npqc = new_player_queue.Count;
                         }
 
-                        String msg = new_player_queue.Count + " more player" + ((new_player_queue.Count > 1) ? "s" : "") + " in queue";
-                        if (new_player_queue.Count == 0)
+                        String msg = npqc + " more player" + ((npqc > 1) ? "s" : "") + " in queue";
+                        if (npqc == 0)
                             msg = "no more players in queue";
 
-                        plugin.DebugWrite("getting battlelog stats for ^b" + name + "^n, " + msg, 3);
-                        if (new_players_batch.ContainsKey(info.SoldierName))
+                        bool ck = false;
+                        lock (players_mutex)
                         {
+                            ck = new_players_batch.ContainsKey(info.SoldierName);
+                        }
+                        if (ck)
+                        {
+                            DebugWrite("getting battlelog stats for ^b" + name + "^n, " + msg, 3);
+                            retryCount = 0;
                             PlayerInfo ptmp = plugin.blog.fetchStats(new PlayerInfo(plugin, info));
-                            if (ptmp._web_exception != null)
+                            
+                            while (ptmp._web_exception != null && retryCount < 3)
                             {
-                                // Retry 3 times
-                                for (int k = 1; k < 4; ++k)
-                                {
-                                    Thread.Sleep(k*1000);
-                                    ptmp._web_exception = null;
-                                    ptmp = plugin.blog.fetchStats(ptmp);
-                                    if (ptmp._web_exception == null) break;
-                                }
+                                // Retry this player, try again after waiting 10 seconds
+                                DebugWrite("stats for " + name + " rejected, sleep, update player list, notify ^benforcer^n thread", 4);
+                                enforcer_handle.Set();
+                                fetch_handle.Reset();
+
+                                Thread.Sleep(10*1000);
                                 
-                                if (ptmp._web_exception != null) ConsoleError("Fetching stats for " + name + ": " + ptmp._web_exception.Message);
+                                scratch_handle.Reset();
+                                getPBPlayersList();
+                                getPlayersList();
+                                DebugWrite("during retry, waiting for player list updates", 6);
+                                scratch_handle.WaitOne(5*1000); // 5 sec timeout
+                                
+                                scratch_handle.Reset();
+                                DebugWrite("during retry, awake! got player list updates", 6);
+
+                                fetch_handle.WaitOne(2*1000); // 2 sec timeout
+                                enforcer_handle.Reset();
+                                
+                                retryCount = retryCount + 1;
+                                DebugWrite("awake! retry #" + retryCount + " for " + name, 4);
+                                
+                                bool sheLeft = false;
+                                lock (players_mutex)
+                                {
+                                    sheLeft = (!scratch_list.Contains(name));
+                                }
+                                if (sheLeft) {
+                                    DebugWrite("aborting fetch, looks like player " + name + " left the game!", 4);
+                                    break;
+                                }
+
+                                ptmp._web_exception = null;
+                                ptmp = plugin.blog.fetchStats(new PlayerInfo(plugin, info));
                             }
-                            new_players_batch[name] = ptmp;
+
+                            if (ptmp._web_exception != null) {
+                                ConsoleError("Fetching stats for ^b" + name + "^n: " + ptmp._web_exception.Message);
+                            }
+
+                            lock (players_mutex)
+                            {
+                                new_players_batch[name] = ptmp;
+                            }
+                        }
+
+                        lock (players_mutex)
+                        {
+                            npqc = new_player_queue.Count;
                         }
                     }
 
                     // abort the thread if the plugin was disabled
                     if (!plugin_enabled)
                     {
-                        plugin.DebugWrite("detected that plugin was disabled, aborting", 3);
+                        DebugWrite("detected that plugin was disabled, aborting", 3);
                         lock (players_mutex)
                         {
                             new_player_queue.Clear();
@@ -5262,10 +5334,12 @@ public interface DataDictionaryInterface
                     getPBPlayersList();
                     getPlayersList();
 
+                    DebugWrite("waiting for player list updates", 6);
                     scratch_handle.WaitOne();
                     scratch_handle.Reset();
 
                     getMapInfoSync();
+                    DebugWrite("awake! got player list updates", 6);
 
                     List<PlayerInfo> inserted = new List<PlayerInfo>();
                     // first insert the entire player's batch
@@ -6687,6 +6761,7 @@ public interface DataDictionaryInterface
                     {
                         DebugWrite("Queueing ^b" + cpbiPlayer.SoldierName + "^n for stats fetching", 3);
                         new_player_queue.Add(cpbiPlayer.SoldierName, cpbiPlayer);
+                        DebugWrite("signalling ^bfetch^n thread", 7);
                         fetch_handle.Set();
                     }
 
@@ -7472,11 +7547,14 @@ public interface DataDictionaryInterface
             int timeout = getIntegerVarValue("wait_timeout");
 
 
+            DebugWrite("waiting, timeout after " + timeout + " seconds", 7);
             if (handle.WaitOne(timeout * 1000) == false)
             {
                 StackTrace stack = new StackTrace();
                 String caller = stack.GetFrame(1).GetMethod().Name;
                 ConsoleException("Timeout(" + timeout + " seconds) expired, while waiting for " + name + " within " + caller);
+            } else {
+                DebugWrite("awake! no timeout", 7);
             }
         }
 
@@ -8593,9 +8671,10 @@ public interface DataDictionaryInterface
 
                     if (messageQueue.Count == 0)
                     {
-                        DebugWrite("waiting for say message ...", 5);
+                        DebugWrite("waiting for say message ...", 7);
                         say_handle.WaitOne();
                         say_handle.Reset();
+                        DebugWrite("awake!", 7);
                     }
 
                     SendQueuedMessages(sleep_time);
@@ -8638,10 +8717,11 @@ public interface DataDictionaryInterface
                     try
                     {
                         int sleep_t = getIntegerVarValue("auto_load_interval");
-                        plugin.DebugWrite("sleeping for ^b" + sleep_t + "^n second" + ((sleep_t > 1) ? "s" : "") + ", before next iteration", 4);
+                        plugin.DebugWrite("sleeping for ^b" + sleep_t + "^n second" + ((sleep_t > 1) ? "s" : "") + ", before next iteration", 6);
 
                         settings_handle.Reset();
                         settings_handle.WaitOne(sleep_t * 1000);
+                        plugin.DebugWrite("awake! loading settings", 6);
                         
 
                         if (!plugin_enabled)
@@ -8692,11 +8772,13 @@ public interface DataDictionaryInterface
                 while (true)
                 {
 
+                    DebugWrite("waiting for signal from ^bfetch^n thread", 7);
                     Thread.Sleep(1000);
                     DateTime now = DateTime.Now;
 
                     // Wait for fetch thread to let us go through
                     enforcer_handle.WaitOne();
+                    DebugWrite("awake! processing interval limits ...", 7);
 
                     if (!plugin_enabled)
                         break;
@@ -8766,7 +8848,7 @@ public interface DataDictionaryInterface
                                         continue;
 
 
-                                    plugin.DebugWrite("Evaluating " + limit.ShortDisplayName + " for ^b" + name + "^n", 5);
+                                    plugin.DebugWrite("Evaluating " + limit.ShortDisplayName + " for ^b" + name + "^n", 4);
 
                                     if (evaluateLimit(limit, pinfo))
                                     {
@@ -8794,6 +8876,10 @@ public interface DataDictionaryInterface
                         DumpException(e);
 
                     }
+                    
+                    // Notify the fetch thread
+                    DebugWrite("done, will signal ^bfetch^n thread", 7);
+                    fetch_handle.Set();
 
                     if (!plugin_enabled)
                         break;
@@ -11466,8 +11552,12 @@ public interface DataDictionaryInterface
         {
             try
             {
-                if (client == null)
+                if (client == null) {
                     client = new WebClient();
+                    String ua = "Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; WOW64; Trident/5.0; .NET CLR 3.5.30729)";
+                    plugin.DebugWrite("Using user-agent: " + ua, 3);
+                    client.Headers.Add("user-agent", ua);
+                }
 
                 html_data = client.DownloadString(url);
 
