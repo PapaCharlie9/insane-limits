@@ -3415,7 +3415,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.0.0.8-patch-6";
+            return "0.0.8.6";
         }
 
         public string GetPluginAuthor()
@@ -5295,6 +5295,7 @@ public interface DataDictionaryInterface
                                 }
 
                                 ptmp._web_exception = null;
+                                ptmp.StatsError = false;
                                 ptmp = plugin.blog.fetchStats(new PlayerInfo(plugin, info));
                             }
 
