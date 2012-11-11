@@ -2609,7 +2609,7 @@ namespace PRoConEvents
                 setFieldValue("name", "Name" + id);
                 setFieldValue("state", LimitState.Enabled.ToString());
                 setFieldValue("evaluation", EvaluationType.OnJoin.ToString());
-                setFieldValue("evaluation_interval", (30).ToString());
+                setFieldValue("evaluation_interval", (10).ToString());
                 setFieldValue("first_check", LimitType.Disabled.ToString());
                 setFieldValue("second_check", LimitType.Disabled.ToString());
                 setFieldValue("delete", (false).ToString());
@@ -2947,6 +2947,7 @@ namespace PRoConEvents
                 // Not needed anymore, OnJoin limits are evaluated once only in OnPlayerJoin
                 ResetEvaluations();
                 */
+                //plugin.DebugWrite("^8^b============= In Reset " + id, 7); // XXX
                 ResetLastInterval(DateTime.Now);
                 Data.Clear();
             }
@@ -3005,8 +3006,8 @@ namespace PRoConEvents
 
                     try
                     {
-
-
+                        String origValue = fields[field];
+                        
                         fields[field] = Enum.Format(type, Enum.Parse(type, val, true), "G").ToString();
 
 
@@ -3038,8 +3039,14 @@ namespace PRoConEvents
                         if (field.Equals("state") && !Enabled)
                             Reset();
 
-                        if (field.Equals("evaluation"))
+                        if (origValue != fields[field]) {
+                        /*
+                        if ((field.Equals("evaluation") && origValue != fields[field])
+                        || (fields.Equals("evaluation_interval") && origValue != fields[field])) {
+                        */
+                            plugin.DebugWrite("^8^b============= In validateAndSetFieldValue #" + id, 7); // XXX
                             ResetLastInterval(DateTime.Now);
+                        }
 
                         return true;
                     }
@@ -3068,7 +3075,7 @@ namespace PRoConEvents
                             !plugin.intAssertGTE(field, integerValue, 0))
                         return false;
                     else if (Regex.Match(field, @"^evaluation_interval$").Success &&
-                            !plugin.intAssertGTE(field, integerValue, 30))
+                            !plugin.intAssertGTE(field, integerValue, 10))
                         return false;
 
                     fields[field] = integerValue.ToString();
@@ -3478,8 +3485,8 @@ namespace PRoConEvents
             <li><b>OnSuicide</b> - Limit evaluated when player commits suicide</li>
             <li><b>OnAnyChat</b> - Limit evaluated when players sends a chat message</li>
             <li><b>OnInterval</b> - (deprecated) Same behavior as <b>OnIntervalPlayers</b></li>
-            <li><b>OnIntervalPlayers</b> - Limit evaluated (for all players) every <b>evaluation_interval</b> number of seconds </li>
-            <li><b>OnIntervalServer</b> - Limit evaluated once every <b>evaluation_interval</b> number of seconds</li>
+            <li><b>OnIntervalPlayers</b> - Limit evaluated (for all players) every <b>evaluation_interval</b> number of seconds (minimum 10) </li>
+            <li><b>OnIntervalServer</b> - Limit evaluated once every <b>evaluation_interval</b> number of seconds (minimum 10)</li>
             <li><b>OnRoundOver</b> - Limit evaluated when round over event is sent</li>
             <li><b>OnRoundStart</b> - Limit evaluated after round over event, when first player spawns</li>
             <li><b>OnTeamChange</b> - Limit evaluated after after player switches teams</li>
@@ -5269,7 +5276,6 @@ public interface DataDictionaryInterface
 
                                 Thread.Sleep(10*1000);
 
-
                                 if (!plugin_enabled) break;
 
                                 scratch_handle.Reset();
@@ -5312,6 +5318,10 @@ public interface DataDictionaryInterface
                             {
                                 new_players_batch[name] = ptmp;
                             }
+                            
+                            if (ptmp.StatsError) {
+                                DebugWrite("Unable to fetch stats for ^b" + name + "^n", 3);
+                            }
                         }
 
                         lock (players_mutex)
@@ -5325,6 +5335,7 @@ public interface DataDictionaryInterface
                             DebugWrite(npqc + " more players in queue, wait, signal ^benforcer^n thread", 4);
                             fetch_handle.Reset();
                             enforcer_handle.Set();
+                            Thread.Sleep(5*1000); // 5 secs
                             fetch_handle.WaitOne();
                             DebugWrite("got signal from ^benforcer^n thread", 4);
                             enforcer_handle.Reset();
@@ -10084,6 +10095,13 @@ public interface DataDictionaryInterface
                             continue;
 
                         Limit limit = limits[key];
+
+                        if (limit.Enabled)
+                        {
+                            DebugWrite("^8^b============= In SaveSettings " + limit.id, 7); // XXX
+                            limit.ResetLastInterval(DateTime.Now);
+                        }
+
                         Dictionary<String, String> lsettings = limit.getSettings(false);
                         foreach (KeyValuePair<String, String> pair in lsettings)
                             settings += "procon.protected.plugins.setVariable \"" + cname + "\" \"" + pair.Key + "\" \"BASE64:" + Encode(pair.Value) + "\"" + NL;
@@ -10176,8 +10194,7 @@ public interface DataDictionaryInterface
 
                         if (Regex.Match(var, @"list_\d+_id", RegexOptions.IgnoreCase).Success)
                             lscount++;
-
-
+ 
                         SetPluginVariable(var, value);
 
                     }
