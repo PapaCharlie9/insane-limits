@@ -1,13 +1,13 @@
 /*
  * Copyright 2011 Miguel Mendoza - miguel@micovery.com, PapaCharlie9, Singh400, EBastard
  *
- * Insane Balancer is free software: you can redistribute it and/or modify it under the terms of the 
- * GNU General Public License as published by the Free Software Foundation, either version 3 of the License, 
- * or (at your option) any later version. Insane Balancer is distributed in the hope that it will be useful, 
+ * Insane Balancer is free software: you can redistribute it and/or modify it under the terms of the
+ * GNU General Public License as published by the Free Software Foundation, either version 3 of the License,
+ * or (at your option) any later version. Insane Balancer is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See the GNU General Public License for more details. You should have received a copy of the 
+ * See the GNU General Public License for more details. You should have received a copy of the
  * GNU General Public License along with Insane Balancer. If not, see http://www.gnu.org/licenses/.
- * 
+ *
  */
 
 using System;
@@ -250,10 +250,10 @@ namespace PRoConEvents
         double ActivationsTotal();
 
         // Number of times this limit has been activated by player
-        /* 
+        /*
          * Kill, TeamKill: Spree value is reset when player dies
          * Death, TeamDeath, and Suicide: Spree value is reset whe player makes a kill
-         * 
+         *
          * Spawn, Join, Interval: Spree value is never reset, you may reset it manually.
          */
 
@@ -367,7 +367,7 @@ namespace PRoConEvents
 
         /* Other data */
         double TimeRound { get; }                // Time since round started
-        double TimeTotal { get; }                // Time since plugin enabled 
+        double TimeTotal { get; }                // Time since plugin enabled
         double TimeUp { get; }                   // Time since last server restart
         double RoundsTotal { get; }              // Round played since plugin enabled
 
@@ -526,7 +526,7 @@ namespace PRoConEvents
     {
 
         /*
-         * Methods for sending messages 
+         * Methods for sending messages
          */
 
         bool SendGlobalMessage(String message);
@@ -552,8 +552,8 @@ namespace PRoConEvents
 
 
         /*
-         * Methods for getting whitelist information 
-         * 
+         * Methods for getting whitelist information
+         *
          */
         bool isInWhitelist(String PlayerName);
         bool isInPlayerWhitelist(String PlayerName);
@@ -573,14 +573,14 @@ namespace PRoConEvents
 
         /*
          *  Method: R
-         *  
-         *  Replaces tags like %p_n% (Player Name), %k_n% (Killer Name), %v_n% (Victim Name), etc          
+         *
+         *  Replaces tags like %p_n% (Player Name), %k_n% (Killer Name), %v_n% (Victim Name), etc
          */
 
         String R(String message);
 
 
-        /* 
+        /*
          * Methods for actions
          */
 
@@ -602,7 +602,7 @@ namespace PRoConEvents
 
         /*
          * Examples:
-         *           
+         *
          *           KickPlayerWithMessage(""micovery"" , ""Kicked you for team-killing!"");
          *           EABanPlayerWithMessage(EABanType.EA_GUID, EABanDuration.Temporary, ""micovery"", 10, ""You are banned for 10 minutes!"");
          *           PBBanPlayerWithMessage(PBBanDuration.Permanent, ""micovery"", 0, ""You are banned forever!"");
@@ -657,45 +657,45 @@ namespace PRoConEvents
             /* Country, Carrier, Gateway */
 
             "Argentina", "Claro", "number@sms.ctimovil.com.ar",
-			"Argentina", "Movistar", "number@sms.movistar.net.ar",
-			"Argentina", "Nextel", "TwoWay.11number@nextel.net.ar",
-			"Argentina", "Personal", "number@alertas.personal.com.ar",
-			"Aruba", "Setar Mobile", "number@mas.aw",
-			"Australia", "T-Mobile(Optus Zoo)", "0number@optusmobile.com.au",
-            
+            "Argentina", "Movistar", "number@sms.movistar.net.ar",
+            "Argentina", "Nextel", "TwoWay.11number@nextel.net.ar",
+            "Argentina", "Personal", "number@alertas.personal.com.ar",
+            "Aruba", "Setar Mobile", "number@mas.aw",
+            "Australia", "T-Mobile(Optus Zoo)", "0number@optusmobile.com.au",
+
             "Austria", "T-Mobile", "number@sms.t-mobile.at",
-			"Brasil", "Claro", "number@clarotorpedo.com.br",
-			"Brasil", "Vivo", "number@torpedoemail.com.br",
-			"Bulgaria", "Globul", "35989number@sms.globul.bg",
-			"Bulgaria", "Mobiltel", "35988number@sms.mtel.net",
-			"Bulgaria", "Vivacom", "35987number@sms.vivacom.bg",
-			"Canada", "Aliant", "number@sms.wirefree.informe.ca",
-			"Canada", "Bell Mobility", "number@txt.bell.ca",
+            "Brasil", "Claro", "number@clarotorpedo.com.br",
+            "Brasil", "Vivo", "number@torpedoemail.com.br",
+            "Bulgaria", "Globul", "35989number@sms.globul.bg",
+            "Bulgaria", "Mobiltel", "35988number@sms.mtel.net",
+            "Bulgaria", "Vivacom", "35987number@sms.vivacom.bg",
+            "Canada", "Aliant", "number@sms.wirefree.informe.ca",
+            "Canada", "Bell Mobility", "number@txt.bell.ca",
             "Canada", "Solo Mobile", "number@txt.bell.ca",
-			"Canada", "Fido", "number@fido.ca",
-			"Canada", "Koodo Mobile", "number@msg.telus.com",
-			"Canada", "MTS Mobility", "number@text.mtsmobility.com",
-			"Canada", "PC Telecom", "number@mobiletxt.ca",
-			"Canada", "Rogers Wireless", "number@pcs.rogers.com",
+            "Canada", "Fido", "number@fido.ca",
+            "Canada", "Koodo Mobile", "number@msg.telus.com",
+            "Canada", "MTS Mobility", "number@text.mtsmobility.com",
+            "Canada", "PC Telecom", "number@mobiletxt.ca",
+            "Canada", "Rogers Wireless", "number@pcs.rogers.com",
             "Canada", "SaskTel", "number@sms.sasktel.com",
-			"Canada", "Telus Mobility", "number@msg.telus.com",
-			"Canada", "Virgin Mobile", "number@vmobile.ca",
-			"China", "China Mobile", "number@139.com",
-			"Colombia", "Comcel", "number@comcel.com.co",
-			"Colombia", "Movistar", "number@movistar.com.co",
-			"Colombia", "Tigo (Formerly Ola)", "number@sms.tigo.com.co",
-			"Costa Rica", "ICE", "number@ice.cr",
-			"Europe", "TellusTalk", "number@esms.nu",
+            "Canada", "Telus Mobility", "number@msg.telus.com",
+            "Canada", "Virgin Mobile", "number@vmobile.ca",
+            "China", "China Mobile", "number@139.com",
+            "Colombia", "Comcel", "number@comcel.com.co",
+            "Colombia", "Movistar", "number@movistar.com.co",
+            "Colombia", "Tigo (Formerly Ola)", "number@sms.tigo.com.co",
+            "Costa Rica", "ICE", "number@ice.cr",
+            "Europe", "TellusTalk", "number@esms.nu",
             "France", "Bouygues Telecom", "number@mms.bouyguestelecom.fr",
-			"Germany", "E-Plus", "0number@smsmail.eplus.de",
-			"Germany", "O2", "0number@o2online.de",
-			"Germany", "T-Mobile", "number@t-mobile-sms.de",
-			"Germany", "Vodafone", "0number@vodafone-sms.de",
-			"Hong Kong", "CSL", "number@mgw.mmsc1.hkcsl.com",
-			"Hungary", "Ozeki", "number@ozekisms.com",
-			"Iceland", "OgVodafone", "number@sms.is",
-			"Iceland", "Siminn", "number@box.is",
-			"India", "Aircel", "number@aircel.co.in",
+            "Germany", "E-Plus", "0number@smsmail.eplus.de",
+            "Germany", "O2", "0number@o2online.de",
+            "Germany", "T-Mobile", "number@t-mobile-sms.de",
+            "Germany", "Vodafone", "0number@vodafone-sms.de",
+            "Hong Kong", "CSL", "number@mgw.mmsc1.hkcsl.com",
+            "Hungary", "Ozeki", "number@ozekisms.com",
+            "Iceland", "OgVodafone", "number@sms.is",
+            "Iceland", "Siminn", "number@box.is",
+            "India", "Aircel", "number@aircel.co.in",
             "India", "Andhra Pradesh Aircel", "number@airtelap.com",
             "India", "Karnataka Airtel", "number@airtelkk.com",
             "India", "Andhra Pradesh AirTel", "91number@airtelap.com",
@@ -713,7 +713,7 @@ namespace PRoConEvents
             "India", "Haryana Airtel", "919896number@airtelmail.com",
             "India", "Haryana Escotel", "9812number@escotelmobile.com",
             "India", "Himachai Pradesh Airtel", "919816number@airtelmail.com",
-            "India", "Karnataka Airtel", "919845number@airtelkk.com", 
+            "India", "Karnataka Airtel", "919845number@airtelkk.com",
             "India", "Kerala Airtel", "919895number@airtelkerala.com",
             "India", "Kerala BPL Mobile", "9846number@bplmobile.com",
             "India", "Kerala Escotel", "9847number@escotelmobile.com",
@@ -731,12 +731,12 @@ namespace PRoConEvents
             "India", "Tamil Nadu BPL Mobile", "919843number@bplmobile.com",
             "India", "Uttar Pradesh West Escotel", "9837number@escotelmobile.com",
             "India", "Loop (BPL Mobile), Mumbai", "number@loopmobile.co.in",
-			"Ireland", "Meteor", "number@sms.mymeteor.ie",
-			"Israel", "Spikko", "number@SpikkoSMS.com",
-			"Italy", "TIM", "0number@timnet.com",
-			"Japan", "AU, KDDI", "number@ezweb.ne.jp",
-			"Japan", "NTT DoCoMo", "number@docomo.ne.jp",
-			"Japan", "Vodafone, Chuugoku/Western", "number@n.vodafone.ne.jp",
+            "Ireland", "Meteor", "number@sms.mymeteor.ie",
+            "Israel", "Spikko", "number@SpikkoSMS.com",
+            "Italy", "TIM", "0number@timnet.com",
+            "Japan", "AU, KDDI", "number@ezweb.ne.jp",
+            "Japan", "NTT DoCoMo", "number@docomo.ne.jp",
+            "Japan", "Vodafone, Chuugoku/Western", "number@n.vodafone.ne.jp",
             "Japan", "Vodafone, Hokkaido", "number@d.vodafone.ne.jp",
             "Japan", "Vodafone, Hokuriko/Central North", "number@r.vodafone.ne.jp",
             "Japan", "Vodafone, Kansai/West/Osaka", "number@k.vodafone.ne.jp",
@@ -744,34 +744,34 @@ namespace PRoConEvents
             "Japan", "Vodafone, Kyuushu/Okinawa", "number@q.vodafone.ne.jp",
             "Japan", "Vodafone, Skikoku", "number@s.vodafone.ne.jp",
             "Japan", "Vodafone, Touhoku/Niigata/North", "number@h.vodafone.ne.jp",
-			"Japan", "Willcom", "number@pdx.ne.jp",
+            "Japan", "Willcom", "number@pdx.ne.jp",
             "Japan", "Willcom DJ", "number@dj.pdx.ne.jp",
             "Japan", "Willcom DI", "number@di.pdx.ne.jp",
             "Japan", "Willcom DK", "number@dk.pdx.ne.jp",
-			"Mauritius", "Emtel", "number@emtelworld.net",
-			"Mexico", "Nextel", "number@msgnextel.com.mx",
-			"Nepal", "Mero Mobile", "977number@sms.spicenepal.com",
-			"Netherlands", "Orange", "0number@sms.orange.nl",
-			"Netherlands", "T-Mobile", "31number@gin.nl",
-			"New Zealand", "Telecom New Zealand", "number@etxt.co.nz",
-			"New Zealand", "Vodafone", "number@mtxt.co.nz",
-			"Nicaragua", "Claro", "number@ideasclaro-ca.com",
-			"Norway", "Sendega", "number@sendega.com",
-			"Poland", "Orange Polska", "9digit@orange.pl",
-			"Poland", "Plus", "+number@text.plusgsm.pl",
-			"Puerto Rico", "Claro", "number@vtexto.com",
-			"Singapore", "M1", "number@m1.com.sg",
-			"South Africa", "MTN", "number@sms.co.za",
-			"South Africa", "Vodacom", "number@voda.co.za",
-			"South Korea", "Helio", "number@myhelio.com",
-			"Spain", "Esendex", "number@esendex.net",
-			"Spain", "Movistar", "0number@movistar.net",
-			"Spain", "Vodafone", "0number@vodafone.es",
-			"Singapore", "Starhub Enterprise Messaging Solution", "number@starhub-enterprisemessaging.com",
-			"Sri Lanka", "Mobitel", "number@sms.mobitel.lk",
-			"Sweden", "Tele2", "0number@sms.tele2.se",
-			"Switzerland", "Sunrise Communications", "number@gsm.sunrise.ch",
-			"United States", "Alaska Communications", "number@msg.acsalaska.com",
+            "Mauritius", "Emtel", "number@emtelworld.net",
+            "Mexico", "Nextel", "number@msgnextel.com.mx",
+            "Nepal", "Mero Mobile", "977number@sms.spicenepal.com",
+            "Netherlands", "Orange", "0number@sms.orange.nl",
+            "Netherlands", "T-Mobile", "31number@gin.nl",
+            "New Zealand", "Telecom New Zealand", "number@etxt.co.nz",
+            "New Zealand", "Vodafone", "number@mtxt.co.nz",
+            "Nicaragua", "Claro", "number@ideasclaro-ca.com",
+            "Norway", "Sendega", "number@sendega.com",
+            "Poland", "Orange Polska", "9digit@orange.pl",
+            "Poland", "Plus", "+number@text.plusgsm.pl",
+            "Puerto Rico", "Claro", "number@vtexto.com",
+            "Singapore", "M1", "number@m1.com.sg",
+            "South Africa", "MTN", "number@sms.co.za",
+            "South Africa", "Vodacom", "number@voda.co.za",
+            "South Korea", "Helio", "number@myhelio.com",
+            "Spain", "Esendex", "number@esendex.net",
+            "Spain", "Movistar", "0number@movistar.net",
+            "Spain", "Vodafone", "0number@vodafone.es",
+            "Singapore", "Starhub Enterprise Messaging Solution", "number@starhub-enterprisemessaging.com",
+            "Sri Lanka", "Mobitel", "number@sms.mobitel.lk",
+            "Sweden", "Tele2", "0number@sms.tele2.se",
+            "Switzerland", "Sunrise Communications", "number@gsm.sunrise.ch",
+            "United States", "Alaska Communications", "number@msg.acsalaska.com",
             "United States", "Alltel (Allied Wireless)", "number@sms.alltelwireless.com",
             "United States", "Verizon Wireless (Alltel Merger)", "number@text.wireless.alltel.com",
             "United States", "Ameritech", "number@paging.acswireless.com",
@@ -782,33 +782,33 @@ namespace PRoConEvents
             "United States", "Bluegrass Cellular", "number@sms.bluecell.com",
             "United States", "Bluesky Communications, Samoa", "number@psms.bluesky.as",
             "United States", "Boost Mobile", "number@myboostmobile.com",
-			"United States", "Cellcom", "number@cellcom.quiktxt.com",
+            "United States", "Cellcom", "number@cellcom.quiktxt.com",
             "United States", "Cellular One", "number@mobile.celloneusa.com",
             "United States", "Cellular South", "number@csouth1.com",
             "United States", "Centenial Wireless", "number@cwemail.com",
             "United States", "Cariton Valley Wireless", "number@sms.cvalley.net",
-			"United States", "Cincinnati Bell", "number@gocbw.com",
+            "United States", "Cincinnati Bell", "number@gocbw.com",
             "United States", "Cingular", "number@cingular.com",
             "United States", "Cingular (GoPhone)", "number@cingulartext.com",
-			"United States", "Cleartalk Wireless", "number@sms.cleartalk.us",
-			"United States", "Cricket", "number@sms.mycricket.com",
-			"United States", "Edge Wireless", "number@sms.edgewireless.com",
+            "United States", "Cleartalk Wireless", "number@sms.cleartalk.us",
+            "United States", "Cricket", "number@sms.mycricket.com",
+            "United States", "Edge Wireless", "number@sms.edgewireless.com",
             "United States", "Element Mobile", "number@SMS.elementmobile.net",
-			"United States", "Esendex", "number@echoemail.net",
-			"United States", "General Communications", "number@mobile.gci.net",
+            "United States", "Esendex", "number@echoemail.net",
+            "United States", "General Communications", "number@mobile.gci.net",
             "United States", "Golden State Cellular", "number@gscsms.com",
             "United States", "Hawaii Telcom Wireless", "number@hawaii.sprintpcs.com",
-			"United States", "Helio", "number@myhelio.com",
-			"United States", "Kajeet", "number@mobile.kajeet.net",
-			"United States", "MetroPCS", "number@mymetropcs.com",
-			"United States", "Nextel", "number@messaging.nextel.com",
-			"United States", "O2", "number@mobile.celloneus.com",
+            "United States", "Helio", "number@myhelio.com",
+            "United States", "Kajeet", "number@mobile.kajeet.net",
+            "United States", "MetroPCS", "number@mymetropcs.com",
+            "United States", "Nextel", "number@messaging.nextel.com",
+            "United States", "O2", "number@mobile.celloneus.com",
             "United States", "Orange", "number@mobile.celloneus.com",
             "United States", "PagePlus Cellular", "number@vtext.com",
-			"United States", "Pioneer Cellular", "number@zsend.com",
-			"United States", "Pocket Wireless", "number@sms.pocket.com",
-			"United States", "TracFone (prepaid)", "number@mmst5.tracfone.com",
-			"United States", "Sprint (PCS)", "number@messaging.sprintpcs.com",
+            "United States", "Pioneer Cellular", "number@zsend.com",
+            "United States", "Pocket Wireless", "number@sms.pocket.com",
+            "United States", "TracFone (prepaid)", "number@mmst5.tracfone.com",
+            "United States", "Sprint (PCS)", "number@messaging.sprintpcs.com",
             "United States", "Nextel (Sprint)", "number@page.nextel.com",
             "United States", "Straight Talk", "number@vtext.com",
             "United States", "Syringa Wireless", "number@rinasms.com",
@@ -816,28 +816,28 @@ namespace PRoConEvents
             "United States", "Teleflip", "number@teleflip.com",
             "United States", "Telus Mobility", "number@msg.telus.com",
             "United States", "Unicel", "number@utext.com",
-			"United States", "US Cellular", "number@email.uscc.net",
+            "United States", "US Cellular", "number@email.uscc.net",
             "United States", "US Mobility", "number@usmobility.net",
-			"United States", "Verizon Wireless", "number@vtext.com",
+            "United States", "Verizon Wireless", "number@vtext.com",
             "United States", "Viaero", "number@viaerosms.com",
-			"United States", "Virgin Mobile", "number@vmobl.com",
-			"United States", "XIT Communications" , "number@sms.xit.net",
-			"United States", "Qwest Wireless", "number@qwestmp.com",
+            "United States", "Virgin Mobile", "number@vmobl.com",
+            "United States", "XIT Communications" , "number@sms.xit.net",
+            "United States", "Qwest Wireless", "number@qwestmp.com",
             "United States", "Rogers Wireless", "number@pcs.rogers.com",
-			"United States", "Simple Mobile", "number@smtext.com",
-			"United States", "South Central Communications", "number@rinasms.com",
-			"United Kingdom", "AQL", "number@text.aql.com",
-			"United Kingdom", "Esendex","number@echoemail.net",
-			"United Kingdom", "HSL", "number@sms.haysystems.com",
-			"United Kingdom", "My-Cool-SMS", "number@my-cool-sms.com",
-			"United Kingdom", "O2", "44number@mmail.co.uk",
-			"United Kingdom", "Orange", "number@orange.net",
-			"United Kingdom", "Txtlocal", "number@txtlocal.co.uk",
+            "United States", "Simple Mobile", "number@smtext.com",
+            "United States", "South Central Communications", "number@rinasms.com",
+            "United Kingdom", "AQL", "number@text.aql.com",
+            "United Kingdom", "Esendex","number@echoemail.net",
+            "United Kingdom", "HSL", "number@sms.haysystems.com",
+            "United Kingdom", "My-Cool-SMS", "number@my-cool-sms.com",
+            "United Kingdom", "O2", "44number@mmail.co.uk",
+            "United Kingdom", "Orange", "number@orange.net",
+            "United Kingdom", "Txtlocal", "number@txtlocal.co.uk",
             "United Kingdom", "T-Mobile", "0n@t-mobile.uk.net",
-			"United Kingdom", "UniMovil Corporation", "number@viawebsms.com",
-			"United Kingdom", "Virgin Mobile", "number@vxtras.com",
+            "United Kingdom", "UniMovil Corporation", "number@viawebsms.com",
+            "United Kingdom", "Virgin Mobile", "number@vxtras.com",
             "Worldwide", "Panacea Mobile", "number@api.panaceamobile.com"
-             
+
         };
 
         public String[] Replacements = new string[]
@@ -892,7 +892,7 @@ namespace PRoConEvents
             "%p_fn%",   "Player full name, includes Clan-Tag (if any)",
             "%p_lc%",   "Player, Text of last chat",
             // Weapon Replacements (Evaluations: OnKill, OnDeath, OnTeamKill, OnTeamDeath, OnSuicide)
-            
+
             /* Legend:
              * w   - weapon
              * n   - name
@@ -905,7 +905,7 @@ namespace PRoConEvents
             "%w_a_x%",  "Weapon, number of times used by All players in current round",
 
             // Limit Replacements for Activations & Spree Counts (Evaluations: Any) ... (Current Round)
-            
+
             /* Legend:
              * th  - ordinal count suffix e.g. 1st, 2nd, 3rd, 4th, etc
              * x   - count, 1, 2, 3, 4, etc
@@ -948,7 +948,7 @@ namespace PRoConEvents
 
             "%l_id%", "Limit numeric id",
             "%l_n%", "Limit name",
-            
+
         };
 
 
@@ -1249,7 +1249,7 @@ namespace PRoConEvents
                 settings_group_order.Add(StorageG, 6);
                 settings_group_order.Add(ListManagerG, 7);
                 settings_group_order.Add(LimitManagerG, 8);
-                
+
                 /* Exported Variables are those that should live in the *conf file */
                 exported_variables.Add("tweet_my_server_bans");
                 exported_variables.Add("tweet_my_server_kicks");
@@ -1355,8 +1355,8 @@ namespace PRoConEvents
                 CaseInsensitve = 0x02
             };
 
-            public static List<String> valid_fields = new List<string>(new String[] 
-                { 
+            public static List<String> valid_fields = new List<string>(new String[]
+                {
                 "id", "hide", "state", "name", "comparison", "data", "delete"
                 });
 
@@ -1759,8 +1759,8 @@ namespace PRoConEvents
 
             public static String[] valid_groups = new String[]
             {
-                "Kick Action", "kick_group", @"^kick_",    
-                "Kill Action", "kill_group", @"^kill_", 
+                "Kick Action", "kick_group", @"^kick_",
+                "Kill Action", "kill_group", @"^kill_",
                 "Say Action",  "say_group", @"^say_",
                 "EABan Action", "ea_ban_group", @"^ea_ban_",
                 "PBBan Action", "pb_ban_group", @"^pb_ban_",
@@ -1768,7 +1768,7 @@ namespace PRoConEvents
                 "PRoConEvent Action", "procon_event_group", @"^procon_event_",
                 "PRoConChat Action", "procon_chat_group", @"^procon_chat_",
                 "ServerCommand Action", "server_command_group", @"^server_command_",
-                "Taskbar Notify Action", "taskbar_notify_group", @"^taskbar_", 
+                "Taskbar Notify Action", "taskbar_notify_group", @"^taskbar_",
                 "Log Action", "log_group", @"^log_",
                 "SMS Action", "sms_group", @"^sms_",
                 "Mail Action", "mail_group", @"^mail_",
@@ -1777,13 +1777,13 @@ namespace PRoConEvents
             };
 
 
-            public static List<String> valid_fields = new List<string>(new String[] { 
+            public static List<String> valid_fields = new List<string>(new String[] {
                 "id", "hide", "state", "name",
                 "evaluation", "evaluation_interval",
                 "first_check", "first_check_expression", "first_check_code",
                 "second_check", "second_check_code", "second_check_expression",
                 "new_action", "action",
-                "kick_group", "kick_message", 
+                "kick_group", "kick_message",
                 "kill_group", "kill_delay",
                 "say_group", "say_message", "say_audience", "say_delay", "say_procon_chat",
                 "ea_ban_group", "ea_ban_type", "ea_ban_duration", "ea_ban_minutes", "ea_ban_message",
@@ -1794,7 +1794,7 @@ namespace PRoConEvents
                 "server_command_group", "server_command_text",
                 "taskbar_notify_group", "taskbar_notify_title", "taskbar_notify_message",
                 "log_group", "log_destination", "log_file", "log_message",
-                "sms_group", "sms_country", "sms_carrier", "sms_number", "sms_message", 
+                "sms_group", "sms_country", "sms_carrier", "sms_number", "sms_message",
                 "mail_group", "mail_address", "mail_subject", "mail_body",
                 "tweet_group", "tweet_status",
                 "sound_notify_group", "sound_notify_file", "sound_notify_repeat",
@@ -2609,7 +2609,7 @@ namespace PRoConEvents
                 setFieldValue("name", "Name" + id);
                 setFieldValue("state", LimitState.Enabled.ToString());
                 setFieldValue("evaluation", EvaluationType.OnJoin.ToString());
-                setFieldValue("evaluation_interval", (30).ToString());
+                setFieldValue("evaluation_interval", (10).ToString());
                 setFieldValue("first_check", LimitType.Disabled.ToString());
                 setFieldValue("second_check", LimitType.Disabled.ToString());
                 setFieldValue("delete", (false).ToString());
@@ -2947,6 +2947,7 @@ namespace PRoConEvents
                 // Not needed anymore, OnJoin limits are evaluated once only in OnPlayerJoin
                 ResetEvaluations();
                 */
+                //plugin.DebugWrite("^8^b============= In Reset " + id, 7); // XXX
                 ResetLastInterval(DateTime.Now);
                 Data.Clear();
             }
@@ -3005,8 +3006,8 @@ namespace PRoConEvents
 
                     try
                     {
-
-
+                        String origValue = fields[field];
+                        
                         fields[field] = Enum.Format(type, Enum.Parse(type, val, true), "G").ToString();
 
 
@@ -3030,7 +3031,7 @@ namespace PRoConEvents
 
                         recompile(field, val, ui);
 
-                        // Warning for BF3 player say 
+                        // Warning for BF3 player say
                         // if (field.Equals("say_audience") && fields[field].Equals("Player"))
                         // plugin.ConsoleWarn("Battlefield 3 does not support individual player messages");
 
@@ -3038,8 +3039,14 @@ namespace PRoConEvents
                         if (field.Equals("state") && !Enabled)
                             Reset();
 
-                        if (field.Equals("evaluation"))
+                        if (origValue != fields[field]) {
+                        /*
+                        if ((field.Equals("evaluation") && origValue != fields[field])
+                        || (fields.Equals("evaluation_interval") && origValue != fields[field])) {
+                        */
+                            plugin.DebugWrite("^8^b============= In validateAndSetFieldValue #" + id, 7); // XXX
                             ResetLastInterval(DateTime.Now);
+                        }
 
                         return true;
                     }
@@ -3068,7 +3075,7 @@ namespace PRoConEvents
                             !plugin.intAssertGTE(field, integerValue, 0))
                         return false;
                     else if (Regex.Match(field, @"^evaluation_interval$").Success &&
-                            !plugin.intAssertGTE(field, integerValue, 30))
+                            !plugin.intAssertGTE(field, integerValue, 10))
                         return false;
 
                     fields[field] = integerValue.ToString();
@@ -3410,12 +3417,12 @@ namespace PRoConEvents
 
         public string GetPluginName()
         {
-            return "Insane Limits";
+            return "Insane Limits - PC9 Mod";
         }
 
         public string GetPluginVersion()
         {
-            return "0.0.0.8-patch-5-pc9-mod";
+            return "0.0.8.7";
         }
 
         public string GetPluginAuthor()
@@ -3478,23 +3485,23 @@ namespace PRoConEvents
             <li><b>OnSuicide</b> - Limit evaluated when player commits suicide</li>
             <li><b>OnAnyChat</b> - Limit evaluated when players sends a chat message</li>
             <li><b>OnInterval</b> - (deprecated) Same behavior as <b>OnIntervalPlayers</b></li>
-            <li><b>OnIntervalPlayers</b> - Limit evaluated (for all players) every <b>evaluation_interval</b> number of seconds </li>
-            <li><b>OnIntervalServer</b> - Limit evaluated once every <b>evaluation_interval</b> number of seconds</li>
+            <li><b>OnIntervalPlayers</b> - Limit evaluated (for all players) every <b>evaluation_interval</b> number of seconds (minimum 10) </li>
+            <li><b>OnIntervalServer</b> - Limit evaluated once every <b>evaluation_interval</b> number of seconds (minimum 10)</li>
             <li><b>OnRoundOver</b> - Limit evaluated when round over event is sent</li>
             <li><b>OnRoundStart</b> - Limit evaluated after round over event, when first player spawns</li>
             <li><b>OnTeamChange</b> - Limit evaluated after after player switches teams</li>
         </ul>
 
         Note that limit evaluation is only performed after the plugin has fetched the player stats from Battlelog.
-        If a player joins the server, and starts team-killing, there will be a couple of seconds before the plugin catches on. Having said that, this is rare behavior. 
+        If a player joins the server, and starts team-killing, there will be a couple of seconds before the plugin catches on. Having said that, this is rare behavior.
         Most of the time, by the time the player spawns for the first time, the plugin would have already fetched the stats.<br />
         <br />
         When you enable the plugin for the first time in a full server, it will take a couple of minutes to fetch all player stats<br />
         <br />
         <br />
         <h2>Architecture</h2>
-        When the plugin is enabled, it starts two threads: 
-            
+        When the plugin is enabled, it starts two threads:
+
             <ol>
               <li>
                 The <b>fetch</b> thread is in charge of monitoring the players that join the server. It fetches player statistics from battlelog.battlefield.com<br />
@@ -3505,7 +3512,7 @@ namespace PRoConEvents
               </li>
             </ol>
             <br />
-            The two threads have different responsibilities, but they synchronize their work.<br /> 
+            The two threads have different responsibilities, but they synchronize their work.<br />
         <br />
         <h2>Fetch-thread Flow</h2>
         <blockquote>
@@ -3521,7 +3528,7 @@ namespace PRoConEvents
         <blockquote>
             The enforcer thread runs on a timer (every second). It checks if there are any interval limits ready to be executed. If there are, it will evaluate those limits.
             <br />
-            Each time around that the <b>enforcer</b> checks for the available limits is called an <i>iteration</i>.  
+            Each time around that the <b>enforcer</b> checks for the available limits is called an <i>iteration</i>.
             If there are no players in the server, or there are no limits available, the <b>enforcer</b> skips the current <i>iteration</i> and sleeps until the next <i>iteration</i>.<br />
             <br />
             The enforcer is only responsible for Limits that evaluate OnIterval, events. Enforcing for other types of events like OnKill, and OnSpawn, is done in the main thread when procon sends the event information. <br />
@@ -3537,7 +3544,7 @@ namespace PRoConEvents
             <u>Deletion</u> - In order to delete a limit, you have to set the variable <b>delete_limit</b> to the numerical <i>id</i> of the limit you want to delete.<br />
             <br />
             Each limit has an <i>id</i> number, you can see the <i>id</i> number in the limit name, e.g. Limit #<b>5</b>.<br />
-            <br /> 
+            <br />
         </blockquote>
         <br />
         <h2>Limit Definition</h2>
@@ -3551,7 +3558,7 @@ namespace PRoConEvents
                 <br />
                 This field is useful if you want to temporarily disable a limit from being used, but still want to preserve its definition.
                 <br />
-              </blockquote> 
+              </blockquote>
           </li>
           <li><blockquote><b>action</b><br />
                 <i>(string, psv)</i> - list of actions for this limit (Pipe separated ""|"")<br />
@@ -3580,13 +3587,13 @@ namespace PRoConEvents
                 <br />
                 Depending on the selected action, other fields are shown to specify more information about the action.<br />
                 <br />
-             </blockquote> 
+             </blockquote>
              <br />
              Supported PB ban-duration: <i>Permanent</i>, <i>Temporary</i><br />
              Supported PB ban-type: <i>PB_GUID</i> (default)<br />
              <br />
              Supported EA ban-duration: <i>Permanent</i>, <i>Temporary</i>, <i>Round</i><br />
-             Supported EA ban-type: <i>EA_GUID</i>, <i>IPAddress</i>, <i>Name</i><br /> 
+             Supported EA ban-type: <i>EA_GUID</i>, <i>IPAddress</i>, <i>Name</i><br />
              <br />
              <br />
              Also note that each of these actions have a <b>target</b> player. You have to be careful on what <b>target</b> is for each action.<br />
@@ -3611,21 +3618,21 @@ namespace PRoConEvents
               Depending on the selected check type, an extra field will be shown for specifying the <i>Expression</i>, or <i>Code</i> text.<br />
               <br />
               Both <i>Expressions</i>, and <i>Code</i> snippets must be syntactically correct in accordance to the C# language.
-              The plugin compiles your <i>Expression</i><i>/</i><i>Code</i> in-memory with the Microsoft C# Compiler. 
+              The plugin compiles your <i>Expression</i><i>/</i><i>Code</i> in-memory with the Microsoft C# Compiler.
               If there are compilation errors, those are shown in the plugin log.<br />
               <br />
               If you do not know what C# is, or what an expression is, or what a code snippet is ... do not worry.
               Study the examples in the <a href=""http://www.phogue.net/forumvb/showthread.php?3448-Insane-Limits-Examples&highlight=Insane+Limits"">Examples Index</a> forum thread. Then, if you are still unclear, how to write an expression or a code snippet, ask for help in forums at <a href=""http://phogue.net"">phogue.net</a>
               <br />
-          </li>    
-         </ol>        
+          </li>
+         </ol>
         <br />
         <h2>Limit Evaluation</h2>
         After compilation, limit evaluation is by far the most important of all steps this plugin goes through.<br />
         <br />
-        Limit evaluation is comprised of three steps:<br /> 
+        Limit evaluation is comprised of three steps:<br />
         <br />
-        
+
         <ol>
         <li><b>first_check</b> Evaluation<br />
         <br />
@@ -3649,17 +3656,17 @@ namespace PRoConEvents
         </ol>
 
         <h2>Objects</h2>
-        When writing a limit <i>Expression</i> or <i>Code</i> snippet, there are several globally defined objects that can be used. 
+        When writing a limit <i>Expression</i> or <i>Code</i> snippet, there are several globally defined objects that can be used.
         These are <b>server</b>, <b>player</b>, <b>killer</b>, <b>victim</b>, <b>kill</b>, <b> plugin</b>, <b>team1</b>, <b>team2</b>, <b>team3</b>, <b>team3</b>, and <b>limit</b>. These objects contain values, and functions that can be accessed from within the <i>Expressions</i>, or <i>Code</i> snippets.<br />
         <br />
-    
+
        <h2>Limit Object</h2>
        The <b>limit</b> object represents the state the limit that was just activated. This object is only available during the <b>second_check</b>. The <b>limit</b> object implements the following interface:<br />
        <br />
 <pre>
 public interface LimitInfoInterface
 {
-    
+
     //Number of times the limit has been activated, (Current round)
     double Activations(String PlayerName);
     double Activations(int TeamId, int SquadId);
@@ -3675,15 +3682,15 @@ public interface LimitInfoInterface
     double ActivationsTotal(int TeamId, int SquadId);
     double ActivationsTotal(int TeamId);
     double ActivationsTotal();
-   
+
     // Number of times this limit has been activated by player
-    /* 
+    /*
      * Kill, TeamKill: Spree value is reset when player dies
      * Death, TeamDeath, and Suicide: Spree value is reset whe player makes a kill
-     * 
+     *
      * Spawn, Join, Interval: Spree value is never reset, you may reset it manually.
      */
-    
+
     double Spree(String PlayerName);
 
 
@@ -3717,7 +3724,7 @@ public interface TeamInfoInterface
     double ScoreRound { get; }
 
     int TeamId { get; }
-    double Tickets { get; }      
+    double Tickets { get; }
     double RemainTickets { get; }
     double RemainTicketsPercent { get; }
     double StartTickets { get; }
@@ -3736,7 +3743,7 @@ public interface ServerInfoInterface
     int TotalRounds { get; }
     int PlayerCount { get; }
     int MaxPlayers { get; }
-    
+
     /* Current Map Data */
     int MapIndex { get; }
     String MapFileName { get; }
@@ -3753,7 +3760,7 @@ public interface ServerInfoInterface
     double HeadshotsRound { get; }
     double SuicidesRound { get; }
     double TeamKillsRound { get; }
-    
+
 
     /* All players, All rounds, Stats */
 
@@ -3766,10 +3773,10 @@ public interface ServerInfoInterface
 
     /* Weapon Stats, Current Round, All Rounds (Total)*/
     WeaponStatsInterface this[String WeaponName] { get; }
-    
+
     /* Other data */
     double TimeRound { get; }                // Time since round started
-    double TimeTotal { get; }                // Time since plugin enabled 
+    double TimeTotal { get; }                // Time since plugin enabled
     double TimeUp { get; }                   // Time since last server restart
     double RoundsTotal { get; }              //Round played since plugin enabled
 
@@ -3829,7 +3836,7 @@ public interface PlayerInfoInterface
     double Repairs { get; }
     double Revives { get; }
     double Accuracy { get; }
-    double Ressuplies { get; } 
+    double Ressuplies { get; }
     double QuitPercent { get; }
     double ScoreTeam { get; }
     double ScoreCombat{ get; }
@@ -3865,7 +3872,7 @@ public interface PlayerInfoInterface
     String FullName { get; } // name including clan-tag
     String Tag { get; }
     String IPAddress { get; }
-    String CountryCode { get ; } 
+    String CountryCode { get ; }
     String CountryName { get; }
     String PBGuid { get; }
     String EAGuid { get; }
@@ -3908,7 +3915,7 @@ public interface PlayerInfoInterface
     String LastChat { get; }   // text of the last chat sent by player
     bool Battlelog404 { get; } // True - Player has PC Battlelog profile
     bool StatsError { get; }   // True - Error occurred while processing player stats
-    
+
 
     /* Whitelist information */
     bool inClanWhitelist { get; }
@@ -3932,7 +3939,7 @@ public interface PluginInterface
 {
 
     /*
-     * Methods for sending messages 
+     * Methods for sending messages
      */
     bool SendGlobalMessage(String message);
     bool SendTeamMessage(int teamId, String message);
@@ -3954,8 +3961,8 @@ public interface PluginInterface
     void ConsoleException(String text);
 
     /*
-     * Methods for getting whitelist information 
-     * 
+     * Methods for getting whitelist information
+     *
      */
     bool isInWhitelist(String PlayerName);
     bool isInPlayerWhitelist(String PlayerName);
@@ -3964,7 +3971,7 @@ public interface PluginInterface
 
     /* Method for checking generic lists */
     bool isInList(String item, String list_name);
-        
+
     /*
      * Methods getting and setting the Plugin's variables
      */
@@ -3974,13 +3981,13 @@ public interface PluginInterface
 
     /*
      *  Method: R
-     *  
-     *  Replaces tags like %p_n% (Player Name), %k_n% (Killer Name), %v_n% (Victim Name), etc          
+     *
+     *  Replaces tags like %p_n% (Player Name), %k_n% (Killer Name), %v_n% (Victim Name), etc
      */
     String R(String message);
 
 
-    /* 
+    /*
      * Methods for actions
      */
 
@@ -4002,7 +4009,7 @@ public interface PluginInterface
 
     /*
      * Examples:
-     *           
+     *
      *           KickPlayerWithMessage(""micovery"" , ""Kicked you for team-killing!"");
      *           EABanPlayerWithMessage(EABanType.EA_GUID, EABanDuration.Temporary, ""micovery"", 10, ""You are banned for 10 minutes!"");
      *           PBBanPlayerWithMessage(PBBanDuration.Permanent, ""micovery"", 0, ""You are banned forever!"");
@@ -4057,28 +4064,28 @@ public interface DataDictionaryInterface
     bool unsetBool(String key);
     bool issetBool(String key);
     List<String> getBoolKeys();
-    
+
     /* Double Data */
     double setDouble(String key, double value);
     double getDouble(String key);
     double unsetDouble(String key);
     bool issetDouble(String key);
     List<String> getDoubleKeys();
-    
+
     /* Int Data */
     int setInt(String key, int value);
     int getInt(String key);
     int unsetInt(String key);
     bool issetInt(String key);
     List<String> getIntKeys();
-    
+
     /* Object Data */
     object setObject(String key, object value);
     object getObject(String key);
     object unsetObject(String key);
     bool issetObject(String key);
     List<String> getObjectKeys();
-    
+
     /* Generic set/get methods */
     Object set(Type type, String key, Object value);
     Object get(Type type, String key);
@@ -4088,7 +4095,7 @@ public interface DataDictionaryInterface
 
     /* Other methods */
     void Clear();  /* clear/unset all data from repository */
-    
+
 }
     </pre>
 
@@ -4162,7 +4169,7 @@ public interface DataDictionaryInterface
         ""%p_fn%"",   ""Player full name, includes Clan-Tag (if any)"",
         ""%p_lc%"",   ""Player, Text of last chat"",
         // Weapon Replacements (Evaluations: OnKill, OnDeath, OnTeamKill, OnTeamDeath, OnSuicide)
-        
+
         /* Legend:
          * w   - weapon
          * n   - name
@@ -4175,7 +4182,7 @@ public interface DataDictionaryInterface
         ""%w_a_x%"",  ""Weapon, number of times used by All players in current round"",
 
         // Limit Replacements for Activations & Spree Counts (Evaluations: Any)
-        
+
         /* Legend:
          * th  - ordinal count suffix e.g. 1st, 2nd, 3rd, 4th, etc
          * x   - count, 1, 2, 3, 4, etc
@@ -4219,7 +4226,7 @@ public interface DataDictionaryInterface
 
         ""%l_id%"", ""Limit numeric id"",
         ""%l_n%"",  ""Limit name""
-        
+
     };
         </pre>
         <h2>Advanced Replacements</h2>
@@ -4243,65 +4250,65 @@ public interface DataDictionaryInterface
         <h2>Settings</h2>
         <ol>
            <li><blockquote><strong>limits_file</strong><br />
-                <i>(string, path)</i> - path to the file where limits, and lists are saved 
-                </blockquote> 
+                <i>(string, path)</i> - path to the file where limits, and lists are saved
+                </blockquote>
            </li>
           <li><blockquote><b>auto_load_interval</b><br />
                 <i>(integer >= 60)</i> - interval in seconds, for auto loading settings from the <b>limits_file</b><br />
                 <br />
-                </blockquote> 
+                </blockquote>
           </li>
            <li><blockquote><strong>player_white_list</strong><br />
-                <i>(string, csv)</i> - list of players that should never be kicked or banned 
-                </blockquote> 
+                <i>(string, csv)</i> - list of players that should never be kicked or banned
+                </blockquote>
            </li>
            <li><blockquote><strong>clan_white_list</strong><br />
-                <i>(string, csv)</i> - list of clan (tags) for players that should never be kicked or banned   
-                </blockquote> 
+                <i>(string, csv)</i> - list of clan (tags) for players that should never be kicked or banned
+                </blockquote>
            </li>
            <li><blockquote><strong>virtual_mode</strong><br />
                 <i>true</i> - limit <b>actions</b> (kick, ban) are simulated, the actual commands are not sent to server <br />
                 <i>false</i> - limit <b>actions</b> (kick, ban) are not simulated <br />
-            </blockquote> 
+            </blockquote>
            </li>
            <li><blockquote><strong>console</strong><br />
                 <i>(string)</i> - you can use this field to run plugin commands <br />
                 <br />
                 For example: ""!stats micovery"" will print the player statistic for the current round in the plugin console. <br />
                 <br />
-                Note that plugin commands, are currently supported only inside ProCon, and not In-Game.    
-                </blockquote> 
+                Note that plugin commands, are currently supported only inside ProCon, and not In-Game.
+                </blockquote>
            </li>
           <li><blockquote><b>smtp_port</b><br />
                 <i>(String)</i> - Address of the SMTP Mail server used for <i>Mail</i> action<br />
-                </blockquote> 
+                </blockquote>
           </li>
            <li><blockquote><b>smtp_port</b><br />
                 <i>(integer > 0)</i> - port number of the SMTP Mail server used for <i>Mail</i> action<br />
-                </blockquote> 
+                </blockquote>
           </li>
           <li><blockquote><b>smtp_account</b><br />
                 <i>(Stirng)</i> - mail address for authenticating with the SMTP Mail used for <i>Mail</i> action<br />
-                </blockquote> 
+                </blockquote>
           </li>
           <li><blockquote><b>smtp_mail</b><br />
                 <i>(Stirng)</i> - mail address (Sender/From) that is used for sending used for <i>Mail</i> action<br />
                 <br />
                 This is usually the same as <b>smtp_account</b> ... depends on your SMTP Mail provider.
-                </blockquote> 
+                </blockquote>
           </li>
           <li><blockquote><b>say_interval</b><br />
                 <i>(float)</i> - interval in seconds between say messages. Default value is 0.05, which is 50 milli-seconds<br />
                 <br />
                 The point of this setting is to avoid spam, but you should not set this value too large. Ideally it should be between 0 and 1 second.
-                </blockquote> 
+                </blockquote>
           </li>
         </ol>
        <br />
        <h2> Plugin Commands</h2>
- 
+
        These are the commands supported by this plugin. You can run them from within the <b>console</b> field. Replies to the commands are printed in the plugin log.<br />
-       <br />   
+       <br />
        <ul>
            <li><blockquote>
                 <b> !round stats</b><br />
@@ -4330,13 +4337,13 @@ public interface DataDictionaryInterface
                 <br /><br />
                 <b> !weapon total stats {player}</b><br />
                 Weapon-Level stats for the current player, all round<br />
-               <br />  
+               <br />
                <br />
                These are the most awesome of all the commands this plugin provides. Even if you are not using this plugin to enforce any limit, you could have it enabled for just monitoring player stats.<br />
                <br />
                When calling player specific statistic commands, if you misspell, or only type part of the player name, the plugin will try to find the best match for the player name.<br />
                <br />
-               </blockquote> 
+               </blockquote>
            </li>
            <li><blockquote><b>!dump limit {id}</b><br />
                <br />
@@ -4349,29 +4356,29 @@ public interface DataDictionaryInterface
                 Creates the file ""LimitEvaluator<b>5</b>.cs"" inside ProCon's directory. <br />
                 <br />
                 This command is very useful for debugging compilation errors, as you can see the code inside the file exactly as the plugin sees it (with the same line and column offsets).
-               </blockquote> 
+               </blockquote>
            </li>
            <li><blockquote>
                 <b> !set {variable} {to|=} {value}</b><br />
-                <b> !set {variable} {value}</b><br />       
+                <b> !set {variable} {value}</b><br />
                 <b> !set {variable}</b><br />
-                <br />   
+                <br />
                 This command is used for setting the value of this plugin's variables.<br />
                 For the last invocation syntax the value is assumed to be ""True"". <br />
-               </blockquote> 
+               </blockquote>
            </li>
            <li><blockquote>
                 <b>!get {variable} </b><br />
                 <br />
                 This command prints the value of the specified variable.
-               </blockquote> 
+               </blockquote>
            </li>
        </ul>
 
       <h2> In-Game Commands</h2>
- 
+
        These are the In-Game commands supported by this plugin. You can run them only from within the game. Replies to the commands are printed in the game chat.<br />
-       <br />   
+       <br />
        <ul>
            <li><blockquote>
                 <b> !stats</b><br />
@@ -4412,7 +4419,7 @@ public interface DataDictionaryInterface
                 <br />
                 The <b>player</b> name can be a sub-string, or even misspelled. The plugin will find the best match.<br />
                 <br />
-               </blockquote> 
+               </blockquote>
            </li>
        </ul>
        <blockquote>
@@ -4420,7 +4427,7 @@ public interface DataDictionaryInterface
        <br />
        For combining <i>Expressions</i> you use <i>Boolean Logic</i> operators. These are: <br />
        <br />
-       
+
        <ul>
               <li>AND (Conjunction): <b>&&</b></li>
               <li>OR  (Disjunction): <b>||</b></li>
@@ -4430,15 +4437,15 @@ public interface DataDictionaryInterface
        <blockquote>
        Annex 2 - Relational Operators: <br />
        <br />
-       All the previous examples use the Greater-Than ( <b>&gt;</b> ) operator a lot, but that is not the only relational operator supported. These are the arithmetic relational operators you can use:<br /> 
+       All the previous examples use the Greater-Than ( <b>&gt;</b> ) operator a lot, but that is not the only relational operator supported. These are the arithmetic relational operators you can use:<br />
        <br />
        <ul>
               <li>Greater-Than: <b>&gt;</b></li>
               <li>Greater-than-or-Equal: <b>&gt;=</b></li>
               <li>Less-than: <b>&lt;</b></li>
-              <li>Less-than-or-Equal: <b>&lt;=</b></li> 
+              <li>Less-than-or-Equal: <b>&lt;=</b></li>
               <li>Equality: <b>==</b></li>
-              <li>Not-Equal: <b>!=</b></li>  
+              <li>Not-Equal: <b>!=</b></li>
        </ul>
        <br />
         ";
@@ -4519,7 +4526,7 @@ public interface DataDictionaryInterface
                 this.players.Clear();
 
                 //start a thread that waits for the settings to be read from file
-                
+
                 Thread Activator = new Thread(new ThreadStart(delegate()
                 {
                     plugin_activated = false;
@@ -5036,7 +5043,7 @@ public interface DataDictionaryInterface
 
         public void InitWaitHandles()
         {
-            DebugWrite("Initializing wait handles", 4);
+            DebugWrite("Initializing wait handles", 5);
             fetch_handle = new EventWaitHandle(false, EventResetMode.ManualReset);
             enforcer_handle = new EventWaitHandle(false, EventResetMode.ManualReset);
             settings_handle = new EventWaitHandle(false, EventResetMode.ManualReset);
@@ -5082,7 +5089,7 @@ public interface DataDictionaryInterface
 
         public void InitThreads()
         {
-            DebugWrite("Initializing threads", 4);
+            DebugWrite("Initializing threads", 5);
             this.fetching_thread = new Thread(new ThreadStart(fetch_thread_loop));
             this.enforcer_thread = new Thread(new ThreadStart(enforcer_thread_loop));
             this.say_thread = new Thread(new ThreadStart(say_thread_loop));
@@ -5096,7 +5103,7 @@ public interface DataDictionaryInterface
 
         public void StartThreads()
         {
-            DebugWrite("Starting threads", 4);
+            DebugWrite("Starting threads", 5);
             settings_thread.Start();
             say_thread.Start();
             enforcer_thread.Start();
@@ -5175,39 +5182,65 @@ public interface DataDictionaryInterface
             {
 
                 Thread.CurrentThread.Name = "fetch";
+                int retryCount = 0;
                 DebugWrite(" starting", 3);
+                int npqc = 0;
 
                 InsaneLimits plugin = this;
                 while (true)
                 {
-                    if (new_player_queue.Count == 0)
+                    lock (players_mutex)
+                    {
+                        npqc = new_player_queue.Count;
+                    }
+                    while (npqc == 0)
                     {
                         // if there are no more players, put yourself to sleep
-                        DebugWrite("no new players, will wait", 3);
-                        enforcer_handle.Set();
+                        DebugWrite("no new players, will wait, signalling ^benforcer^n thread", 7);
                         fetch_handle.Reset();
+                        enforcer_handle.Set();
                         fetch_handle.WaitOne();
-                        DebugWrite("awake!, will signal ^benforcer^n thread wait", 4);
+                        DebugWrite("awake!, block ^benforcer^n thread", 7);
                         enforcer_handle.Reset();
+                        lock (players_mutex)
+                        {
+                            npqc = new_player_queue.Count;
+                        }
                     }
 
 
-                    while (new_player_queue.Count > 0)
+                    while (npqc > 0)
                     {
                         if (!plugin_enabled)
                             break;
 
-                        List<String> keys = new List<string>(new_player_queue.Keys);
+                        List<String> keys = null;
+
+                        lock (players_mutex)
+                        {
+                            keys = new List<string>(new_player_queue.Keys);
+                        }
 
                         String name = keys[keys.Count - 1];
 
                         CPunkbusterInfo info = null;
-                        new_player_queue.TryGetValue(name, out info);
+
+                        lock (players_mutex)
+                        {
+                            new_player_queue.TryGetValue(name, out info);
+                        }
 
                         if (info == null)
-                            continue;
+                        {
+                            lock (players_mutex)
+                            {
+                                npqc = new_player_queue.Count;
+                            }
 
-                        // make sure I am the only one modifying these dictionarie at this time
+                            continue;
+                        }
+
+                        // make sure I am the only one modifying these dictionaries at this time
                         lock (players_mutex)
                         {
                             if (new_player_queue.ContainsKey(name))
@@ -5215,37 +5248,110 @@ public interface DataDictionaryInterface
 
                             if (!new_players_batch.ContainsKey(name))
                                 new_players_batch.Add(name, null);
+
+                            npqc = new_player_queue.Count;
                         }
 
-                        String msg = new_player_queue.Count + " more player" + ((new_player_queue.Count > 1) ? "s" : "") + " in queue";
-                        if (new_player_queue.Count == 0)
+                        String msg = npqc + " more player" + ((npqc > 1) ? "s" : "") + " in queue";
+                        if (npqc == 0)
                             msg = "no more players in queue";
 
-                        plugin.DebugWrite("getting battlelog stats for ^b" + name + "^n, " + msg, 3);
-                        if (new_players_batch.ContainsKey(info.SoldierName))
+                        bool ck = false;
+                        lock (players_mutex)
                         {
+                            ck = new_players_batch.ContainsKey(info.SoldierName);
+                        }
+                        if (ck)
+                        {
+                            DebugWrite("getting battlelog stats for ^b" + name + "^n, " + msg, 3);
+                            retryCount = 0;
                             PlayerInfo ptmp = plugin.blog.fetchStats(new PlayerInfo(plugin, info));
-                            if (ptmp._web_exception != null)
+
+                            while (ptmp._web_exception != null && retryCount < 3)
                             {
-                                // Retry 3 times
-                                for (int k = 1; k < 4; ++k)
+                                // Retry this player, try again after waiting 10 seconds
+                                DebugWrite("stats for " + name + " rejected, sleep, update player list, notify ^benforcer^n thread", 4);
+                                enforcer_handle.Set();
+                                fetch_handle.Reset();
+
+                                Thread.Sleep(10*1000);
+
+                                if (!plugin_enabled) break;
+
+                                scratch_handle.Reset();
+                                getPBPlayersList();
+                                getPlayersList();
+                                DebugWrite("during retry, waiting for player list updates", 6);
+                                scratch_handle.WaitOne(5*1000); // 5 sec timeout
+
+                                scratch_handle.Reset();
+                                DebugWrite("during retry, awake! got player list updates", 6);
+
+                                fetch_handle.WaitOne(2*1000); // 2 sec timeout
+                                enforcer_handle.Reset();
+
+                                if (!plugin_enabled) break;
+
+                                retryCount = retryCount + 1;
+                                DebugWrite("awake! retry #" + retryCount + " for " + name, 4);
+
+                                bool sheLeft = false;
+                                lock (players_mutex)
                                 {
-                                    Thread.Sleep(k*1000);
-                                    ptmp._web_exception = null;
-                                    ptmp = plugin.blog.fetchStats(ptmp);
-                                    if (ptmp._web_exception == null) break;
+                                    sheLeft = (!scratch_list.Contains(name));
                                 }
-                                
-                                if (ptmp._web_exception != null) ConsoleError("Fetching stats for " + name + ": " + ptmp._web_exception.Message);
+                                if (sheLeft) {
+                                    DebugWrite("aborting fetch, looks like player " + name + " left the game!", 4);
+                                    break;
+                                }
+
+                                ptmp._web_exception = null;
+                                ptmp.StatsError = false;
+                                ptmp = plugin.blog.fetchStats(new PlayerInfo(plugin, info));
                             }
-                            new_players_batch[name] = ptmp;
+
+                            if (ptmp._web_exception != null) {
+                                ConsoleError("Fetching stats for ^b" + name + "^n: " + ptmp._web_exception.Message);
+                            }
+
+                            lock (players_mutex)
+                            {
+                                new_players_batch[name] = ptmp;
+                            }
+                            
+                            if (ptmp.StatsError) {
+                                DebugWrite("Unable to fetch stats for ^b" + name + "^n", 3);
+                            }
+                        }
+
+                        lock (players_mutex)
+                        {
+                            npqc = new_player_queue.Count;
+                        }
+
+                        if (npqc > 0)
+                        {
+                            // Add some delay between consecutive fetches
+                            DebugWrite(npqc + " more players in queue, wait, signal ^benforcer^n thread", 4);
+                            fetch_handle.Reset();
+                            enforcer_handle.Set();
+                            Thread.Sleep(5*1000); // 5 secs
+                            fetch_handle.WaitOne();
+                            DebugWrite("got signal from ^benforcer^n thread", 4);
+                            enforcer_handle.Reset();
+
+                            // Have to get count again, might have changed while we waited
+                            lock (players_mutex)
+                            {
+                                npqc = new_player_queue.Count;
+                            }
                         }
                     }
 
                     // abort the thread if the plugin was disabled
                     if (!plugin_enabled)
                     {
-                        plugin.DebugWrite("detected that plugin was disabled, aborting", 3);
+                        DebugWrite("detected that plugin was disabled, aborting", 3);
                         lock (players_mutex)
                         {
                             new_player_queue.Clear();
@@ -5262,10 +5368,12 @@ public interface DataDictionaryInterface
                     getPBPlayersList();
                     getPlayersList();
 
+                    DebugWrite("waiting for player list updates", 6);
                     scratch_handle.WaitOne();
                     scratch_handle.Reset();
 
                     getMapInfoSync();
+                    DebugWrite("awake! got player list updates", 6);
 
                     List<PlayerInfo> inserted = new List<PlayerInfo>();
                     // first insert the entire player's batch
@@ -5291,7 +5399,7 @@ public interface DataDictionaryInterface
                         if (new_players_batch.Count > 0)
                             DebugWrite("Queue exhausted, will insert now a batch of " + new_players_batch.Count + " player" + ((new_players_batch.Count > 1) ? "s" : ""), 3);
 
-                       
+
                         foreach (KeyValuePair<String, PlayerInfo> pair in new_players_batch)
                             if (pair.Value != null && scratch_list.Contains(pair.Key))
                             {
@@ -5396,7 +5504,7 @@ public interface DataDictionaryInterface
             }
             return true;
         }
-    }  
+    }
 }";
             class_source = Regex.Replace(class_source, "%class_name%", class_name);
 
@@ -5614,7 +5722,7 @@ public interface DataDictionaryInterface
                 case Limit.EvaluationType.OnDeath:
                 case Limit.EvaluationType.OnTeamKill:
                 case Limit.EvaluationType.OnTeamDeath:
-                    // for kill-death events, player is always the target of the Event action, e.g. Kill/killer, Death/dead, 
+                    // for kill-death events, player is always the target of the Event action, e.g. Kill/killer, Death/dead,
                     return Regex.Replace(class_source, "%" + search + "%", "PlayerInfoInterface player, PlayerInfoInterface killer, KillInfoInterface kill, PlayerInfoInterface victim, ServerInfoInterface server, PluginInterface plugin, TeamInfoInterface team1, TeamInfoInterface team2, TeamInfoInterface team3, TeamInfoInterface team4" + extra);
                 case Limit.EvaluationType.OnSuicide:
                     // special case for suicide all three player, kill, and victim same
@@ -5692,7 +5800,7 @@ public interface DataDictionaryInterface
         }
 
 
- 
+
 
 
 
@@ -5760,7 +5868,7 @@ public interface DataDictionaryInterface
 
                 /*
                 // Not needed anymore, OnJoin limits are evaluated once only in OnPlayerJoin
-                // do some record keeping 
+                // do some record keeping
                 if (limit.Evaluation.Equals(Limit.EvaluationType.OnJoin))
                     limit.RecordEvaluation(target);
                 */
@@ -6180,8 +6288,8 @@ public interface DataDictionaryInterface
         }
 
 
-     
-        
+
+
         public void OnPluginDisable()
         {
             if (finalizer != null && finalizer.IsAlive)
@@ -6635,12 +6743,12 @@ public interface DataDictionaryInterface
                 String name = cpbiPlayer.SoldierName;
 
                 // skip player if not new, or has no info
-                if (players.ContainsKey(name)) 
+                if (players.ContainsKey(name))
                     return;
 
                 // fetch the stats for player, and add to list
                 players.Add(name, this.blog.fetchStats(new PlayerInfo(this, cpbiPlayer)));
-                
+
             }
             catch(Exception e)
             {
@@ -6687,6 +6795,7 @@ public interface DataDictionaryInterface
                     {
                         DebugWrite("Queueing ^b" + cpbiPlayer.SoldierName + "^n for stats fetching", 3);
                         new_player_queue.Add(cpbiPlayer.SoldierName, cpbiPlayer);
+                        DebugWrite("signalling ^bfetch^n thread", 7);
                         fetch_handle.Set();
                     }
 
@@ -7038,8 +7147,12 @@ public interface DataDictionaryInterface
 
         public void OneStatCmd(String sender, String prefix, String player, String scope, String type)
         {
+<<<<<<< HEAD
 
         	DebugWrite(@"^bParsed command^n: " +((sender==null)?"(null)":sender)+", "+((player==null)?"(null)":player)+", "+((scope==null)?"(null)":scope)+", "+((type==null)?"(null)":type), 4); // IGC
+=======
+            DebugWrite(@"^bParsed command^n: " +((sender==null)?"(null)":sender)+", "+((player==null)?"(null)":player)+", "+((scope==null)?"(null)":scope)+", "+((type==null)?"(null)":type), 4);
+>>>>>>> master
 
             if (sender == null)
                 return;
@@ -7485,11 +7598,14 @@ public interface DataDictionaryInterface
             int timeout = getIntegerVarValue("wait_timeout");
 
 
+            DebugWrite("waiting, timeout after " + timeout + " seconds", 7);
             if (handle.WaitOne(timeout * 1000) == false)
             {
                 StackTrace stack = new StackTrace();
                 String caller = stack.GetFrame(1).GetMethod().Name;
                 ConsoleException("Timeout(" + timeout + " seconds) expired, while waiting for " + name + " within " + caller);
+            } else {
+                DebugWrite("awake! no timeout", 7);
             }
         }
 
@@ -7897,7 +8013,7 @@ public interface DataDictionaryInterface
                 if (!fuzzy && sub_names.Count == 0)
                     return null;
 
-                // find the best/fuzzy match using modified Leveshtein algorithm              
+                // find the best/fuzzy match using modified Leveshtein algorithm
                 foreach (String cname in names)
                 {
                     int distance = LevenshteinDistance(name, cname);
@@ -8606,9 +8722,10 @@ public interface DataDictionaryInterface
 
                     if (messageQueue.Count == 0)
                     {
-                        DebugWrite("waiting for say message ...", 5);
+                        DebugWrite("waiting for say message ...", 7);
                         say_handle.WaitOne();
                         say_handle.Reset();
+                        DebugWrite("awake!", 7);
                     }
 
                     SendQueuedMessages(sleep_time);
@@ -8651,11 +8768,12 @@ public interface DataDictionaryInterface
                     try
                     {
                         int sleep_t = getIntegerVarValue("auto_load_interval");
-                        plugin.DebugWrite("sleeping for ^b" + sleep_t + "^n second" + ((sleep_t > 1) ? "s" : "") + ", before next iteration", 4);
+                        plugin.DebugWrite("sleeping for ^b" + sleep_t + "^n second" + ((sleep_t > 1) ? "s" : "") + ", before next iteration", 6);
 
                         settings_handle.Reset();
                         settings_handle.WaitOne(sleep_t * 1000);
-                        
+                        plugin.DebugWrite("awake! loading settings", 6);
+
 
                         if (!plugin_enabled)
                             break;
@@ -8705,11 +8823,13 @@ public interface DataDictionaryInterface
                 while (true)
                 {
 
+                    DebugWrite("waiting for signal from ^bfetch^n thread", 7);
                     Thread.Sleep(1000);
                     DateTime now = DateTime.Now;
 
                     // Wait for fetch thread to let us go through
                     enforcer_handle.WaitOne();
+                    DebugWrite("awake! processing interval limits ...", 7);
 
                     if (!plugin_enabled)
                         break;
@@ -8779,7 +8899,7 @@ public interface DataDictionaryInterface
                                         continue;
 
 
-                                    plugin.DebugWrite("Evaluating " + limit.ShortDisplayName + " for ^b" + name + "^n", 5);
+                                    plugin.DebugWrite("Evaluating " + limit.ShortDisplayName + " for ^b" + name + "^n", 4);
 
                                     if (evaluateLimit(limit, pinfo))
                                     {
@@ -8807,6 +8927,10 @@ public interface DataDictionaryInterface
                         DumpException(e);
 
                     }
+
+                    // Notify the fetch thread
+                    DebugWrite("done, will signal ^bfetch^n thread", 7);
+                    fetch_handle.Set();
 
                     if (!plugin_enabled)
                         break;
@@ -9988,6 +10112,13 @@ public interface DataDictionaryInterface
                             continue;
 
                         Limit limit = limits[key];
+
+                        if (limit.Enabled)
+                        {
+                            DebugWrite("^8^b============= In SaveSettings " + limit.id, 7); // XXX
+                            limit.ResetLastInterval(DateTime.Now);
+                        }
+
                         Dictionary<String, String> lsettings = limit.getSettings(false);
                         foreach (KeyValuePair<String, String> pair in lsettings)
                             settings += "procon.protected.plugins.setVariable \"" + cname + "\" \"" + pair.Key + "\" \"BASE64:" + Encode(pair.Value) + "\"" + NL;
@@ -10080,8 +10211,7 @@ public interface DataDictionaryInterface
 
                         if (Regex.Match(var, @"list_\d+_id", RegexOptions.IgnoreCase).Success)
                             lscount++;
-
-
+ 
                         SetPluginVariable(var, value);
 
                     }
@@ -10334,15 +10464,15 @@ public interface DataDictionaryInterface
             if (include_lists)
             {
                 List<String> keys = new List<string>();
-                
+
                 lock (lists_mutex) { keys.AddRange(lists.Keys); }
 
                 for (int i = 0; i < keys.Count; i++)
                 {
                     String key = keys[i];
-                    
+
                     CustomList list = null;
-                    
+
                     if (!lists.TryGetValue(key, out list))
                         continue;
 
@@ -10738,7 +10868,7 @@ public interface DataDictionaryInterface
             return SendMail(gateway, "Limit Activation", message);
 
         }
-        
+
         public bool SendTaskbarNotification(String title, String message)
         {
             if (VMode)
@@ -10876,7 +11006,7 @@ public interface DataDictionaryInterface
 
             PlayerInfo player = players[name];
 
-            // get the type field and value 
+            // get the type field and value
             string typeField = "guid";
             string typeValue = player.EAGuid;
 
@@ -10903,7 +11033,7 @@ public interface DataDictionaryInterface
                 typeValue = player.Name;
             }
 
-            // get the time out value 
+            // get the time out value
             string timeout = "seconds";
             if (duration.Equals(EABanDuration.Permanent))
                 timeout = "perm";
@@ -11479,8 +11609,12 @@ public interface DataDictionaryInterface
         {
             try
             {
-                if (client == null)
+                if (client == null) {
                     client = new WebClient();
+                    String ua = "Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; WOW64; Trident/5.0; .NET CLR 3.5.30729)";
+                    plugin.DebugWrite("Using user-agent: " + ua, 3);
+                    client.Headers.Add("user-agent", ua);
+                }
 
                 html_data = client.DownloadString(url);
 
@@ -12473,7 +12607,7 @@ public interface DataDictionaryInterface
 
         public void AccumulateRoundStats()
         {
-            // I know what you are thinking, WTF ... (take a look at the set/get methods) 
+            // I know what you are thinking, WTF ... (take a look at the set/get methods)
             ScoreTotal = ScoreTotal;
             RoundsTotal++;
             W.AccumulateRoundStats();
@@ -12902,7 +13036,7 @@ public interface DataDictionaryInterface
 
         public void AccumulateRoundStats()
         {
-            // I know you are thinking, WTF ... just look at the set/get 
+            // I know you are thinking, WTF ... just look at the set/get
             KillsTotal = KillsTotal;
             DeathsTotal = DeathsTotal;
             SuicidesTotal = SuicidesTotal;
@@ -13030,7 +13164,7 @@ public interface DataDictionaryInterface
         /*
         public double Aggregate(String property_name)
         {
-        
+
 
             double total = 0;
             Type type = typeof(WeaponStats);
