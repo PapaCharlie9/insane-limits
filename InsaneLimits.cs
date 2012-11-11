@@ -3417,7 +3417,7 @@ namespace PRoConEvents
 
         public string GetPluginName()
         {
-            return "Insane Limits - PC9 Mod";
+            return "Insane Limits";
         }
 
         public string GetPluginVersion()
@@ -3427,7 +3427,7 @@ namespace PRoConEvents
 
         public string GetPluginAuthor()
         {
-            return "micovery";
+            return "PapaCharlie9 mod";
         }
 
         public string GetPluginWebsite()
@@ -7059,7 +7059,7 @@ public interface DataDictionaryInterface
 
 
 // IGC begin
-				DebugWrite(@"^bOriginal command^n: " +text, 4);
+                DebugWrite(@"^bOriginal command^n: " +text, 4);
 
                 Match bstatMatch = Regex.Match(command, @"^\s*bstat\s+([^\s]+)\s+([^\s]+)", RegexOptions.IgnoreCase);
                 Match rstatMatch = Regex.Match(command, @"^\s*rstat\s+([^\s]+)\s+([^\s]+)", RegexOptions.IgnoreCase);
@@ -7077,11 +7077,11 @@ public interface DataDictionaryInterface
                 else if (list2StatMatch.Success)
                     ListStatCmd(sender, list2StatMatch.Groups[1].Value);
 // IGC begin
-				else if (bstatMatch.Success) {
-					OneStatCmd(sender, "?", bstatMatch.Groups[1].Value, "battlelog", bstatMatch.Groups[2].Value);
-				} else if (rstatMatch.Success) {
-					OneStatCmd(sender, "?", rstatMatch.Groups[1].Value, "round", rstatMatch.Groups[2].Value);
-				}
+                else if (bstatMatch.Success) {
+                    OneStatCmd(sender, "?", bstatMatch.Groups[1].Value, "battlelog", bstatMatch.Groups[2].Value);
+                } else if (rstatMatch.Success) {
+                    OneStatCmd(sender, "?", rstatMatch.Groups[1].Value, "round", rstatMatch.Groups[2].Value);
+                }
 // IGC end
                 else if (one1StatMatch.Success)
                     OneStatCmd(sender, prefix, String.Empty, one1StatMatch.Groups[1].Value, one1StatMatch.Groups[2].Value);
@@ -7147,12 +7147,7 @@ public interface DataDictionaryInterface
 
         public void OneStatCmd(String sender, String prefix, String player, String scope, String type)
         {
-<<<<<<< HEAD
-
-        	DebugWrite(@"^bParsed command^n: " +((sender==null)?"(null)":sender)+", "+((player==null)?"(null)":player)+", "+((scope==null)?"(null)":scope)+", "+((type==null)?"(null)":type), 4); // IGC
-=======
             DebugWrite(@"^bParsed command^n: " +((sender==null)?"(null)":sender)+", "+((player==null)?"(null)":player)+", "+((scope==null)?"(null)":scope)+", "+((type==null)?"(null)":type), 4);
->>>>>>> master
 
             if (sender == null)
                 return;
@@ -7182,7 +7177,7 @@ public interface DataDictionaryInterface
             if ((new_player = bestMatch(player, new List<string>(players.Keys), out edit_distance)) == null)
                 return;
 
-        	DebugWrite(@"^bFinal command^n: " +sender+", "+new_player+", "+scope+", "+((type==null)?"(null)":type), 4); // IGC
+            DebugWrite(@"^bFinal command^n: " +sender+", "+new_player+", "+scope+", "+((type==null)?"(null)":type), 4); // IGC
 
             //Only allow partial matches if the commnand prefix is ?
             if (edit_distance > 0 && !prefix.Equals("?"))
