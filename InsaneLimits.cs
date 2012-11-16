@@ -3422,7 +3422,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.0.8.7";
+            return "0.0.8.8";
         }
 
         public string GetPluginAuthor()
@@ -11708,6 +11708,7 @@ public interface DataDictionaryInterface
                 /*  extract the kit times (percentage) */
                 extractKitTimes((Hashtable)stats["kitTimesInPercentage"], id2kit, pinfo, "_p");
 
+try {
                 /* extract weapon level statistics */
                 List<BattlelogWeaponStats> wstats = new List<BattlelogWeaponStats>();
                 if (plugin.getBooleanVarValue("use_weapon_stats"))
@@ -11718,8 +11719,17 @@ public interface DataDictionaryInterface
                 if (plugin.getIntegerVarValue("debug_level") >= 3)
                     pinfo.dumpStatProperties("web");
 
+/*
                 if (plugin.getBooleanVarValue("use_weapon_stats"))
                     plugin.DebugWrite(wstats.Count + " weapon" + ((wstats.Count > 1) ? "s" : "") + " found for " + player, 3);
+*/
+                if (plugin.getIntegerVarValue("debug_level") >= 3) {
+                    plugin.ConsoleWrite("^b[BWS]^n stat count = " + wstats.Count);
+                    foreach (BattlelogWeaponStats bws in wstats) {
+                        plugin.ConsoleWrite("^b[BWS]^n Category:" + bws.Category + ", Name:" + bws.Name + ", Slug:" + bws.Slug + ", Code:" + bws.Code + ", Kills:" + bws.Kills.ToString("F0") + ", ShotsFired:" + bws.ShotsFired.ToString("F0") + ", ShotsHit:" + bws.ShotsHit.ToString("F0") + ", Accuracy:" + bws.Accuracy.ToString("F2") + ", Headshots:" + bws.Headshots.ToString("F0") + ", TimeEquiped:" + TimeSpan.FromSeconds(bws.TimeEquipped).ToString());
+                    }
+                }
+} catch (Exception e) {}                
 
                 pinfo.StatsError = false;
 
