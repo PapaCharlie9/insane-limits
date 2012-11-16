@@ -11711,7 +11711,7 @@ public interface DataDictionaryInterface
 try {
                 /* extract weapon level statistics */
                 List<BattlelogWeaponStats> wstats = new List<BattlelogWeaponStats>();
-                if (plugin.getBooleanVarValue("use_weapon_stats"))
+                //XXX if (plugin.getBooleanVarValue("use_weapon_stats"))
                     wstats = extractWeaponStats(pinfo, personaId);
 
 
