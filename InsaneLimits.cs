@@ -492,6 +492,9 @@ namespace PRoConEvents
 
         /* Weapon Stats, Current Round, All Rounds (Total) */
         WeaponStatsInterface this[String WeaponName] { get; }
+        
+        /* Battlelog Weapon Stats function: use kill.Weapon for WeaponName */
+        BattlelogWeaponStatsInterface GetBattlelog(String WeaponName);
 
         /* Other Data */
         DateTime JoinTime { get; }
@@ -3964,6 +3967,9 @@ public interface PlayerInfoInterface
 
     /* Weapon Stats, Current Round, All Rounds (Total) */
     WeaponStatsInterface this[String WeaponName] { get; }
+
+    /* Battlelog Weapon Stats function: use kill.Weapon for WeaponName */
+    BattlelogWeaponStatsInterface GetBattlelog(String WeaponName);
 
     /* Other Data */
     DateTime JoinTime { get; }
@@ -12644,6 +12650,7 @@ public interface DataDictionaryInterface
 
 
         public WeaponStatsInterface this[String WeaponName] { get { return W[WeaponName]; } }
+        public BattlelogWeaponStatsInterface GetBattlelog(String WeaponName) { return BWS[WeaponName]; }
         public DataDictionaryInterface Data { get { return (DataDictionaryInterface)DataDict; } }
         public DataDictionaryInterface RoundData { get { return (DataDictionaryInterface)RoundDataDict; } }
         public DataDictionaryInterface DataRound { get { return (DataDictionaryInterface)RoundDataDict; } }
@@ -12790,7 +12797,6 @@ public interface DataDictionaryInterface
             plugin.ConsoleWrite("Weapon " + scope + "-Stats for " + FullDisplayName + ":");
             W.dumpStats(scope, "    ");
         }
-
     }
 
     public class DataDictionary : DataDictionaryInterface
