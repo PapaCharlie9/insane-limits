@@ -11792,7 +11792,7 @@ public interface DataDictionaryInterface
 
                 try {
 
-                    String logName = plugin.R("Logs/%server_host%_%server_port%/") + DateTime.Now.ToString("yyyyMMdd") + "_battle.log";
+                    String logName = @"Logs\" + plugin.server_host + "_" + plugin.server_port + @"\" + DateTime.Now.ToString("yyyyMMdd") + "_battle.log";
 
                     /* print the collected stats to log */
                     if (plugin.getIntegerVarValue("debug_level") >= 3) {
