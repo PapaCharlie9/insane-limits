@@ -5234,6 +5234,23 @@ public interface DataDictionaryInterface
 
         Dictionary<String, PlayerInfo> new_players_batch = new Dictionary<string, PlayerInfo>();
 
+        private int GetQCount() {
+            int npqc = 0;
+            lock (players_mutex)
+            {
+                npqc = new_player_queue.Count;
+            }
+            return npqc;
+        }
+
+        private int GetBCount() {
+            int npbc = 0;
+            lock (players_mutex)
+            {
+                npbc = new_players_batch.Count;
+            }
+            return npbc;
+        }
 
 
         public void fetch_thread_loop()
@@ -5245,16 +5262,11 @@ public interface DataDictionaryInterface
                 Thread.CurrentThread.Name = "fetch";
                 int retryCount = 0;
                 DebugWrite(" starting", 3);
-                int npqc = 0;
 
                 InsaneLimits plugin = this;
                 while (true)
                 {
-                    lock (players_mutex)
-                    {
-                        npqc = new_player_queue.Count;
-                    }
-                    while (npqc == 0)
+                    while (GetQCount() == 0)
                     {
                         // if there are no more players, put yourself to sleep
                         DebugWrite("no new players, will wait, signalling ^benforcer^n thread", 7);
@@ -5263,14 +5275,10 @@ public interface DataDictionaryInterface
                         fetch_handle.WaitOne();
                         DebugWrite("awake!, block ^benforcer^n thread", 7);
                         enforcer_handle.Reset();
-                        lock (players_mutex)
-                        {
-                            npqc = new_player_queue.Count;
-                        }
                     }
 
 
-                    while (npqc > 0)
+                    while (GetQCount() > 0)
                     {
                         if (!plugin_enabled)
                             break;
@@ -5293,11 +5301,6 @@ public interface DataDictionaryInterface
 
                         if (info == null)
                         {
-                            lock (players_mutex)
-                            {
-                                npqc = new_player_queue.Count;
-                            }
-
                             continue;
                         }
 
@@ -5309,13 +5312,11 @@ public interface DataDictionaryInterface
 
                             if (!new_players_batch.ContainsKey(name))
                                 new_players_batch.Add(name, null);
-
-                            npqc = new_player_queue.Count;
                         }
 
-                        String msg = npqc + " more player" + ((npqc > 1) ? "s" : "") + " in queue";
-                        if (npqc == 0)
-                            msg = "no more players in queue";
+                        int nq = GetQCount();
+                        String msg = nq + " more player" + ((nq > 1) ? "s" : "") + " in queue";
+                        if (nq == 0) msg = "no more players in queue";
 
                         bool ck = false;
                         lock (players_mutex)
@@ -5385,27 +5386,16 @@ public interface DataDictionaryInterface
                             }
                         }
 
-                        lock (players_mutex)
-                        {
-                            npqc = new_player_queue.Count;
-                        }
-
-                        if (npqc > 0)
+                        if (GetQCount() > 0)
                         {
                             // Add some delay between consecutive fetches
-                            DebugWrite(npqc + " more players in queue, wait, signal ^benforcer^n thread", 4);
+                            DebugWrite(GetQCount() + " more players in queue, wait, signal ^benforcer^n thread", 4);
                             fetch_handle.Reset();
                             enforcer_handle.Set();
                             Thread.Sleep(5*1000); // 5 secs
                             fetch_handle.WaitOne();
                             DebugWrite("got signal from ^benforcer^n thread", 4);
                             enforcer_handle.Reset();
-
-                            // Have to get count again, might have changed while we waited
-                            lock (players_mutex)
-                            {
-                                npqc = new_player_queue.Count;
-                            }
                         }
                     }
 
@@ -5423,7 +5413,8 @@ public interface DataDictionaryInterface
                         return;
                     }
 
-                    DebugWrite("done fetching stats, " + new_players_batch.Count + " player" + ((new_players_batch.Count > 1) ? "s" : "") + " in new batch, waiting for players list now", 3);
+                    int bb = GetBCount();
+                    DebugWrite("done fetching stats, " + bb + " player" + ((bb > 1) ? "s" : "") + " in new batch, waiting for players list now", 3);
                     scratch_handle.Reset();
 
                     getPBPlayersList();
@@ -5457,8 +5448,9 @@ public interface DataDictionaryInterface
                             if (new_players_batch.ContainsKey(pname))
                                 new_players_batch.Remove(pname);
 
-                        if (new_players_batch.Count > 0)
-                            DebugWrite("Queue exhausted, will insert now a batch of " + new_players_batch.Count + " player" + ((new_players_batch.Count > 1) ? "s" : ""), 3);
+                        if (GetBCount() > 0)
+                            bb = GetBCount();
+                            DebugWrite("Will insert a batch of " + bb + " player" + ((bb > 1) ? "s" : ""), 3);
 
 
                         foreach (KeyValuePair<String, PlayerInfo> pair in new_players_batch)
