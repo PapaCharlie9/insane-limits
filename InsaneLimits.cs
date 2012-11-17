@@ -11723,11 +11723,21 @@ try {
                 if (plugin.getBooleanVarValue("use_weapon_stats"))
                     plugin.DebugWrite(wstats.Count + " weapon" + ((wstats.Count > 1) ? "s" : "") + " found for " + player, 3);
 */
+
+                pinfo.BWS.setWeaponData(wstats);
+                
                 if (plugin.getIntegerVarValue("debug_level") >= 3) {
-                    plugin.ConsoleWrite("^b[BWS]^n stat count = " + wstats.Count);
+                    String logName = plugin.R("Logs/%server_host%_%server_port%/") + DateTime.Now.ToString("yyyyMMdd") + "_bws.log";
+
+                    plugin.Log(logName, "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + pinfo.Name + " stat count = " + wstats.Count);
                     foreach (BattlelogWeaponStats bws in wstats) {
-                        plugin.ConsoleWrite("^b[BWS]^n Category:" + bws.Category + ", Name:" + bws.Name + ", Slug:" + bws.Slug + ", Code:" + bws.Code + ", Kills:" + bws.Kills.ToString("F0") + ", ShotsFired:" + bws.ShotsFired.ToString("F0") + ", ShotsHit:" + bws.ShotsHit.ToString("F0") + ", Accuracy:" + bws.Accuracy.ToString("F2") + ", Headshots:" + bws.Headshots.ToString("F0") + ", TimeEquiped:" + TimeSpan.FromSeconds(bws.TimeEquipped).ToString());
+                        plugin.Log(logName, "    Player:" + pinfo.Name + ", Category:" + bws.Category + ", Name:" + bws.Name + ", Slug:" + bws.Slug + ", Code:" + bws.Code + ", Kills:" + bws.Kills.ToString("F0") + ", ShotsFired:" + bws.ShotsFired.ToString("F0") + ", ShotsHit:" + bws.ShotsHit.ToString("F0") + ", Accuracy:" + bws.Accuracy.ToString("F2") + ", Headshots:" + bws.Headshots.ToString("F0") + ", TimeEquipped:" + TimeSpan.FromSeconds(bws.TimeEquipped).ToString());
                     }
+                    plugin.Log(logName, "=====================");
+                    
+                    plugin.ConsoleWrite(pinfo.Name + " ^bBattlelog Weapon Stats:^n");
+                    pinfo.BWS.dumpMatchedStats();
+                    plugin.ConsoleWrite("===============================");
                 }
 } catch (Exception e) {}                
 
@@ -12373,6 +12383,7 @@ try {
         public WebException _web_exception = null;
 
         public WeaponStatsDictionary W = null;
+        public BattlelogWeaponStatsDictionary BWS = null;
         public DataDictionary DataDict = null;
         public DataDictionary RoundDataDict = null;
 
@@ -12639,6 +12650,7 @@ try {
             }
 
             W = new WeaponStatsDictionary(plugin);
+            BWS = new BattlelogWeaponStatsDictionary(plugin);
             ScoreRound = Double.NaN;
 
             DataDict = new DataDictionary(plugin);
@@ -13239,6 +13251,140 @@ try {
     }
 
 
+    public class BattlelogWeaponStatsDictionary
+    {
+        InsaneLimits plugin = null;
+        public Dictionary<String, BattlelogWeaponStats> data;
+        BattlelogWeaponStats NullWeaponStats = new BattlelogWeaponStats();
+
+        private void init(InsaneLimits plugin)
+        {
+            this.plugin = plugin;
+            data = new Dictionary<string, BattlelogWeaponStats>();
+        }
+
+        public BattlelogWeaponStatsDictionary(InsaneLimits plugin)
+        {
+            init(plugin);
+        }
+
+        public BattlelogWeaponStats this[String WeaponName] { get { return getWeaponData(WeaponName); } }
+
+        private String bestWeaponMatch(String name)
+        {
+            return bestWeaponMatch(name, true);
+        }
+
+        private String bestWeaponMatch(String name, bool verbose)
+        {
+            String shortName = name;
+            Match m = Regex.Match(name, @"/([^/]+)$");
+            if (m.Success) shortName = m.Groups[1].Value;
+            
+            // Exact match?
+            if (data.ContainsKey(name)) return name;
+            if (data.ContainsKey(shortName)) return shortName;
+
+            List<String> keys = new List<string>(data.Keys);
+            
+            // Narrow down keys to those that contain shortName as a substring
+            List<String> subKeys = new List<String>();
+            foreach (String k in keys) {
+                if (Regex.Match(k, shortName, RegexOptions.IgnoreCase).Success) subKeys.Add(k);
+            }
+            
+            // Exactly one key contains shortName as a substring?
+            if (subKeys.Count == 1) return subKeys[0];
+            
+            if (subKeys.Count == 0) subKeys = keys;
+            
+            // Last resort, do fuzzy match
+            int distance = 0;
+            String new_name = plugin.bestMatch(shortName, subKeys, out distance, true);
+            if (new_name == null)
+            {
+                if (verbose)
+                    plugin.ConsoleError("Battlelog Weapon Stats: could not find weapon ^b" + shortName + "^n in dictionary");
+                return null;
+            }
+
+            if (verbose)
+                plugin.ConsoleWarn("Battlelog Weapon Stats: could not find weapon ^b" + shortName + "^n, but found ^b" + new_name + "^n, edit distance of ^b" + distance.ToString("F3") + "^n");
+            return new_name;
+        }
+
+        public BattlelogWeaponStats getWeaponData(String name)
+        {
+
+            try
+            {
+                // special case
+                if (name.Equals("UnkownWeapon")) return NullWeaponStats;
+
+                // the easy case first, weapon is in dictionary
+                name = bestWeaponMatch(name);
+
+                if (name == null) return NullWeaponStats;
+
+                if (!data.ContainsKey(name)) data.Add(name, new BattlelogWeaponStats());
+
+                return data[name];
+            }
+            catch (Exception e)
+            {
+                plugin.DumpException(e);
+            }
+
+            return NullWeaponStats;
+        }
+                
+        public void setWeaponData(List<BattlelogWeaponStats> bws)
+        {
+            /* Example dump lines:
+            [Siaga20k]
+            Category:Shotguns, Name:Saiga, Slug:saiga-12k, Code:sgSaiga, Kills:4, ShotsFired:93, ShotsHit:44, Accuracy:47.31, Headshots:2, TimeEquipped:00:05:41
+            
+            [Weapons/MP443/MP443_GM]
+            Category:Handheld weapons, Name:MP443 LIT, Slug:mp443-tact, Code:pMP443L, Kills:0, ShotsFired:8, ShotsHit:0, Accuracy:0.00, Headshots:0, TimeEquipped:00:00:25
+            
+            [?]
+            Category:Handheld weapons, Name:MP443 Silenced, Slug:mp443-supp, Code:pMP443S, Kills:0, ShotsFired:0, ShotsHit:0, Accuracy:0.00, Headshots:0, TimeEquipped:00:00:00
+            
+            [Weapons/MP443/MP443]
+            Category:Handheld weapons, Name:MP 443, Slug:mp443, Code:pMP443, Kills:18, ShotsFired:782, ShotsHit:95, Accuracy:12.15, Headshots:4, TimeEquipped:00:47:30
+            
+            [SCARL]
+            Category:Assault rifles, Name:XP2 SCARL, Slug:scar-l, Code:arSCARL, Kills:89, ShotsFired:4431, ShotsHit:567, Accuracy:12.80, Headshots:11, TimeEquipped:01:22:29
+            
+            [FGM-148]
+            Category:Launchers, Name:FGM-148 JAVELIN, Slug:fgm-148-javelin, Code:wLATJAV, Kills:8, ShotsFired:115, ShotsHit:68, Accuracy:59.13, Headshots:0, TimeEquipped:00:36:07
+            */
+            
+            foreach (BattlelogWeaponStats s in bws) {
+                /*
+                The names used in the stats are different from the RCON weapon names!
+                Usually the Slug name is the closest, but sometimes the
+                Name is a closer match to the RCON weapon name. As a rough
+                heuristic, we select the shortest string between Name and Slug.
+                */
+                String key = s.Slug;
+                if (s.Name.Length < s.Slug.Length) key = s.Name;
+                
+                data[key] = s;
+            }
+        }
+        
+        public void dumpMatchedStats()
+        {
+            List<String> rconNames = new List<string>(plugin.WeaponsDict.Keys);
+            
+            foreach (String rconName in rconNames) {
+                BattlelogWeaponStats bws = this[rconName];
+                
+                plugin.ConsoleWrite("("+rconName+") = Name:" + bws.Name + ", Slug:" + bws.Slug + ", C:" + bws.Code + ", Kills:" + bws.Kills.ToString("F0") + ", Fired:" + bws.ShotsFired.ToString("F0") + ", Hit:" + bws.ShotsHit.ToString("F0") + ", Acc:" + bws.Accuracy.ToString("F2") + ", HS:" + bws.Headshots.ToString("F0") + ", Time:" + TimeSpan.FromSeconds(bws.TimeEquipped).ToString());
+            }
+        }
+    }
 
 
     public class OAuthRequest
