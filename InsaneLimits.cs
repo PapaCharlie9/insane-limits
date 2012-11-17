@@ -1047,6 +1047,8 @@ namespace PRoConEvents
         public static String default_twitter_user_id = "475558195";
         public static String default_twitter_screen_name = "InsaneLimits";
 
+        public Dictionary<String,String> rcon2bw;
+
         public InsaneLimits()
         {
             try
@@ -1322,6 +1324,58 @@ namespace PRoConEvents
 
                 DataDict = new DataDictionary(this);
                 RoundDataDict = new DataDictionary(this);
+
+                rcon2bw = new Dictionary<String,String>();
+
+                rcon2bw["870MCS"] ="870";
+                rcon2bw["AEK-971"] ="AEK971";
+                rcon2bw["AKS-74u"] ="AKS74U";
+                rcon2bw["AN-94 Abakan"] ="AN94";
+                rcon2bw["AS Val"] ="AS-VAL";
+                rcon2bw["DamageArea"] = null;
+                rcon2bw["DAO-12"] ="DAO";
+                rcon2bw["Death"] = null;
+                rcon2bw["Defib"] = null;
+                rcon2bw["FIM92"] ="fim-92-stinger";
+                rcon2bw["Glock18"] ="g18";
+                rcon2bw["HK53"] ="g53";
+                rcon2bw["jackhammer"] ="mk3a1";
+                rcon2bw["JNG90"] ="jng-90";
+                rcon2bw["Knife_RazorBlade"] ="Knife";
+                rcon2bw["M15 AT Mine"] = null;
+                rcon2bw["M26Mass"] ="m26-mass";
+                rcon2bw["M27IAR"] ="M27";
+                rcon2bw["M67"] = null;
+                rcon2bw["Medkit"] = null;
+                rcon2bw["Melee"] = null;
+                rcon2bw["Model98B"] ="M98B";
+                rcon2bw["PP-2000"] ="PP2000";
+                rcon2bw["Repair Tool"] = null;
+                rcon2bw["RoadKill"] = null;
+                rcon2bw["RPK-74M"] ="RPK";
+                rcon2bw["SG 553 LB"] ="SG553";
+                rcon2bw["Siaga20k"] ="Saiga";
+                rcon2bw["SoldierCollision"] = null;
+                rcon2bw["Suicide"] = null;
+                rcon2bw["Steyr AUG"] = "aug-a3";
+                rcon2bw["Taurus .44"] = "Taurus 44";
+                rcon2bw["USAS-12"] = "USAS";
+                rcon2bw["G3A3"] = "G3A4";
+                rcon2bw["C4"] = null;
+                rcon2bw["Claymore"] = null;
+                rcon2bw["MagpulPDR"] = "PDR";
+                rcon2bw["MP412REX"] = "M412 Rex";
+                rcon2bw["MP443"] = "MP 443";
+                rcon2bw["MP443_GM"] = "mp443-supp";
+                rcon2bw["P90_GM"] = "P90";
+                rcon2bw["Sa18IGLA"] = "sa-18-igla";
+                rcon2bw["SCAR-H"] = "SCAR";
+                rcon2bw["UMP45"] = "UMP";
+                rcon2bw["ACR"] = "acw-r";
+                rcon2bw["L86"] = "l86a2";
+                rcon2bw["MP5K"] = "m5k";
+                rcon2bw["MTAR"] = "mtar-21";
+
             }
             catch (Exception e)
             {
@@ -12391,7 +12445,7 @@ try {
         public Dictionary<String, List<KillInfoInterface>> tkkDict = null;
         public Dictionary<String, List<KillInfoInterface>> vDict = null;
         public Dictionary<String, List<KillInfoInterface>> kDict = null;
-
+        
 
         /* Online statistics (basic)*/
         [A("web", "Rank", @"ra.*")]
@@ -13256,11 +13310,16 @@ try {
         InsaneLimits plugin = null;
         public Dictionary<String, BattlelogWeaponStats> data;
         BattlelogWeaponStats NullWeaponStats = new BattlelogWeaponStats();
+        BattlelogWeaponStats UnknownWeaponStats = new BattlelogWeaponStats();
 
         private void init(InsaneLimits plugin)
         {
             this.plugin = plugin;
             data = new Dictionary<string, BattlelogWeaponStats>();
+            UnknownWeaponStats.Name = "UNKNOWN";
+            UnknownWeaponStats.Kills = -1;
+            UnknownWeaponStats.ShotsFired = -1;
+            UnknownWeaponStats.Headshots = -1;            
         }
 
         public BattlelogWeaponStatsDictionary(InsaneLimits plugin)
@@ -13277,6 +13336,26 @@ try {
 
         private String bestWeaponMatch(String name, bool verbose)
         {
+            /* Example mappings. RCON weapon name in [brackets].
+            [Siaga20k]
+            Category:Shotguns, Name:Saiga, Slug:saiga-12k, Code:sgSaiga, Kills:4, ShotsFired:93, ShotsHit:44, Accuracy:47.31, Headshots:2, TimeEquipped:00:05:41
+            
+            [Weapons/MP443/MP443_GM]
+            Category:Handheld weapons, Name:MP443 LIT, Slug:mp443-tact, Code:pMP443L, Kills:0, ShotsFired:8, ShotsHit:0, Accuracy:0.00, Headshots:0, TimeEquipped:00:00:25
+            
+            [?]
+            Category:Handheld weapons, Name:MP443 Silenced, Slug:mp443-supp, Code:pMP443S, Kills:0, ShotsFired:0, ShotsHit:0, Accuracy:0.00, Headshots:0, TimeEquipped:00:00:00
+            
+            [Weapons/MP443/MP443]
+            Category:Handheld weapons, Name:MP 443, Slug:mp443, Code:pMP443, Kills:18, ShotsFired:782, ShotsHit:95, Accuracy:12.15, Headshots:4, TimeEquipped:00:47:30
+            
+            [SCARL]
+            Category:Assault rifles, Name:XP2 SCARL, Slug:scar-l, Code:arSCARL, Kills:89, ShotsFired:4431, ShotsHit:567, Accuracy:12.80, Headshots:11, TimeEquipped:01:22:29
+            
+            [FGM-148]
+            Category:Launchers, Name:FGM-148 JAVELIN, Slug:fgm-148-javelin, Code:wLATJAV, Kills:8, ShotsFired:115, ShotsHit:68, Accuracy:59.13, Headshots:0, TimeEquipped:00:36:07
+            */
+
             String shortName = name;
             Match m = Regex.Match(name, @"/([^/]+)$");
             if (m.Success) shortName = m.Groups[1].Value;
@@ -13284,6 +13363,9 @@ try {
             // Exact match?
             if (data.ContainsKey(name)) return name;
             if (data.ContainsKey(shortName)) return shortName;
+            
+            // Special cases
+            if (plugin.rcon2bw.ContainsKey(shortName)) return plugin.rcon2bw[shortName];
 
             List<String> keys = new List<string>(data.Keys);
             
@@ -13319,12 +13401,12 @@ try {
             try
             {
                 // special case
-                if (name.Equals("UnkownWeapon")) return NullWeaponStats;
+                if (name.Equals("UnknownWeapon")) return UnknownWeaponStats;
 
                 // the easy case first, weapon is in dictionary
                 name = bestWeaponMatch(name);
 
-                if (name == null) return NullWeaponStats;
+                if (name == null) return UnknownWeaponStats;
 
                 if (!data.ContainsKey(name)) data.Add(name, new BattlelogWeaponStats());
 
@@ -13340,35 +13422,17 @@ try {
                 
         public void setWeaponData(List<BattlelogWeaponStats> bws)
         {
-            /* Example dump lines:
-            [Siaga20k]
-            Category:Shotguns, Name:Saiga, Slug:saiga-12k, Code:sgSaiga, Kills:4, ShotsFired:93, ShotsHit:44, Accuracy:47.31, Headshots:2, TimeEquipped:00:05:41
-            
-            [Weapons/MP443/MP443_GM]
-            Category:Handheld weapons, Name:MP443 LIT, Slug:mp443-tact, Code:pMP443L, Kills:0, ShotsFired:8, ShotsHit:0, Accuracy:0.00, Headshots:0, TimeEquipped:00:00:25
-            
-            [?]
-            Category:Handheld weapons, Name:MP443 Silenced, Slug:mp443-supp, Code:pMP443S, Kills:0, ShotsFired:0, ShotsHit:0, Accuracy:0.00, Headshots:0, TimeEquipped:00:00:00
-            
-            [Weapons/MP443/MP443]
-            Category:Handheld weapons, Name:MP 443, Slug:mp443, Code:pMP443, Kills:18, ShotsFired:782, ShotsHit:95, Accuracy:12.15, Headshots:4, TimeEquipped:00:47:30
-            
-            [SCARL]
-            Category:Assault rifles, Name:XP2 SCARL, Slug:scar-l, Code:arSCARL, Kills:89, ShotsFired:4431, ShotsHit:567, Accuracy:12.80, Headshots:11, TimeEquipped:01:22:29
-            
-            [FGM-148]
-            Category:Launchers, Name:FGM-148 JAVELIN, Slug:fgm-148-javelin, Code:wLATJAV, Kills:8, ShotsFired:115, ShotsHit:68, Accuracy:59.13, Headshots:0, TimeEquipped:00:36:07
-            */
             
             foreach (BattlelogWeaponStats s in bws) {
                 /*
                 The names used in the stats are different from the RCON weapon names!
                 Usually the Slug name is the closest, but sometimes the
                 Name is a closer match to the RCON weapon name. As a rough
-                heuristic, we select the shortest string between Name and Slug.
+                heuristic, we select the shortest string between Name and Slug,
+                favoring Name if they are equal in length.
                 */
-                String key = s.Slug;
-                if (s.Name.Length < s.Slug.Length) key = s.Name;
+                String key = s.Name;
+                if (s.Slug.Length < s.Name.Length) key = s.Slug;
                 
                 data[key] = s;
             }
@@ -13379,9 +13443,13 @@ try {
             List<String> rconNames = new List<string>(plugin.WeaponsDict.Keys);
             
             foreach (String rconName in rconNames) {
+                String shortName = rconName;
+                Match m = Regex.Match(rconName, @"/([^/]+)$");
+                if (m.Success) shortName = m.Groups[1].Value;
+                
                 BattlelogWeaponStats bws = this[rconName];
                 
-                plugin.ConsoleWrite("("+rconName+") = Name:" + bws.Name + ", Slug:" + bws.Slug + ", C:" + bws.Code + ", Kills:" + bws.Kills.ToString("F0") + ", Fired:" + bws.ShotsFired.ToString("F0") + ", Hit:" + bws.ShotsHit.ToString("F0") + ", Acc:" + bws.Accuracy.ToString("F2") + ", HS:" + bws.Headshots.ToString("F0") + ", Time:" + TimeSpan.FromSeconds(bws.TimeEquipped).ToString());
+                plugin.ConsoleWrite("("+shortName+") = Name:" + bws.Name + ", Slug:" + bws.Slug + ", C:" + bws.Code + ", Kills:" + bws.Kills.ToString("F0") + ", Fired:" + bws.ShotsFired.ToString("F0") + ", Hit:" + bws.ShotsHit.ToString("F0") + ", Acc:" + bws.Accuracy.ToString("F2") + ", HS:" + bws.Headshots.ToString("F0") + ", Time:" + TimeSpan.FromSeconds(bws.TimeEquipped).ToString());
             }
         }
     }
