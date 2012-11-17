@@ -5260,14 +5260,29 @@ public interface DataDictionaryInterface
             {
 
                 Thread.CurrentThread.Name = "fetch";
-                int retryCount = 0;
                 DebugWrite(" starting", 3);
 
                 InsaneLimits plugin = this;
+                
+                Dictionary<String,int> retryCount = new Dictionary<String,int>();
+                Dictionary<String, CPunkbusterInfo> retryInfo = new Dictionary<string, CPunkbusterInfo>();
+
+                bool needDelay = false;
+
+                
                 while (true)
                 {
                     while (GetQCount() == 0)
                     {
+                        if (retryCount.Count > 0) {
+                            foreach (String k in retryCount.Keys) {
+                                lock (players_mutex) {
+                                    new_player_queue.Add(k, retryInfo[k]);
+                                }
+                            }
+                            DebugWrite("Retrying fetch for ^b" + retryCount.Count + "^n players in the retry queue", 3);
+                            continue;
+                        }
                         // if there are no more players, put yourself to sleep
                         DebugWrite("no new players, will wait, signalling ^benforcer^n thread", 7);
                         fetch_handle.Reset();
@@ -5282,7 +5297,7 @@ public interface DataDictionaryInterface
                     {
                         if (!plugin_enabled)
                             break;
-
+ 
                         List<String> keys = null;
 
                         lock (players_mutex)
@@ -5301,6 +5316,10 @@ public interface DataDictionaryInterface
 
                         if (info == null)
                         {
+                            lock (players_mutex)
+                            {
+                                if (new_player_queue.ContainsKey(name)) new_player_queue.Remove(name);
+                            }
                             continue;
                         }
 
@@ -5325,10 +5344,23 @@ public interface DataDictionaryInterface
                         }
                         if (ck)
                         {
+
+                            if (needDelay) {
+                                 needDelay = false;
+                                 // Add some delay between consecutive fetches
+                                 DebugWrite("adding delay before next fetch, signal ^benforcer^n thread", 4);
+                                 fetch_handle.Reset();
+                                 enforcer_handle.Set();
+                                 Thread.Sleep(3*1000); // 3 secs
+                                 fetch_handle.WaitOne();
+                                 DebugWrite("got signal from ^benforcer^n thread", 4);
+                                 enforcer_handle.Reset();
+                            }
+
                             DebugWrite("getting battlelog stats for ^b" + name + "^n, " + msg, 3);
-                            retryCount = 0;
                             PlayerInfo ptmp = plugin.blog.fetchStats(new PlayerInfo(plugin, info));
 
+/*
                             while (ptmp._web_exception != null && retryCount < 3)
                             {
                                 // Retry this player, try again after waiting 10 seconds
@@ -5371,9 +5403,39 @@ public interface DataDictionaryInterface
                                 ptmp.StatsError = false;
                                 ptmp = plugin.blog.fetchStats(new PlayerInfo(plugin, info));
                             }
+*/
 
+                            /* If there was a fetch error, remember for retry */
                             if (ptmp._web_exception != null) {
-                                ConsoleError("Fetching stats for ^b" + name + "^n: " + ptmp._web_exception.Message);
+                                bool sheLeft = false;
+                                lock (players_mutex)
+                                {
+                                    sheLeft = (!scratch_list.Contains(name));
+                                }
+                                if (sheLeft) {
+                                    DebugWrite("aborting fetch, looks like player " + name + " left the game!", 4);
+                                    continue;
+                                }
+                            
+                                if (!retryCount.ContainsKey(name)) {
+                                    retryCount[name] = 0;
+                                    retryInfo[name] = info;
+                                    ptmp = null; // release failed fetch info
+                                    DebugWrite("^b" + retryCount.Count + "^n players in the retry queue", 3);
+                                    continue;
+                                }
+                                retryCount[name] = retryCount[name] + 1;
+                                if (retryCount[name] >= 3) {
+                                    // give up
+                                    retryCount.Remove(name);
+                                    retryInfo.Remove(name);
+                                    ConsoleError("Fetching stats for ^b" + name + "^n: " + ptmp._web_exception.Message);
+                                } else {
+                                    continue;
+                                }
+                            } else if (retryCount.ContainsKey(name)) {
+                                retryCount.Remove(name);
+                                retryInfo.Remove(name);
                             }
 
                             lock (players_mutex)
@@ -5386,16 +5448,10 @@ public interface DataDictionaryInterface
                             }
                         }
 
-                        if (GetQCount() > 0)
-                        {
-                            // Add some delay between consecutive fetches
-                            DebugWrite(GetQCount() + " more players in queue, wait, signal ^benforcer^n thread", 4);
-                            fetch_handle.Reset();
-                            enforcer_handle.Set();
-                            Thread.Sleep(5*1000); // 5 secs
-                            fetch_handle.WaitOne();
-                            DebugWrite("got signal from ^benforcer^n thread", 4);
-                            enforcer_handle.Reset();
+                        if (GetBCount() > 0) {
+                            // Don't let the batch get too far behind
+                            if (GetQCount() > 0) needDelay = true;
+                            break;
                         }
                     }
 
