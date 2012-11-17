@@ -1346,6 +1346,7 @@ namespace PRoConEvents
                 rcon2bw["M26Mass"] ="m26-mass";
                 rcon2bw["M27IAR"] ="M27";
                 rcon2bw["M67"] = null;
+                rcon2bw["M93R"] = "93r";
                 rcon2bw["Medkit"] = null;
                 rcon2bw["Melee"] = null;
                 rcon2bw["Model98B"] ="M98B";
@@ -11475,6 +11476,33 @@ public interface DataDictionaryInterface
             foreach (String cline in lines)
                 ConsoleWrite(cline);
         }
+        
+        public void dumpPairs(Dictionary<String, String> pairs, int indent, String logName)
+        {
+            int fcount = pairs.Count;
+            List<String> keys = new List<String>(pairs.Keys);
+            String line = "";
+            bool first = true;
+            
+            for (int i = 1; i <= indent; ++i) {
+                line = line + " ";
+            }
+
+            foreach (String k in keys) {
+                if (first) {
+                    first = false;
+                    line = line + k + ":" + pairs[k];
+                } else {
+                    line = line + ", " + k + ":" + pairs[k];
+                }
+            }
+
+            if (logName == null) {
+                ConsoleWrite(line);
+            } else {
+                Log(logName, line);
+            }
+        }
 
         public List<PropertyInfo> getProperties(Type type, String scope)
         {
@@ -11649,7 +11677,7 @@ public interface DataDictionaryInterface
                 if (client == null) {
                     client = new WebClient();
                     String ua = "Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; WOW64; Trident/5.0; .NET CLR 3.5.30729)";
-                    plugin.DebugWrite("Using user-agent: " + ua, 3);
+                    plugin.DebugWrite("Using user-agent: " + ua, 4);
                     client.Headers.Add("user-agent", ua);
                 }
 
@@ -11762,38 +11790,32 @@ public interface DataDictionaryInterface
                 /*  extract the kit times (percentage) */
                 extractKitTimes((Hashtable)stats["kitTimesInPercentage"], id2kit, pinfo, "_p");
 
-try {
-                /* extract weapon level statistics */
-                List<BattlelogWeaponStats> wstats = new List<BattlelogWeaponStats>();
-                //XXX if (plugin.getBooleanVarValue("use_weapon_stats"))
+                try {
+
+                    String logName = plugin.R("Logs/%server_host%_%server_port%/") + DateTime.Now.ToString("yyyyMMdd") + "_battle.log";
+
+                    /* print the collected stats to log */
+                    if (plugin.getIntegerVarValue("debug_level") >= 3) {
+                        plugin.Log(logName, "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + pinfo.Name + " Battlelog player stats:");
+                        pinfo.dumpStatProperties("web", logName);
+                    }
+
+                    /* extract weapon level statistics */
+                    List<BattlelogWeaponStats> wstats = new List<BattlelogWeaponStats>();
                     wstats = extractWeaponStats(pinfo, personaId);
 
+                    pinfo.BWS.setWeaponData(wstats);
 
-                /* print the collected stats to log */
-                if (plugin.getIntegerVarValue("debug_level") >= 3)
-                    pinfo.dumpStatProperties("web");
-
-/*
-                if (plugin.getBooleanVarValue("use_weapon_stats"))
-                    plugin.DebugWrite(wstats.Count + " weapon" + ((wstats.Count > 1) ? "s" : "") + " found for " + player, 3);
-*/
-
-                pinfo.BWS.setWeaponData(wstats);
-                
-                if (plugin.getIntegerVarValue("debug_level") >= 3) {
-                    String logName = plugin.R("Logs/%server_host%_%server_port%/") + DateTime.Now.ToString("yyyyMMdd") + "_bws.log";
-
-                    plugin.Log(logName, "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + pinfo.Name + " stat count = " + wstats.Count);
-                    foreach (BattlelogWeaponStats bws in wstats) {
-                        plugin.Log(logName, "    Player:" + pinfo.Name + ", Category:" + bws.Category + ", Name:" + bws.Name + ", Slug:" + bws.Slug + ", Code:" + bws.Code + ", Kills:" + bws.Kills.ToString("F0") + ", ShotsFired:" + bws.ShotsFired.ToString("F0") + ", ShotsHit:" + bws.ShotsHit.ToString("F0") + ", Accuracy:" + bws.Accuracy.ToString("F2") + ", Headshots:" + bws.Headshots.ToString("F0") + ", TimeEquipped:" + TimeSpan.FromSeconds(bws.TimeEquipped).ToString());
+                    if (plugin.getIntegerVarValue("debug_level") >= 3) {
+                        plugin.Log(logName, "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + pinfo.Name + " Battlelog weapon stats:");
+                        foreach (BattlelogWeaponStats bws in wstats) {
+                            plugin.Log(logName, "    Name:" + bws.Name + ", Slug:" + bws.Slug + ", Category:" + bws.Category +  ", Code:" + bws.Code + ", Kills:" + bws.Kills.ToString("F0") + ", ShotsFired:" + bws.ShotsFired.ToString("F0") + ", ShotsHit:" + bws.ShotsHit.ToString("F0") + ", Accuracy:" + bws.Accuracy.ToString("F2") + ", Headshots:" + bws.Headshots.ToString("F0") + ", TimeEquipped:" + TimeSpan.FromSeconds(bws.TimeEquipped).ToString());
+                        }
+                        plugin.Log(logName, "=====================");
                     }
-                    plugin.Log(logName, "=====================");
-                    
-                    plugin.ConsoleWrite(pinfo.Name + " ^bBattlelog Weapon Stats:^n");
-                    pinfo.BWS.dumpMatchedStats();
-                    plugin.ConsoleWrite("===============================");
-                }
-} catch (Exception e) {}                
+                } catch (Exception e) {
+                    plugin.DumpException(e);
+                }                
 
                 pinfo.StatsError = false;
 
@@ -12743,16 +12765,21 @@ try {
 
         public void dumpStatProperties(String scope)
         {
+            dumpStatProperties(scope, null);
+        }
+
+        public void dumpStatProperties(String scope, String logName)
+        {
             List<PropertyInfo> plist = plugin.getProperties(this.GetType(), scope);
 
             Dictionary<String, String> pairs = plugin.buildPairs(this, plist);
 
-
-
             scope = scope.Substring(0, 1).ToUpper() + scope.Substring(1);
 
-            plugin.ConsoleWrite(scope + "-Stats for " + FullDisplayName + ":");
-            plugin.dumpPairs(pairs, 4);
+            String log = (logName == null) ? "plugin.log" : logName;
+            
+            plugin.ConsoleWrite(scope + "-Stats for " + FullDisplayName + " logged to: " + log);
+            plugin.dumpPairs(pairs, 4, logName);
         }
 
 
