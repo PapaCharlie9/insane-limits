@@ -3480,7 +3480,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.0.8.11";
+            return "0.0.8.11"; // patch
         }
 
         public string GetPluginAuthor()
