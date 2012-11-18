@@ -3480,7 +3480,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.0.8.8";
+            return "0.0.8.9";
         }
 
         public string GetPluginAuthor()
@@ -5351,7 +5351,11 @@ public interface DataDictionaryInterface
                                  DebugWrite("adding delay before next fetch, signal ^benforcer^n thread", 4);
                                  fetch_handle.Reset();
                                  enforcer_handle.Set();
-                                 Thread.Sleep(3*1000); // 3 secs
+                                 int zzz = 3;
+                                 if (nq >= 48) { zzz = 0; }
+                                 else if (nq >= 32) { zzz = 1; }
+                                 else if (nq >= 24) { zzz = 2; }
+                                 Thread.Sleep(zzz*1000); // zzz is secs
                                  fetch_handle.WaitOne();
                                  DebugWrite("got signal from ^benforcer^n thread", 4);
                                  enforcer_handle.Reset();
