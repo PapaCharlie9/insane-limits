@@ -5251,8 +5251,7 @@ public interface DataDictionaryInterface
             }
             return npbc;
         }
-
-
+        
         public void fetch_thread_loop()
         {
 
@@ -5267,7 +5266,17 @@ public interface DataDictionaryInterface
                 Dictionary<String,int> retryCount = new Dictionary<String,int>();
                 Dictionary<String, CPunkbusterInfo> retryInfo = new Dictionary<string, CPunkbusterInfo>();
 
-                bool needDelay = false;
+                /*
+                In order to reduce the rate of fetches to avoid "Too Many Requests"
+                errors, apply a lower bound on the amount of time used to do one
+                fetch and one insert. Any remaining time is spent sleeping.
+                The value for minSecs is adaptive. The more errors there are,
+                the longer it gets. Each success reduces it back.
+                */
+                DateTime since = DateTime.Now; // lower bound
+                double minSecs = 1.0; // min between fetches
+                double maxSecs = 12.0; // max between fetches
+                double lowerBound = minSecs;
 
                 
                 while (true)
@@ -5346,26 +5355,35 @@ public interface DataDictionaryInterface
                         if (ck)
                         {
 
-                            if (needDelay) {
-                                 needDelay = false;
+                            if (lowerBound > minSecs && DateTime.Now.Subtract(since).TotalSeconds < lowerBound) {
                                  // Add some delay between consecutive fetches
-                                 DebugWrite("adding delay before next fetch", 4);
-                                 int zzz = 5*1000;
-                                 if (nq >= 48) { zzz = 3*1000; }
-                                 else if (nq >= 32) { zzz = (3*1000)+500; }
-                                 else if (nq >= 24) { zzz = 4*1000; }
-                                 fetch_handle.Reset();
-                                 enforcer_handle.Set();
-                                 Thread.Sleep(zzz);
-                                 enforcer_handle.Reset();
+                                 DebugWrite("adding delay before next fetch, lower bound is " + lowerBound + " secs", 4);
+                                 while (DateTime.Now.Subtract(since).TotalSeconds < lowerBound) {
+                                    // Give some time to enforcer thread
+                                    fetch_handle.Reset();
+                                    enforcer_handle.Set();
+                                    fetch_handle.WaitOne(500);
+                                    enforcer_handle.Reset();
+                                 }
                                  DebugWrite("awake, proceeding with next fetch", 4);
                             }
 
                             DebugWrite("^4getting battlelog stats for ^b" + name + "^n, " + msg + "^0", 3);
+                            since = DateTime.Now; // reset timer
                             PlayerInfo ptmp = plugin.blog.fetchStats(new PlayerInfo(plugin, info));
 
                             /* If there was a fetch error, remember for retry */
                             if (ptmp._web_exception != null) {
+                                // Adaptively increment
+                                lowerBound = Math.Min(lowerBound + 1.0, maxSecs);
+                                if (lowerBound != maxSecs) DebugWrite("increase lower bound to " + lowerBound.ToString("F0") + " secs", 4);
+                                
+                                lock (players_mutex)
+                                {
+                                    if (new_players_batch.ContainsKey(name)) new_players_batch.Remove(name);
+                                }
+
+                                // Check if player still present
                                 bool sheLeft = false;
                                 lock (players_mutex)
                                 {
@@ -5380,8 +5398,7 @@ public interface DataDictionaryInterface
                                     retryCount[name] = 0;
                                     retryInfo[name] = info;
                                     ptmp = null; // release failed fetch info
-                                    DebugWrite("^b" + retryCount.Count + "^n players in the retry queue", 3);
-                                    needDelay = true;
+                                    DebugWrite("^b" + name + "^n is one of ^b" + retryCount.Count + "^n players in the retry queue", 3);
                                     continue;
                                 }
                                 retryCount[name] = retryCount[name] + 1;
@@ -5390,14 +5407,20 @@ public interface DataDictionaryInterface
                                     // give up
                                     retryCount.Remove(name);
                                     retryInfo.Remove(name);
+                                    if (ptmp._web_exception == null) ptmp._web_exception = new System.Net.WebException("fetch retry failed");
                                     ConsoleError("Fetching stats for ^b" + name + "^n: " + ptmp._web_exception.Message);
                                 } else {
-                                    needDelay = true;
                                     continue;
                                 }
-                            } else if (retryCount.ContainsKey(name)) {
-                                retryCount.Remove(name);
-                                retryInfo.Remove(name);
+                            } else {
+                                // Adaptively decrement
+                                lowerBound = Math.Max(lowerBound - 1.0, minSecs);
+                                if (lowerBound != minSecs) DebugWrite("decrease lower bound to " + lowerBound.ToString("F0") + " secs", 4);
+
+                                if (retryCount.ContainsKey(name)) {
+                                    retryCount.Remove(name);
+                                    retryInfo.Remove(name);
+                                }
                             }
 
                             lock (players_mutex)
@@ -5411,13 +5434,7 @@ public interface DataDictionaryInterface
                         }
 
                         if (GetBCount() > 0) {
-                            // Don't let the batch get too far behind
-                            if (GetQCount() > 0) needDelay = true;
                             break;
-                        } else if (GetQCount() > 0) {
-                            needDelay = true;
-                        } else {
-                            needDelay = false;
                         }
                     }
 
@@ -5437,20 +5454,19 @@ public interface DataDictionaryInterface
                     
                     if (bb > 0) {
                         DebugWrite("done fetching stats, " + bb + " player" + ((bb > 1) ? "s" : "") + " in new batch, updating player's list", 3);
-                        scratch_handle.Reset();
 
+                        // Async request for updates
                         getPBPlayersList();
                         getPlayersList();
 
-
                         if (GetQCount() == 0) {
-                            DebugWrite("waiting for player list updates", 6);
-                            scratch_handle.WaitOne();
+                            // Sync request for updates
+                            DebugWrite("waiting for player list updates", 4);
                             scratch_handle.Reset();
+                            scratch_handle.WaitOne();
                             getMapInfoSync();
-                            DebugWrite("awake! got player list updates", 6);
+                            DebugWrite("awake! got player list updates", 4);
                         }
-                        needDelay = false;
                     }
 
                     List<PlayerInfo> inserted = new List<PlayerInfo>();
@@ -5524,7 +5540,7 @@ public interface DataDictionaryInterface
                         return;
                     }
 
-                    DebugWrite("^4done inserting " + bb + " new players^0", 4);
+                    DebugWrite("^4done inserting " + bb + " new players, took " + DateTime.Now.Subtract(since).TotalSeconds.ToString("F0") + " secs^0", 4);
                 }
             }
             catch (Exception e)
