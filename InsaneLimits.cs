@@ -3480,7 +3480,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.0.8.11"; // patch
+            return "0.0.8.12";
         }
 
         public string GetPluginAuthor()
@@ -5288,6 +5288,7 @@ public interface DataDictionaryInterface
                         fetch_handle.Reset();
                         enforcer_handle.Set();
                         fetch_handle.WaitOne();
+                        if (!plugin_enabled) break;
                         DebugWrite("awake!, block ^benforcer^n thread", 7);
                         enforcer_handle.Reset();
                     }
@@ -5428,8 +5429,6 @@ public interface DataDictionaryInterface
                         {
                             new_player_queue.Clear();
                             new_players_batch.Clear();
-                            scratch_list.Clear();
-                            enforcer_handle.Set();
                         }
                         return;
                     }
@@ -5437,18 +5436,20 @@ public interface DataDictionaryInterface
                     int bb = GetBCount();
                     
                     if (bb > 0) {
-                        DebugWrite("done fetching stats, " + bb + " player" + ((bb > 1) ? "s" : "") + " in new batch, waiting for players list now", 3);
+                        DebugWrite("done fetching stats, " + bb + " player" + ((bb > 1) ? "s" : "") + " in new batch, updating player's list", 3);
                         scratch_handle.Reset();
 
                         getPBPlayersList();
                         getPlayersList();
 
-                        DebugWrite("waiting for player list updates", 6);
-                        scratch_handle.WaitOne();
-                        scratch_handle.Reset();
 
-                        getMapInfoSync();
-                        DebugWrite("awake! got player list updates", 6);
+                        if (GetQCount() == 0) {
+                            DebugWrite("waiting for player list updates", 6);
+                            scratch_handle.WaitOne();
+                            scratch_handle.Reset();
+                            getMapInfoSync();
+                            DebugWrite("awake! got player list updates", 6);
+                        }
                         needDelay = false;
                     }
 
@@ -5489,8 +5490,20 @@ public interface DataDictionaryInterface
                         new_players_batch.Clear();
                     }
 
+                    // abort the thread if the plugin was disabled
+                    if (!plugin_enabled)
+                    {
+                        DebugWrite("detected that plugin was disabled, aborting", 3);
+                        lock (players_mutex)
+                        {
+                            new_player_queue.Clear();
+                            new_players_batch.Clear();
+                        }
+                        return;
+                    }
 
                     // then for each of the players just inserted, evaluate OnJoin
+                    DebugWrite("For " + bb + " new players, evaluate OnJoin limits", 4);
                     foreach (PlayerInfo pp in inserted)
                     {
                         OnPlayerJoin(pp);
@@ -5499,11 +5512,19 @@ public interface DataDictionaryInterface
                             break;
                     }
 
-                    // quit early if plugin was disabled
+                    // abort the thread if the plugin was disabled
                     if (!plugin_enabled)
-                        break;
+                    {
+                        DebugWrite("detected that plugin was disabled, aborting", 3);
+                        lock (players_mutex)
+                        {
+                            new_player_queue.Clear();
+                            new_players_batch.Clear();
+                        }
+                        return;
+                    }
 
-
+                    DebugWrite("Done inserting " + bb + " new players", 4);
                 }
             }
             catch (Exception e)
@@ -5515,6 +5536,10 @@ public interface DataDictionaryInterface
                 }
 
                 DumpException(e);
+            }
+            finally
+            {
+                enforcer_handle.Set();
             }
 
         }
@@ -6363,7 +6388,7 @@ public interface DataDictionaryInterface
                 return;
 
             DebugWrite("Waiting for ^b" + thread.Name + "^n to finish", 3);
-            thread.Join();
+            thread.Join(3*1000);
         }
 
 
@@ -9013,6 +9038,10 @@ public interface DataDictionaryInterface
             catch (Exception e)
             {
                 DumpException(e);
+            }
+            finally
+            {
+                fetch_handle.Set(); // let fetch handle abort
             }
         }
 
@@ -11839,6 +11868,7 @@ public interface DataDictionaryInterface
                         }
                         plugin.Log(logName, "=====================");
                     }
+                    plugin.DebugWrite("done logging stats for " + pinfo.Name, 4);
                 } catch (Exception e) {
                     plugin.DumpException(e);
                 }                
@@ -12805,7 +12835,7 @@ public interface DataDictionaryInterface
 
             String log = (logName == null) ? "plugin.log" : logName;
             
-            plugin.ConsoleWrite(scope + "-Stats for " + FullDisplayName + " logged to: " + log);
+            plugin.DebugWrite(scope + "-Stats for " + FullDisplayName + " logged to: " + log, 3);
             plugin.dumpPairs(pairs, 4, logName);
         }
 
