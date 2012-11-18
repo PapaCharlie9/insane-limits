@@ -11851,7 +11851,7 @@ public interface DataDictionaryInterface
 
                     /* print the collected stats to log */
                     if (plugin.getIntegerVarValue("debug_level") >= 3) {
-                        plugin.Log(logName, "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + pinfo.Name + " Battlelog player stats:");
+                        plugin.Log(logName, "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + pinfo.FullName + " Battlelog player stats:");
                         pinfo.dumpStatProperties("web", logName);
                     }
 
@@ -11862,11 +11862,12 @@ public interface DataDictionaryInterface
                     pinfo.BWS.setWeaponData(wstats);
 
                     if (plugin.getIntegerVarValue("debug_level") >= 3) {
-                        plugin.Log(logName, "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + pinfo.Name + " Battlelog weapon stats:");
+                        String bwsBlob = "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + pinfo.FullName + " Battlelog weapon stats:\n";
                         foreach (BattlelogWeaponStats bws in wstats) {
-                            plugin.Log(logName, "    N:" + bws.Name + ", S:" + bws.Slug + ", C:" + bws.Category +  ", Code:" + bws.Code + ", K:" + bws.Kills.ToString("F0") + ", SF:" + bws.ShotsFired.ToString("F0") + ", SH:" + bws.ShotsHit.ToString("F0") + ", A:" + bws.Accuracy.ToString("F3") + ", HS:" + bws.Headshots.ToString("F0") + ", T:" + TimeSpan.FromSeconds(bws.TimeEquipped).ToString());
+                            bwsBlob = bwsBlob + "    N:" + bws.Name + ", S:" + bws.Slug + ", C:" + bws.Category +  ", Code:" + bws.Code + ", K:" + bws.Kills.ToString("F0") + ", SF:" + bws.ShotsFired.ToString("F0") + ", SH:" + bws.ShotsHit.ToString("F0") + ", A:" + bws.Accuracy.ToString("F3") + ", HS:" + bws.Headshots.ToString("F0") + ", T:" + TimeSpan.FromSeconds(bws.TimeEquipped).ToString() + "\n";
                         }
-                        plugin.Log(logName, "=====================");
+                        bwsBlob = bwsBlob + "=====================\n";
+                        plugin.AppendData(bwsBlob, logName); // raw version of Log()
                     }
                     plugin.DebugWrite("done logging stats for " + pinfo.Name, 4);
                 } catch (Exception e) {
