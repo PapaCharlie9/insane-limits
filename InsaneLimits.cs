@@ -3480,7 +3480,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.0.8.12";
+            return "0.0.8.13";
         }
 
         public string GetPluginAuthor()
@@ -5286,7 +5286,9 @@ public interface DataDictionaryInterface
                         if (retryCount.Count > 0) {
                             foreach (String k in retryCount.Keys) {
                                 lock (players_mutex) {
-                                    new_player_queue.Add(k, retryInfo[k]);
+                                    if (!new_player_queue.ContainsKey(k)) {
+                                        new_player_queue.Add(k, retryInfo[k]);
+                                    }
                                 }
                             }
                             DebugWrite("Retrying fetch for ^b" + retryCount.Count + "^n players in the retry queue", 3);
@@ -11886,12 +11888,12 @@ public interface DataDictionaryInterface
                         plugin.AppendData(bwsBlob, logName); // raw version of Log()
                     }
                     plugin.DebugWrite("done logging stats for " + pinfo.Name, 4);
+                
                 } catch (Exception e) {
-                    plugin.DumpException(e);
+                    throw;
+                } finally {
+                    pinfo.StatsError = false;
                 }                
-
-                pinfo.StatsError = false;
-
             }
             catch (StatsException e)
             {
@@ -11901,7 +11903,7 @@ public interface DataDictionaryInterface
 
                 pinfo.StatsError = true;
             }
-            catch (WebException e)
+            catch (System.Net.WebException e)
             {
                 plugin.DebugWrite("System.Net.WebException: " + e.Message, 4);
                 pinfo.StatsError = true;
