@@ -5454,6 +5454,10 @@ public interface DataDictionaryInterface
                             // Don't let the batch get too far behind
                             if (GetQCount() > 0) needDelay = true;
                             break;
+                        } else if (GetQCount() > 0) {
+                            needDelay = true;
+                        } else {
+                            needDelay = false;
                         }
                     }
 
