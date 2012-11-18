@@ -3480,7 +3480,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.0.8.10";
+            return "0.0.8.11";
         }
 
         public string GetPluginAuthor()
@@ -5305,7 +5305,7 @@ public interface DataDictionaryInterface
                             keys = new List<string>(new_player_queue.Keys);
                         }
 
-                        String name = keys[keys.Count - 1];
+                        String name = keys[0];
 
                         CPunkbusterInfo info = null;
 
@@ -5348,66 +5348,17 @@ public interface DataDictionaryInterface
                             if (needDelay) {
                                  needDelay = false;
                                  // Add some delay between consecutive fetches
-                                 DebugWrite("adding delay before next fetch, signal ^benforcer^n thread", 4);
-                                 fetch_handle.Reset();
-                                 enforcer_handle.Set();
-                                 int zzz = 3;
-                                 if (nq >= 48) { zzz = 0; }
-                                 else if (nq >= 32) { zzz = 1; }
-                                 else if (nq >= 24) { zzz = 2; }
-                                 Thread.Sleep(zzz*1000); // zzz is secs
-                                 fetch_handle.WaitOne();
-                                 DebugWrite("got signal from ^benforcer^n thread", 4);
-                                 enforcer_handle.Reset();
+                                 DebugWrite("adding delay before next fetch", 4);
+                                 int zzz = 5*1000;
+                                 if (nq >= 48) { zzz = 3*1000; }
+                                 else if (nq >= 32) { zzz = (3*1000)+500; }
+                                 else if (nq >= 24) { zzz = 4*1000; }
+                                 Thread.Sleep(zzz);
+                                 DebugWrite("awake, proceeding with next fetch", 4);
                             }
 
                             DebugWrite("getting battlelog stats for ^b" + name + "^n, " + msg, 3);
                             PlayerInfo ptmp = plugin.blog.fetchStats(new PlayerInfo(plugin, info));
-
-/*
-                            while (ptmp._web_exception != null && retryCount < 3)
-                            {
-                                // Retry this player, try again after waiting 10 seconds
-                                DebugWrite("stats for " + name + " rejected, sleep, update player list, notify ^benforcer^n thread", 4);
-                                enforcer_handle.Set();
-                                fetch_handle.Reset();
-
-                                Thread.Sleep(10*1000);
-
-                                if (!plugin_enabled) break;
-
-                                scratch_handle.Reset();
-                                getPBPlayersList();
-                                getPlayersList();
-                                DebugWrite("during retry, waiting for player list updates", 6);
-                                scratch_handle.WaitOne(5*1000); // 5 sec timeout
-
-                                scratch_handle.Reset();
-                                DebugWrite("during retry, awake! got player list updates", 6);
-
-                                fetch_handle.WaitOne(2*1000); // 2 sec timeout
-                                enforcer_handle.Reset();
-
-                                if (!plugin_enabled) break;
-
-                                retryCount = retryCount + 1;
-                                DebugWrite("awake! retry #" + retryCount + " for " + name, 4);
-
-                                bool sheLeft = false;
-                                lock (players_mutex)
-                                {
-                                    sheLeft = (!scratch_list.Contains(name));
-                                }
-                                if (sheLeft) {
-                                    DebugWrite("aborting fetch, looks like player " + name + " left the game!", 4);
-                                    break;
-                                }
-
-                                ptmp._web_exception = null;
-                                ptmp.StatsError = false;
-                                ptmp = plugin.blog.fetchStats(new PlayerInfo(plugin, info));
-                            }
-*/
 
                             /* If there was a fetch error, remember for retry */
                             if (ptmp._web_exception != null) {
@@ -5430,6 +5381,7 @@ public interface DataDictionaryInterface
                                     continue;
                                 }
                                 retryCount[name] = retryCount[name] + 1;
+                                DebugWrite("Retry " + retryCount[name] + " for " + name, 3);
                                 if (retryCount[name] >= 3) {
                                     // give up
                                     retryCount.Remove(name);
@@ -5481,7 +5433,7 @@ public interface DataDictionaryInterface
 
                     int bb = GetBCount();
                     
-                    if (!needDelay || GetQCount() < 4) {
+                    if (bb > 0) {
                         DebugWrite("done fetching stats, " + bb + " player" + ((bb > 1) ? "s" : "") + " in new batch, waiting for players list now", 3);
                         scratch_handle.Reset();
 
@@ -5518,9 +5470,10 @@ public interface DataDictionaryInterface
                             if (new_players_batch.ContainsKey(pname))
                                 new_players_batch.Remove(pname);
 
-                        if (GetBCount() > 0)
-                            bb = GetBCount();
+                        if (new_players_batch.Count > 0) {
+                            bb = new_players_batch.Count;
                             DebugWrite("Will insert a batch of " + bb + " player" + ((bb > 1) ? "s" : ""), 3);
+                        }
 
 
                         foreach (KeyValuePair<String, PlayerInfo> pair in new_players_batch)
