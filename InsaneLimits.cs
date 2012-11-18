@@ -3480,7 +3480,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.0.8.9";
+            return "0.0.8.10";
         }
 
         public string GetPluginAuthor()
@@ -5480,18 +5480,22 @@ public interface DataDictionaryInterface
                     }
 
                     int bb = GetBCount();
-                    DebugWrite("done fetching stats, " + bb + " player" + ((bb > 1) ? "s" : "") + " in new batch, waiting for players list now", 3);
-                    scratch_handle.Reset();
+                    
+                    if (!needDelay || GetQCount() < 4) {
+                        DebugWrite("done fetching stats, " + bb + " player" + ((bb > 1) ? "s" : "") + " in new batch, waiting for players list now", 3);
+                        scratch_handle.Reset();
 
-                    getPBPlayersList();
-                    getPlayersList();
+                        getPBPlayersList();
+                        getPlayersList();
 
-                    DebugWrite("waiting for player list updates", 6);
-                    scratch_handle.WaitOne();
-                    scratch_handle.Reset();
+                        DebugWrite("waiting for player list updates", 6);
+                        scratch_handle.WaitOne();
+                        scratch_handle.Reset();
 
-                    getMapInfoSync();
-                    DebugWrite("awake! got player list updates", 6);
+                        getMapInfoSync();
+                        DebugWrite("awake! got player list updates", 6);
+                        needDelay = false;
+                    }
 
                     List<PlayerInfo> inserted = new List<PlayerInfo>();
                     // first insert the entire player's batch
