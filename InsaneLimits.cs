@@ -5261,6 +5261,7 @@ public interface DataDictionaryInterface
 
                 Thread.CurrentThread.Name = "fetch";
                 DebugWrite(" starting", 3);
+                ConsoleWrite(" Version = " + GetPluginVersion());
 
                 InsaneLimits plugin = this;
                 
@@ -5353,7 +5354,10 @@ public interface DataDictionaryInterface
                                  if (nq >= 48) { zzz = 3*1000; }
                                  else if (nq >= 32) { zzz = (3*1000)+500; }
                                  else if (nq >= 24) { zzz = 4*1000; }
-                                 Thread.Sleep(zzz);
+                                 fetch_handle.Reset();
+                                 enforcer_handle.Set();
+                                 fetch_handle.WaitOne(zzz);
+                                 enforcer_handle.Reset();
                                  DebugWrite("awake, proceeding with next fetch", 4);
                             }
 
