@@ -5422,6 +5422,7 @@ public interface DataDictionaryInterface
                                     retryInfo[name] = info;
                                     ptmp = null; // release failed fetch info
                                     DebugWrite("^b" + retryCount.Count + "^n players in the retry queue", 3);
+                                    needDelay = true;
                                     continue;
                                 }
                                 retryCount[name] = retryCount[name] + 1;
@@ -5431,6 +5432,7 @@ public interface DataDictionaryInterface
                                     retryInfo.Remove(name);
                                     ConsoleError("Fetching stats for ^b" + name + "^n: " + ptmp._web_exception.Message);
                                 } else {
+                                    needDelay = true;
                                     continue;
                                 }
                             } else if (retryCount.ContainsKey(name)) {
