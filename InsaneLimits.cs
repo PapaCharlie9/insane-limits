@@ -5361,7 +5361,7 @@ public interface DataDictionaryInterface
                                  DebugWrite("awake, proceeding with next fetch", 4);
                             }
 
-                            DebugWrite("getting battlelog stats for ^b" + name + "^n, " + msg, 3);
+                            DebugWrite("^4getting battlelog stats for ^b" + name + "^n, " + msg + "^0", 3);
                             PlayerInfo ptmp = plugin.blog.fetchStats(new PlayerInfo(plugin, info));
 
                             /* If there was a fetch error, remember for retry */
@@ -5524,7 +5524,7 @@ public interface DataDictionaryInterface
                         return;
                     }
 
-                    DebugWrite("Done inserting " + bb + " new players", 4);
+                    DebugWrite("^4done inserting " + bb + " new players^0", 4);
                 }
             }
             catch (Exception e)
@@ -11864,7 +11864,7 @@ public interface DataDictionaryInterface
                     if (plugin.getIntegerVarValue("debug_level") >= 3) {
                         plugin.Log(logName, "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + pinfo.Name + " Battlelog weapon stats:");
                         foreach (BattlelogWeaponStats bws in wstats) {
-                            plugin.Log(logName, "    Name:" + bws.Name + ", Slug:" + bws.Slug + ", Category:" + bws.Category +  ", Code:" + bws.Code + ", Kills:" + bws.Kills.ToString("F0") + ", ShotsFired:" + bws.ShotsFired.ToString("F0") + ", ShotsHit:" + bws.ShotsHit.ToString("F0") + ", Accuracy:" + bws.Accuracy.ToString("F2") + ", Headshots:" + bws.Headshots.ToString("F0") + ", TimeEquipped:" + TimeSpan.FromSeconds(bws.TimeEquipped).ToString());
+                            plugin.Log(logName, "    N:" + bws.Name + ", S:" + bws.Slug + ", C:" + bws.Category +  ", Code:" + bws.Code + ", K:" + bws.Kills.ToString("F0") + ", SF:" + bws.ShotsFired.ToString("F0") + ", SH:" + bws.ShotsHit.ToString("F0") + ", A:" + bws.Accuracy.ToString("F3") + ", HS:" + bws.Headshots.ToString("F0") + ", T:" + TimeSpan.FromSeconds(bws.TimeEquipped).ToString());
                         }
                         plugin.Log(logName, "=====================");
                     }
