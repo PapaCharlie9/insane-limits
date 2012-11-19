@@ -3480,7 +3480,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.0.8.13";
+            return "0.0.9.0"; // same as 0.0.8.13
         }
 
         public string GetPluginAuthor()
@@ -5370,7 +5370,7 @@ public interface DataDictionaryInterface
                                  DebugWrite("awake, proceeding with next fetch", 4);
                             }
 
-                            DebugWrite("^4getting battlelog stats for ^b" + name + "^n, " + msg + "^0", 3);
+                            DebugWrite("^4getting battlelog stats for ^b" + name + "^n, " + msg + "^0", 4);
                             since = DateTime.Now; // reset timer
                             PlayerInfo ptmp = plugin.blog.fetchStats(new PlayerInfo(plugin, info));
 
@@ -5455,7 +5455,7 @@ public interface DataDictionaryInterface
                     int bb = GetBCount();
                     
                     if (bb > 0) {
-                        DebugWrite("done fetching stats, " + bb + " player" + ((bb > 1) ? "s" : "") + " in new batch, updating player's list", 3);
+                        DebugWrite("done fetching stats, " + bb + " player" + ((bb > 1) ? "s" : "") + " in new batch, updating player's list", 4);
 
                         // Async request for updates
                         getPBPlayersList();
@@ -5482,7 +5482,7 @@ public interface DataDictionaryInterface
                             if (pair.Value == null || !scratch_list.Contains(pair.Key))
                                 if (!players_to_remove.Contains(pair.Key))
                                 {
-                                    plugin.DebugWrite("looks like ^b" + pair.Key + "^n left, removing him from new batch", 3);
+                                    plugin.DebugWrite("looks like ^b" + pair.Key + "^n left, removing him from new batch", 4);
                                     players_to_remove.Add(pair.Key);
                                 }
 
@@ -5494,7 +5494,7 @@ public interface DataDictionaryInterface
 
                         if (new_players_batch.Count > 0) {
                             bb = new_players_batch.Count;
-                            DebugWrite("Will insert a batch of " + bb + " player" + ((bb > 1) ? "s" : ""), 3);
+                            DebugWrite("Will insert a batch of " + bb + " player" + ((bb > 1) ? "s" : ""), 4);
                         }
 
 
