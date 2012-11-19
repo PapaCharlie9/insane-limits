@@ -492,6 +492,9 @@ namespace PRoConEvents
 
         /* Weapon Stats, Current Round, All Rounds (Total) */
         WeaponStatsInterface this[String WeaponName] { get; }
+        
+        /* Battlelog Weapon Stats function: use kill.Weapon for WeaponName */
+        BattlelogWeaponStatsInterface GetBattlelog(String WeaponName);
 
         /* Other Data */
         DateTime JoinTime { get; }
@@ -1047,6 +1050,8 @@ namespace PRoConEvents
         public static String default_twitter_user_id = "475558195";
         public static String default_twitter_screen_name = "InsaneLimits";
 
+        public Dictionary<String,String> rcon2bw;
+
         public InsaneLimits()
         {
             try
@@ -1322,6 +1327,59 @@ namespace PRoConEvents
 
                 DataDict = new DataDictionary(this);
                 RoundDataDict = new DataDictionary(this);
+
+                rcon2bw = new Dictionary<String,String>();
+
+                rcon2bw["870MCS"] ="870";
+                rcon2bw["AEK-971"] ="AEK971";
+                rcon2bw["AKS-74u"] ="AKS74U";
+                rcon2bw["AN-94 Abakan"] ="AN94";
+                rcon2bw["AS Val"] ="AS-VAL";
+                rcon2bw["DamageArea"] = null;
+                rcon2bw["DAO-12"] ="DAO";
+                rcon2bw["Death"] = null;
+                rcon2bw["Defib"] = null;
+                rcon2bw["FIM92"] ="fim-92-stinger";
+                rcon2bw["Glock18"] ="g18";
+                rcon2bw["HK53"] ="g53";
+                rcon2bw["jackhammer"] ="mk3a1";
+                rcon2bw["JNG90"] ="jng-90";
+                rcon2bw["Knife_RazorBlade"] ="Knife";
+                rcon2bw["M15 AT Mine"] = null;
+                rcon2bw["M26Mass"] ="m26-mass";
+                rcon2bw["M27IAR"] ="M27";
+                rcon2bw["M67"] = null;
+                rcon2bw["M93R"] = "93r";
+                rcon2bw["Medkit"] = null;
+                rcon2bw["Melee"] = null;
+                rcon2bw["Model98B"] ="M98B";
+                rcon2bw["PP-2000"] ="PP2000";
+                rcon2bw["Repair Tool"] = null;
+                rcon2bw["RoadKill"] = null;
+                rcon2bw["RPK-74M"] ="RPK";
+                rcon2bw["SG 553 LB"] ="SG553";
+                rcon2bw["Siaga20k"] ="Saiga";
+                rcon2bw["SoldierCollision"] = null;
+                rcon2bw["Suicide"] = null;
+                rcon2bw["Steyr AUG"] = "aug-a3";
+                rcon2bw["Taurus .44"] = "Taurus 44";
+                rcon2bw["USAS-12"] = "USAS";
+                rcon2bw["G3A3"] = "G3A4";
+                rcon2bw["C4"] = null;
+                rcon2bw["Claymore"] = null;
+                rcon2bw["MagpulPDR"] = "PDR";
+                rcon2bw["MP412REX"] = "M412 Rex";
+                rcon2bw["MP443"] = "MP 443";
+                rcon2bw["MP443_GM"] = "mp443-supp";
+                rcon2bw["P90_GM"] = "P90";
+                rcon2bw["Sa18IGLA"] = "sa-18-igla";
+                rcon2bw["SCAR-H"] = "SCAR";
+                rcon2bw["UMP45"] = "UMP";
+                rcon2bw["ACR"] = "acw-r";
+                rcon2bw["L86"] = "l86a2";
+                rcon2bw["MP5K"] = "m5k";
+                rcon2bw["MTAR"] = "mtar-21";
+
             }
             catch (Exception e)
             {
@@ -3422,7 +3480,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.0.8.7";
+            return "0.0.9.0"; // same as 0.0.8.13
         }
 
         public string GetPluginAuthor()
@@ -3909,6 +3967,9 @@ public interface PlayerInfoInterface
 
     /* Weapon Stats, Current Round, All Rounds (Total) */
     WeaponStatsInterface this[String WeaponName] { get; }
+
+    /* Battlelog Weapon Stats function: use kill.Weapon for WeaponName */
+    BattlelogWeaponStatsInterface GetBattlelog(String WeaponName);
 
     /* Other Data */
     DateTime JoinTime { get; }
@@ -5173,8 +5234,24 @@ public interface DataDictionaryInterface
 
         Dictionary<String, PlayerInfo> new_players_batch = new Dictionary<string, PlayerInfo>();
 
+        private int GetQCount() {
+            int npqc = 0;
+            lock (players_mutex)
+            {
+                npqc = new_player_queue.Count;
+            }
+            return npqc;
+        }
 
-
+        private int GetBCount() {
+            int npbc = 0;
+            lock (players_mutex)
+            {
+                npbc = new_players_batch.Count;
+            }
+            return npbc;
+        }
+        
         public void fetch_thread_loop()
         {
 
@@ -5182,38 +5259,57 @@ public interface DataDictionaryInterface
             {
 
                 Thread.CurrentThread.Name = "fetch";
-                int retryCount = 0;
                 DebugWrite(" starting", 3);
-                int npqc = 0;
 
                 InsaneLimits plugin = this;
+                
+                Dictionary<String,int> retryCount = new Dictionary<String,int>();
+                Dictionary<String, CPunkbusterInfo> retryInfo = new Dictionary<string, CPunkbusterInfo>();
+
+                /*
+                In order to reduce the rate of fetches to avoid "Too Many Requests"
+                errors, apply a lower bound on the amount of time used to do one
+                fetch and one insert. Any remaining time is spent sleeping.
+                The value for minSecs is adaptive. The more errors there are,
+                the longer it gets. Each success reduces it back.
+                */
+                DateTime since = DateTime.Now; // lower bound
+                double minSecs = 1.0; // min between fetches
+                double maxSecs = 12.0; // max between fetches
+                double lowerBound = minSecs;
+
+                
                 while (true)
                 {
-                    lock (players_mutex)
+                    while (GetQCount() == 0)
                     {
-                        npqc = new_player_queue.Count;
-                    }
-                    while (npqc == 0)
-                    {
+                        if (retryCount.Count > 0) {
+                            foreach (String k in retryCount.Keys) {
+                                lock (players_mutex) {
+                                    if (!new_player_queue.ContainsKey(k)) {
+                                        new_player_queue.Add(k, retryInfo[k]);
+                                    }
+                                }
+                            }
+                            DebugWrite("Retrying fetch for ^b" + retryCount.Count + "^n players in the retry queue", 3);
+                            continue;
+                        }
                         // if there are no more players, put yourself to sleep
                         DebugWrite("no new players, will wait, signalling ^benforcer^n thread", 7);
                         fetch_handle.Reset();
                         enforcer_handle.Set();
                         fetch_handle.WaitOne();
+                        if (!plugin_enabled) break;
                         DebugWrite("awake!, block ^benforcer^n thread", 7);
                         enforcer_handle.Reset();
-                        lock (players_mutex)
-                        {
-                            npqc = new_player_queue.Count;
-                        }
                     }
 
 
-                    while (npqc > 0)
+                    while (GetQCount() > 0)
                     {
                         if (!plugin_enabled)
                             break;
-
+ 
                         List<String> keys = null;
 
                         lock (players_mutex)
@@ -5221,7 +5317,7 @@ public interface DataDictionaryInterface
                             keys = new List<string>(new_player_queue.Keys);
                         }
 
-                        String name = keys[keys.Count - 1];
+                        String name = keys[0];
 
                         CPunkbusterInfo info = null;
 
@@ -5234,9 +5330,8 @@ public interface DataDictionaryInterface
                         {
                             lock (players_mutex)
                             {
-                                npqc = new_player_queue.Count;
+                                if (new_player_queue.ContainsKey(name)) new_player_queue.Remove(name);
                             }
-
                             continue;
                         }
 
@@ -5248,13 +5343,11 @@ public interface DataDictionaryInterface
 
                             if (!new_players_batch.ContainsKey(name))
                                 new_players_batch.Add(name, null);
-
-                            npqc = new_player_queue.Count;
                         }
 
-                        String msg = npqc + " more player" + ((npqc > 1) ? "s" : "") + " in queue";
-                        if (npqc == 0)
-                            msg = "no more players in queue";
+                        int nq = GetQCount();
+                        String msg = nq + " more player" + ((nq > 1) ? "s" : "") + " in queue";
+                        if (nq == 0) msg = "no more players in queue";
 
                         bool ck = false;
                         lock (players_mutex)
@@ -5263,38 +5356,36 @@ public interface DataDictionaryInterface
                         }
                         if (ck)
                         {
-                            DebugWrite("getting battlelog stats for ^b" + name + "^n, " + msg, 3);
-                            retryCount = 0;
+
+                            if (lowerBound > minSecs && DateTime.Now.Subtract(since).TotalSeconds < lowerBound) {
+                                 // Add some delay between consecutive fetches
+                                 DebugWrite("adding delay before next fetch, lower bound is " + lowerBound + " secs", 4);
+                                 while (DateTime.Now.Subtract(since).TotalSeconds < lowerBound) {
+                                    // Give some time to enforcer thread
+                                    fetch_handle.Reset();
+                                    enforcer_handle.Set();
+                                    fetch_handle.WaitOne(500);
+                                    enforcer_handle.Reset();
+                                 }
+                                 DebugWrite("awake, proceeding with next fetch", 4);
+                            }
+
+                            DebugWrite("^4getting battlelog stats for ^b" + name + "^n, " + msg + "^0", 4);
+                            since = DateTime.Now; // reset timer
                             PlayerInfo ptmp = plugin.blog.fetchStats(new PlayerInfo(plugin, info));
 
-                            while (ptmp._web_exception != null && retryCount < 3)
-                            {
-                                // Retry this player, try again after waiting 10 seconds
-                                DebugWrite("stats for " + name + " rejected, sleep, update player list, notify ^benforcer^n thread", 4);
-                                enforcer_handle.Set();
-                                fetch_handle.Reset();
+                            /* If there was a fetch error, remember for retry */
+                            if (ptmp._web_exception != null) {
+                                // Adaptively increment
+                                lowerBound = Math.Min(lowerBound + 1.0, maxSecs);
+                                if (lowerBound != maxSecs) DebugWrite("increase lower bound to " + lowerBound.ToString("F0") + " secs", 4);
+                                
+                                lock (players_mutex)
+                                {
+                                    if (new_players_batch.ContainsKey(name)) new_players_batch.Remove(name);
+                                }
 
-                                Thread.Sleep(10*1000);
-
-                                if (!plugin_enabled) break;
-
-                                scratch_handle.Reset();
-                                getPBPlayersList();
-                                getPlayersList();
-                                DebugWrite("during retry, waiting for player list updates", 6);
-                                scratch_handle.WaitOne(5*1000); // 5 sec timeout
-
-                                scratch_handle.Reset();
-                                DebugWrite("during retry, awake! got player list updates", 6);
-
-                                fetch_handle.WaitOne(2*1000); // 2 sec timeout
-                                enforcer_handle.Reset();
-
-                                if (!plugin_enabled) break;
-
-                                retryCount = retryCount + 1;
-                                DebugWrite("awake! retry #" + retryCount + " for " + name, 4);
-
+                                // Check if player still present
                                 bool sheLeft = false;
                                 lock (players_mutex)
                                 {
@@ -5302,16 +5393,36 @@ public interface DataDictionaryInterface
                                 }
                                 if (sheLeft) {
                                     DebugWrite("aborting fetch, looks like player " + name + " left the game!", 4);
-                                    break;
+                                    continue;
                                 }
+                            
+                                if (!retryCount.ContainsKey(name)) {
+                                    retryCount[name] = 0;
+                                    retryInfo[name] = info;
+                                    ptmp = null; // release failed fetch info
+                                    DebugWrite("^b" + name + "^n is one of ^b" + retryCount.Count + "^n players in the retry queue", 3);
+                                    continue;
+                                }
+                                retryCount[name] = retryCount[name] + 1;
+                                DebugWrite("Retry " + retryCount[name] + " for " + name, 3);
+                                if (retryCount[name] >= 3) {
+                                    // give up
+                                    retryCount.Remove(name);
+                                    retryInfo.Remove(name);
+                                    if (ptmp._web_exception == null) ptmp._web_exception = new System.Net.WebException("fetch retry failed");
+                                    ConsoleError("Fetching stats for ^b" + name + "^n: " + ptmp._web_exception.Message);
+                                } else {
+                                    continue;
+                                }
+                            } else {
+                                // Adaptively decrement
+                                lowerBound = Math.Max(lowerBound - 1.0, minSecs);
+                                if (lowerBound != minSecs) DebugWrite("decrease lower bound to " + lowerBound.ToString("F0") + " secs", 4);
 
-                                ptmp._web_exception = null;
-                                ptmp.StatsError = false;
-                                ptmp = plugin.blog.fetchStats(new PlayerInfo(plugin, info));
-                            }
-
-                            if (ptmp._web_exception != null) {
-                                ConsoleError("Fetching stats for ^b" + name + "^n: " + ptmp._web_exception.Message);
+                                if (retryCount.ContainsKey(name)) {
+                                    retryCount.Remove(name);
+                                    retryInfo.Remove(name);
+                                }
                             }
 
                             lock (players_mutex)
@@ -5324,27 +5435,8 @@ public interface DataDictionaryInterface
                             }
                         }
 
-                        lock (players_mutex)
-                        {
-                            npqc = new_player_queue.Count;
-                        }
-
-                        if (npqc > 0)
-                        {
-                            // Add some delay between consecutive fetches
-                            DebugWrite(npqc + " more players in queue, wait, signal ^benforcer^n thread", 4);
-                            fetch_handle.Reset();
-                            enforcer_handle.Set();
-                            Thread.Sleep(5*1000); // 5 secs
-                            fetch_handle.WaitOne();
-                            DebugWrite("got signal from ^benforcer^n thread", 4);
-                            enforcer_handle.Reset();
-
-                            // Have to get count again, might have changed while we waited
-                            lock (players_mutex)
-                            {
-                                npqc = new_player_queue.Count;
-                            }
+                        if (GetBCount() > 0) {
+                            break;
                         }
                     }
 
@@ -5356,24 +5448,28 @@ public interface DataDictionaryInterface
                         {
                             new_player_queue.Clear();
                             new_players_batch.Clear();
-                            scratch_list.Clear();
-                            enforcer_handle.Set();
                         }
                         return;
                     }
 
-                    DebugWrite("done fetching stats, " + new_players_batch.Count + " player" + ((new_players_batch.Count > 1) ? "s" : "") + " in new batch, waiting for players list now", 3);
-                    scratch_handle.Reset();
+                    int bb = GetBCount();
+                    
+                    if (bb > 0) {
+                        DebugWrite("done fetching stats, " + bb + " player" + ((bb > 1) ? "s" : "") + " in new batch, updating player's list", 4);
 
-                    getPBPlayersList();
-                    getPlayersList();
+                        // Async request for updates
+                        getPBPlayersList();
+                        getPlayersList();
 
-                    DebugWrite("waiting for player list updates", 6);
-                    scratch_handle.WaitOne();
-                    scratch_handle.Reset();
-
-                    getMapInfoSync();
-                    DebugWrite("awake! got player list updates", 6);
+                        if (GetQCount() == 0) {
+                            // Sync request for updates
+                            DebugWrite("waiting for player list updates", 4);
+                            scratch_handle.Reset();
+                            scratch_handle.WaitOne();
+                            getMapInfoSync();
+                            DebugWrite("awake! got player list updates", 4);
+                        }
+                    }
 
                     List<PlayerInfo> inserted = new List<PlayerInfo>();
                     // first insert the entire player's batch
@@ -5386,7 +5482,7 @@ public interface DataDictionaryInterface
                             if (pair.Value == null || !scratch_list.Contains(pair.Key))
                                 if (!players_to_remove.Contains(pair.Key))
                                 {
-                                    plugin.DebugWrite("looks like ^b" + pair.Key + "^n left, removing him from new batch", 3);
+                                    plugin.DebugWrite("looks like ^b" + pair.Key + "^n left, removing him from new batch", 4);
                                     players_to_remove.Add(pair.Key);
                                 }
 
@@ -5396,8 +5492,10 @@ public interface DataDictionaryInterface
                             if (new_players_batch.ContainsKey(pname))
                                 new_players_batch.Remove(pname);
 
-                        if (new_players_batch.Count > 0)
-                            DebugWrite("Queue exhausted, will insert now a batch of " + new_players_batch.Count + " player" + ((new_players_batch.Count > 1) ? "s" : ""), 3);
+                        if (new_players_batch.Count > 0) {
+                            bb = new_players_batch.Count;
+                            DebugWrite("Will insert a batch of " + bb + " player" + ((bb > 1) ? "s" : ""), 4);
+                        }
 
 
                         foreach (KeyValuePair<String, PlayerInfo> pair in new_players_batch)
@@ -5410,8 +5508,20 @@ public interface DataDictionaryInterface
                         new_players_batch.Clear();
                     }
 
+                    // abort the thread if the plugin was disabled
+                    if (!plugin_enabled)
+                    {
+                        DebugWrite("detected that plugin was disabled, aborting", 3);
+                        lock (players_mutex)
+                        {
+                            new_player_queue.Clear();
+                            new_players_batch.Clear();
+                        }
+                        return;
+                    }
 
                     // then for each of the players just inserted, evaluate OnJoin
+                    DebugWrite("For " + bb + " new players, evaluate OnJoin limits", 4);
                     foreach (PlayerInfo pp in inserted)
                     {
                         OnPlayerJoin(pp);
@@ -5420,11 +5530,19 @@ public interface DataDictionaryInterface
                             break;
                     }
 
-                    // quit early if plugin was disabled
+                    // abort the thread if the plugin was disabled
                     if (!plugin_enabled)
-                        break;
+                    {
+                        DebugWrite("detected that plugin was disabled, aborting", 3);
+                        lock (players_mutex)
+                        {
+                            new_player_queue.Clear();
+                            new_players_batch.Clear();
+                        }
+                        return;
+                    }
 
-
+                    DebugWrite("^4done inserting " + bb + " new players, took " + DateTime.Now.Subtract(since).TotalSeconds.ToString("F0") + " secs^0", 4);
                 }
             }
             catch (Exception e)
@@ -5436,6 +5554,10 @@ public interface DataDictionaryInterface
                 }
 
                 DumpException(e);
+            }
+            finally
+            {
+                enforcer_handle.Set();
             }
 
         }
@@ -6284,7 +6406,7 @@ public interface DataDictionaryInterface
                 return;
 
             DebugWrite("Waiting for ^b" + thread.Name + "^n to finish", 3);
-            thread.Join();
+            thread.Join(3*1000);
         }
 
 
@@ -8758,6 +8880,8 @@ public interface DataDictionaryInterface
                 Thread.CurrentThread.Name = "settings";
 
                 plugin.DebugWrite("starting", 3);
+                ConsoleWrite(" Version = " + GetPluginVersion());
+
                 while (true)
                 {
                     try
@@ -8944,6 +9068,10 @@ public interface DataDictionaryInterface
             catch (Exception e)
             {
                 DumpException(e);
+            }
+            finally
+            {
+                fetch_handle.Set(); // let fetch handle abort
             }
         }
 
@@ -11433,6 +11561,33 @@ public interface DataDictionaryInterface
             foreach (String cline in lines)
                 ConsoleWrite(cline);
         }
+        
+        public void dumpPairs(Dictionary<String, String> pairs, int indent, String logName)
+        {
+            int fcount = pairs.Count;
+            List<String> keys = new List<String>(pairs.Keys);
+            String line = "";
+            bool first = true;
+            
+            for (int i = 1; i <= indent; ++i) {
+                line = line + " ";
+            }
+
+            foreach (String k in keys) {
+                if (first) {
+                    first = false;
+                    line = line + k + ":" + pairs[k];
+                } else {
+                    line = line + ", " + k + ":" + pairs[k];
+                }
+            }
+
+            if (logName == null) {
+                ConsoleWrite(line);
+            } else {
+                Log(logName, line);
+            }
+        }
 
         public List<PropertyInfo> getProperties(Type type, String scope)
         {
@@ -11607,7 +11762,7 @@ public interface DataDictionaryInterface
                 if (client == null) {
                     client = new WebClient();
                     String ua = "Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; WOW64; Trident/5.0; .NET CLR 3.5.30729)";
-                    plugin.DebugWrite("Using user-agent: " + ua, 3);
+                    plugin.DebugWrite("Using user-agent: " + ua, 4);
                     client.Headers.Add("user-agent", ua);
                 }
 
@@ -11720,21 +11875,37 @@ public interface DataDictionaryInterface
                 /*  extract the kit times (percentage) */
                 extractKitTimes((Hashtable)stats["kitTimesInPercentage"], id2kit, pinfo, "_p");
 
-                /* extract weapon level statistics */
-                List<BattlelogWeaponStats> wstats = new List<BattlelogWeaponStats>();
-                if (plugin.getBooleanVarValue("use_weapon_stats"))
+                try {
+
+                    String logName = @"Logs\" + plugin.server_host + "_" + plugin.server_port + @"\" + DateTime.Now.ToString("yyyyMMdd") + "_battle.log";
+
+                    /* print the collected stats to log */
+                    if (plugin.getIntegerVarValue("debug_level") >= 3) {
+                        plugin.Log(logName, "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + pinfo.FullName + " Battlelog player stats:");
+                        pinfo.dumpStatProperties("web", logName);
+                    }
+
+                    /* extract weapon level statistics */
+                    List<BattlelogWeaponStats> wstats = new List<BattlelogWeaponStats>();
                     wstats = extractWeaponStats(pinfo, personaId);
 
+                    pinfo.BWS.setWeaponData(wstats);
 
-                /* print the collected stats to log */
-                if (plugin.getIntegerVarValue("debug_level") >= 3)
-                    pinfo.dumpStatProperties("web");
-
-                if (plugin.getBooleanVarValue("use_weapon_stats"))
-                    plugin.DebugWrite(wstats.Count + " weapon" + ((wstats.Count > 1) ? "s" : "") + " found for " + player, 3);
-
-                pinfo.StatsError = false;
-
+                    if (plugin.getIntegerVarValue("debug_level") >= 3) {
+                        String bwsBlob = "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + pinfo.FullName + " Battlelog weapon stats:\n";
+                        foreach (BattlelogWeaponStats bws in wstats) {
+                            bwsBlob = bwsBlob + "    N:" + bws.Name + ", S:" + bws.Slug + ", C:" + bws.Category +  ", Code:" + bws.Code + ", K:" + bws.Kills.ToString("F0") + ", SF:" + bws.ShotsFired.ToString("F0") + ", SH:" + bws.ShotsHit.ToString("F0") + ", A:" + bws.Accuracy.ToString("F3") + ", HS:" + bws.Headshots.ToString("F0") + ", T:" + TimeSpan.FromSeconds(bws.TimeEquipped).ToString() + "\n";
+                        }
+                        bwsBlob = bwsBlob + "=====================\n";
+                        plugin.AppendData(bwsBlob, logName); // raw version of Log()
+                    }
+                    plugin.DebugWrite("done logging stats for " + pinfo.Name, 4);
+                
+                } catch (Exception e) {
+                    throw;
+                } finally {
+                    pinfo.StatsError = false;
+                }                
             }
             catch (StatsException e)
             {
@@ -11744,7 +11915,7 @@ public interface DataDictionaryInterface
 
                 pinfo.StatsError = true;
             }
-            catch (WebException e)
+            catch (System.Net.WebException e)
             {
                 plugin.DebugWrite("System.Net.WebException: " + e.Message, 4);
                 pinfo.StatsError = true;
@@ -12375,6 +12546,7 @@ public interface DataDictionaryInterface
         public WebException _web_exception = null;
 
         public WeaponStatsDictionary W = null;
+        public BattlelogWeaponStatsDictionary BWS = null;
         public DataDictionary DataDict = null;
         public DataDictionary RoundDataDict = null;
 
@@ -12382,7 +12554,7 @@ public interface DataDictionaryInterface
         public Dictionary<String, List<KillInfoInterface>> tkkDict = null;
         public Dictionary<String, List<KillInfoInterface>> vDict = null;
         public Dictionary<String, List<KillInfoInterface>> kDict = null;
-
+        
 
         /* Online statistics (basic)*/
         [A("web", "Rank", @"ra.*")]
@@ -12559,6 +12731,7 @@ public interface DataDictionaryInterface
 
 
         public WeaponStatsInterface this[String WeaponName] { get { return W[WeaponName]; } }
+        public BattlelogWeaponStatsInterface GetBattlelog(String WeaponName) { return BWS[WeaponName]; }
         public DataDictionaryInterface Data { get { return (DataDictionaryInterface)DataDict; } }
         public DataDictionaryInterface RoundData { get { return (DataDictionaryInterface)RoundDataDict; } }
         public DataDictionaryInterface DataRound { get { return (DataDictionaryInterface)RoundDataDict; } }
@@ -12641,6 +12814,7 @@ public interface DataDictionaryInterface
             }
 
             W = new WeaponStatsDictionary(plugin);
+            BWS = new BattlelogWeaponStatsDictionary(plugin);
             ScoreRound = Double.NaN;
 
             DataDict = new DataDictionary(plugin);
@@ -12679,16 +12853,21 @@ public interface DataDictionaryInterface
 
         public void dumpStatProperties(String scope)
         {
+            dumpStatProperties(scope, null);
+        }
+
+        public void dumpStatProperties(String scope, String logName)
+        {
             List<PropertyInfo> plist = plugin.getProperties(this.GetType(), scope);
 
             Dictionary<String, String> pairs = plugin.buildPairs(this, plist);
 
-
-
             scope = scope.Substring(0, 1).ToUpper() + scope.Substring(1);
 
-            plugin.ConsoleWrite(scope + "-Stats for " + FullDisplayName + ":");
-            plugin.dumpPairs(pairs, 4);
+            String log = (logName == null) ? "plugin.log" : logName;
+            
+            plugin.DebugWrite(scope + "-Stats for " + FullDisplayName + " logged to: " + log, 3);
+            plugin.dumpPairs(pairs, 4, logName);
         }
 
 
@@ -12699,7 +12878,6 @@ public interface DataDictionaryInterface
             plugin.ConsoleWrite("Weapon " + scope + "-Stats for " + FullDisplayName + ":");
             W.dumpStats(scope, "    ");
         }
-
     }
 
     public class DataDictionary : DataDictionaryInterface
@@ -13241,6 +13419,154 @@ public interface DataDictionaryInterface
     }
 
 
+    public class BattlelogWeaponStatsDictionary
+    {
+        InsaneLimits plugin = null;
+        public Dictionary<String, BattlelogWeaponStats> data;
+        BattlelogWeaponStats NullWeaponStats = new BattlelogWeaponStats();
+        BattlelogWeaponStats UnknownWeaponStats = new BattlelogWeaponStats();
+
+        private void init(InsaneLimits plugin)
+        {
+            this.plugin = plugin;
+            data = new Dictionary<string, BattlelogWeaponStats>();
+            UnknownWeaponStats.Name = "UNKNOWN";
+            UnknownWeaponStats.Kills = -1;
+            UnknownWeaponStats.ShotsFired = -1;
+            UnknownWeaponStats.Headshots = -1;            
+        }
+
+        public BattlelogWeaponStatsDictionary(InsaneLimits plugin)
+        {
+            init(plugin);
+        }
+
+        public BattlelogWeaponStats this[String WeaponName] { get { return getWeaponData(WeaponName); } }
+
+        private String bestWeaponMatch(String name)
+        {
+            return bestWeaponMatch(name, true);
+        }
+
+        private String bestWeaponMatch(String name, bool verbose)
+        {
+            /* Example mappings. RCON weapon name in [brackets].
+            [Siaga20k]
+            Category:Shotguns, Name:Saiga, Slug:saiga-12k, Code:sgSaiga, Kills:4, ShotsFired:93, ShotsHit:44, Accuracy:47.31, Headshots:2, TimeEquipped:00:05:41
+            
+            [Weapons/MP443/MP443_GM]
+            Category:Handheld weapons, Name:MP443 LIT, Slug:mp443-tact, Code:pMP443L, Kills:0, ShotsFired:8, ShotsHit:0, Accuracy:0.00, Headshots:0, TimeEquipped:00:00:25
+            
+            [?]
+            Category:Handheld weapons, Name:MP443 Silenced, Slug:mp443-supp, Code:pMP443S, Kills:0, ShotsFired:0, ShotsHit:0, Accuracy:0.00, Headshots:0, TimeEquipped:00:00:00
+            
+            [Weapons/MP443/MP443]
+            Category:Handheld weapons, Name:MP 443, Slug:mp443, Code:pMP443, Kills:18, ShotsFired:782, ShotsHit:95, Accuracy:12.15, Headshots:4, TimeEquipped:00:47:30
+            
+            [SCARL]
+            Category:Assault rifles, Name:XP2 SCARL, Slug:scar-l, Code:arSCARL, Kills:89, ShotsFired:4431, ShotsHit:567, Accuracy:12.80, Headshots:11, TimeEquipped:01:22:29
+            
+            [FGM-148]
+            Category:Launchers, Name:FGM-148 JAVELIN, Slug:fgm-148-javelin, Code:wLATJAV, Kills:8, ShotsFired:115, ShotsHit:68, Accuracy:59.13, Headshots:0, TimeEquipped:00:36:07
+            */
+
+            String shortName = name;
+            Match m = Regex.Match(name, @"/([^/]+)$");
+            if (m.Success) shortName = m.Groups[1].Value;
+            
+            // Exact match?
+            if (data.ContainsKey(name)) return name;
+            if (data.ContainsKey(shortName)) return shortName;
+            
+            // Special cases
+            if (plugin.rcon2bw.ContainsKey(shortName)) return plugin.rcon2bw[shortName];
+
+            List<String> keys = new List<string>(data.Keys);
+            
+            // Narrow down keys to those that contain shortName as a substring
+            List<String> subKeys = new List<String>();
+            foreach (String k in keys) {
+                if (Regex.Match(k, shortName, RegexOptions.IgnoreCase).Success) subKeys.Add(k);
+            }
+            
+            // Exactly one key contains shortName as a substring?
+            if (subKeys.Count == 1) return subKeys[0];
+            
+            if (subKeys.Count == 0) subKeys = keys;
+            
+            // Last resort, do fuzzy match
+            int distance = 0;
+            String new_name = plugin.bestMatch(shortName, subKeys, out distance, true);
+            if (new_name == null)
+            {
+                if (verbose)
+                    plugin.ConsoleError("Battlelog Weapon Stats: could not find weapon ^b" + shortName + "^n in dictionary");
+                return null;
+            }
+
+            if (verbose)
+                plugin.ConsoleWarn("Battlelog Weapon Stats: could not find weapon ^b" + shortName + "^n, but found ^b" + new_name + "^n, edit distance of ^b" + distance.ToString("F3") + "^n");
+            return new_name;
+        }
+
+        public BattlelogWeaponStats getWeaponData(String name)
+        {
+
+            try
+            {
+                // special case
+                if (name.Equals("UnknownWeapon")) return UnknownWeaponStats;
+
+                // the easy case first, weapon is in dictionary
+                name = bestWeaponMatch(name);
+
+                if (name == null) return UnknownWeaponStats;
+
+                if (!data.ContainsKey(name)) data.Add(name, new BattlelogWeaponStats());
+
+                return data[name];
+            }
+            catch (Exception e)
+            {
+                plugin.DumpException(e);
+            }
+
+            return NullWeaponStats;
+        }
+                
+        public void setWeaponData(List<BattlelogWeaponStats> bws)
+        {
+            
+            foreach (BattlelogWeaponStats s in bws) {
+                /*
+                The names used in the stats are different from the RCON weapon names!
+                Usually the Slug name is the closest, but sometimes the
+                Name is a closer match to the RCON weapon name. As a rough
+                heuristic, we select the shortest string between Name and Slug,
+                favoring Name if they are equal in length.
+                */
+                String key = s.Name;
+                if (s.Slug.Length < s.Name.Length) key = s.Slug;
+                
+                data[key] = s;
+            }
+        }
+        
+        public void dumpMatchedStats()
+        {
+            List<String> rconNames = new List<string>(plugin.WeaponsDict.Keys);
+            
+            foreach (String rconName in rconNames) {
+                String shortName = rconName;
+                Match m = Regex.Match(rconName, @"/([^/]+)$");
+                if (m.Success) shortName = m.Groups[1].Value;
+                
+                BattlelogWeaponStats bws = this[rconName];
+                
+                plugin.ConsoleWrite("("+shortName+") = Name:" + bws.Name + ", Slug:" + bws.Slug + ", C:" + bws.Code + ", Kills:" + bws.Kills.ToString("F0") + ", Fired:" + bws.ShotsFired.ToString("F0") + ", Hit:" + bws.ShotsHit.ToString("F0") + ", Acc:" + bws.Accuracy.ToString("F2") + ", HS:" + bws.Headshots.ToString("F0") + ", Time:" + TimeSpan.FromSeconds(bws.TimeEquipped).ToString());
+            }
+        }
+    }
 
 
     public class OAuthRequest
