@@ -3480,7 +3480,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.0.9.0"; // same as 0.0.8.13
+            return "0.0.9.1";
         }
 
         public string GetPluginAuthor()
@@ -11715,6 +11715,7 @@ public interface DataDictionaryInterface
     public class StatsException : Exception
     {
         public int code = 0;
+        public WebException web_exception = null;
         public StatsException(String message) : base(message) { }
         public StatsException(String message, int code) : base(message) { this.code = code; }
     }
@@ -11776,11 +11777,13 @@ public interface DataDictionaryInterface
             }
             catch (WebException e)
             {
-                if (e.Status.Equals(WebExceptionStatus.Timeout))
-                    throw new StatsException("HTTP request timed-out");
-                else
+                if (e.Status.Equals(WebExceptionStatus.Timeout)) {
+                    StatsException se = new StatsException("HTTP request timed-out");
+                    se.web_exception = e;
+                    throw se;
+                } else {
                     throw;
-
+                }
             }
 
             return html_data;
@@ -11909,9 +11912,16 @@ public interface DataDictionaryInterface
             }
             catch (StatsException e)
             {
-                plugin.ConsoleError(e.Message);
-                if (e.code == 404)
+                if (e.web_exception == null) {
+                    plugin.ConsoleError(e.Message);
+                } else {
+                    plugin.DebugWrite("(StatException) System.Net.WebException: " + e.web_exception.Message, 4);
+                    pinfo._web_exception = e.web_exception;
+                }
+
+                if (e.code == 404) {
                     pinfo.Battlelog404 = true;
+                }
 
                 pinfo.StatsError = true;
             }
