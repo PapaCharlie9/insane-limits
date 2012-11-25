@@ -342,6 +342,11 @@ namespace PRoConEvents
         int NextMapIndex { get; }
         String NextMapFileName { get; }
         String NextGamemode { get; }
+        
+        /* Map Rotation */
+        List<String> MapFileNameRotation { get; }
+        List<String> GamemodeRotation { get; }
+        List<int> LevelRoundsRotation { get; }
 
         /* All players, Current Round, Stats */
         double KillsRound { get; }
@@ -3771,7 +3776,7 @@ public interface LimitInfoInterface
     <pre>
 public interface TeamInfoInterface
 {
-    List<PlayerInfoInterface> players { get; }
+    List&lt;PlayerInfoInterface&gt; players { get; }
 
     double KillsRound { get; }
     double DeathsRound { get; }
@@ -3811,6 +3816,11 @@ public interface ServerInfoInterface
     int NextMapIndex { get; }
     String NextMapFileName { get; }
     String NextGamemode { get; }
+
+    /* Map Rotation */
+    List&lt;String&gt; MapFileNameRotation { get; }
+    List&lt;String&gt; GamemodeRotation { get; }
+    List&lt;int&gt; LevelRoundsRotation { get; }
 
     /* All players, Current Round, Stats */
     double KillsRound { get; }
@@ -12170,6 +12180,10 @@ public interface DataDictionaryInterface
         List<MaplistEntry> mlist = null;
         List<TeamScore> _TeamTickets = null;
         Dictionary<int, double> _StartTickets = null;
+        
+        List<String> _mapRotation = new List<String>();
+        List<String> _modeRotation = new List<String>();
+        List<int> _roundRotation = new List<int>();
 
         int _WinTeamId = 0;
         int[] indices = null;
@@ -12199,7 +12213,9 @@ public interface DataDictionaryInterface
         [A("map")]
         public int NextMapIndex { get { return indices[1]; } }
 
-
+        public List<String> MapFileNameRotation { get { return _mapRotation; } }
+        public List<String> GamemodeRotation { get { return _modeRotation; } }
+        public List<int> LevelRoundsRotation { get { return _roundRotation; } }
 
         [A("round")]
         public int PlayerCount { get { return data.PlayerCount; } }
@@ -12398,9 +12414,25 @@ public interface DataDictionaryInterface
             ResetTickets();
         }
 
+        public void updateRotation(List<MaplistEntry> mlist)
+        {  
+            _mapRotation.Clear();
+            _modeRotation.Clear();
+            _roundRotation.Clear();
+            
+            if (mlist == null) return;
+
+            foreach (MaplistEntry m in mlist) {
+                _mapRotation.Add(m.MapFileName);
+                _modeRotation.Add(m.Gamemode);
+                _roundRotation.Add(m.Rounds);
+            }
+        }
+
         public void updateMapList(List<MaplistEntry> mlist)
         {
             this.mlist = mlist;
+            updateRotation(mlist);
         }
 
         public void updateIndices(int[] indices)
