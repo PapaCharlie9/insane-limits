@@ -11784,7 +11784,8 @@ public interface DataDictionaryInterface
             {
                 if (client == null) {
                     client = new WebClient();
-                    String ua = "Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; WOW64; Trident/5.0; .NET CLR 3.5.30729)";
+                    String ua = "Mozilla/5.0 (compatible; PRoCon 1; Insane Limits)";
+                    // XXX String ua = "Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; WOW64; Trident/5.0; .NET CLR 3.5.30729)";
                     plugin.DebugWrite("Using user-agent: " + ua, 4);
                     client.Headers.Add("user-agent", ua);
                 }
