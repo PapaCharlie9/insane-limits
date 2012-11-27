@@ -3485,7 +3485,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.0.9.1";
+            return "0.0.9.2";
         }
 
         public string GetPluginAuthor()
@@ -5282,10 +5282,20 @@ public interface DataDictionaryInterface
                 fetch and one insert. Any remaining time is spent sleeping.
                 The value for minSecs is adaptive. The more errors there are,
                 the longer it gets. Each success reduces it back.
+                
+                According to
+                
+                http://www.phogue.net/forumvb/showthread.php?5313-Battlelog-stats-make-plugins-amp-procon-lag-Solution-Global-stats-fetching&p=62259&viewfull=1#post62259
+                
+                the upper bound for request rate is 15 requests every 20 seconds.
+                To allow head-room for other plugins running simultaneously,
+                we cap our rate at 5 requests every 20 seconds. For a full
+                server of 64 players, that means a minimum time to empty the
+                initial fetch queue is about 4.5 minutes.
                 */
                 DateTime since = DateTime.Now; // lower bound
-                double minSecs = 1.0; // min between fetches
-                double maxSecs = 12.0; // max between fetches
+                double minSecs = 4.0; // min between fetches
+                double maxSecs = 10.0; // max between fetches
                 double lowerBound = minSecs;
 
                 
@@ -5370,12 +5380,14 @@ public interface DataDictionaryInterface
                             if (lowerBound > minSecs && DateTime.Now.Subtract(since).TotalSeconds < lowerBound) {
                                  // Add some delay between consecutive fetches
                                  DebugWrite("adding delay before next fetch, lower bound is " + lowerBound + " secs", 4);
-                                 while (DateTime.Now.Subtract(since).TotalSeconds < lowerBound) {
+                                 double upperBound = maxSecs * 2;
+                                 while (DateTime.Now.Subtract(since).TotalSeconds < lowerBound && upperBound > 0.0) {
                                     // Give some time to enforcer thread
                                     fetch_handle.Reset();
                                     enforcer_handle.Set();
                                     fetch_handle.WaitOne(500);
                                     enforcer_handle.Reset();
+                                    upperBound = upperBound - 1.0;
                                  }
                                  DebugWrite("awake, proceeding with next fetch", 4);
                             }
