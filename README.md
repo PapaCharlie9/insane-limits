@@ -162,6 +162,7 @@ These are all the allowed actions:
 * _PRoConChat_ - sends the specified text to PRoCon's Chat-Tab, if the limit evaluates _True_
 * _PRoConEvent_ - adds the specified event to PRoCon's Events-Tab, if the limit evaluates_True_
 * _TaskbarNotify_ - sends a Windows Taskbar notification, if the limit evaluates _True_
+* _SoundNotify_ - plays an audio notification, if the limit evaluates _True_
   
 Depending on the selected action, other fields are shown to specify more information about the action.  
   
@@ -316,6 +317,11 @@ public interface ServerInfoInterface
     String NextMapFileName { get; }
     String NextGamemode { get; }
 
+    /* Map Rotation */
+    List<String> MapFileNameRotation { get; }
+    List<String> GamemodeRotation { get; }
+    List<int> LevelRoundsRotation { get; }
+
     /* All players, Current Round, Stats */
     double KillsRound { get; }
     double DeathsRound { get; }   // kind of useless, should be same as KillsTotal (suicides not counted as death)
@@ -405,7 +411,18 @@ public interface PlayerInfoInterface
     double ScoreVehicle{ get; }
     double ScoreObjective { get; }
     double VehiclesKilled { get; }
+    double KillStreakBonus { get; }
     double Kpm { get; }
+
+    double KillAssists { get; }
+    double ResetDeaths { get; }
+    double ResetKills { get; }
+    double ResetLosses { get; }
+    double ResetWins { get; }
+    double ResetScore { get; }
+    double ResetShotsFired { get; }
+    double ResetShotsHit { get; }
+    double ResetTime { get; }
 
     double ReconTime { get; }
     double EngineerTime { get; }
@@ -460,6 +477,9 @@ public interface PlayerInfoInterface
 
     /* Weapon Stats, Current Round, All Rounds (Total) */
     WeaponStatsInterface this[String WeaponName] { get; }
+
+    /* Battlelog Weapon Stats function: use kill.Weapon for WeaponName */
+    BattlelogWeaponStatsInterface GetBattlelog(String WeaponName);
 
     /* Other Data */
     DateTime JoinTime { get; }
@@ -517,6 +537,9 @@ public interface PluginInterface
     bool isInClanWhitelist(String PlayerName);
     bool isInWhiteList(String PlayerName, String list_name);
 
+    /* Method for checking generic lists */
+    bool isInList(String item, String list_name);
+
     /*
      * Methods getting and setting the Plugin's variables
      */
@@ -546,6 +569,7 @@ public interface PluginInterface
     bool Tweet(String status);
     bool PRoConChat(String text);
     bool PRoConEvent(String text, String player);
+    bool SendSoundNotification(String soundfile, String soundfilerepeat);
 
     void ServerCommand(params String[] arguments);
 
@@ -553,12 +577,8 @@ public interface PluginInterface
     String FriendlySpan(TimeSpan span);       //converts a TimeSpan into a friendly formatted string e.g. "2 hours, 20 minutes, 15 seconds"
     String BestPlayerMatch(String name);      //looks in the internal player's list, and finds the best match for the given player name
     
-    bool IsInGameCommand(String text);          //checks if the given text start with one of these characters: !/@?
     bool IsCommand(String text);                //checks if the given text start with one of these characters: !/@?
-
-    String ExtractInGameCommand(String text);   //if given text starts with one of these charactets !/@? it removes them
     String ExtractCommand(String text);         //if given text starts with one of these charactets !/@? it removes them
-
     String ExtractCommandPrefix(String text);   //if given text starts with one of these chracters !/@? it returns the character
 
     /*
@@ -976,20 +996,18 @@ These commands are used as a shortcut for players to view what type of stats the
 Wish-List for 0.0.0.9 (in order of priority)
 -------------
 
-- Enable LINQ support for Battlelog weapon stats 
-- Add replacements for all custom dictionary keys in player, killer, victim, limit, server, plugin object  
-
-~~~
-    " key1 = player.DataRound.String(key1), key2 = plugin.Data.Int(key2)" 
-~~~
-
-- Add option to compile limit from class file 
-- Add option to specify In-Game command prefixes 
-- Enable weapon-level In-Game stat commands 
-- Add option to get player's ping  
+See Issues list at [https://github.com/PapaCharlie9/insane-limits](https://github.com/PapaCharlie9/insane-limits)
 
 Change Log   
 -------------
+
+The change log is no longer updated in this document. Instead, look at the commit history in the GitHub repo: [https://github.com/PapaCharlie9/insane-limits](https://github.com/PapaCharlie9/insane-limits)
+
+As of 0.0.9.0, only the latest version is listed below without any change details. This just marks the version that this document corresponds to.
+
+Latest version: **0.0.9.2 (BF3)**
+
+### Historical Change Log (prior to GitHub repo creation)
 
 **0.0.0.8-patch-3 (beta, BF3)**  
 

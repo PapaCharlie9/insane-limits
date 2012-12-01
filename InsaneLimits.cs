@@ -3763,7 +3763,7 @@ public interface LimitInfoInterface
     /* Data Repository set/get custom data */
 
     DataDictionaryInterface Data { get; }        //this dictionary is user-managed
-    DataDictionaryInterface DataRound { get; }   //this dictionary is automatically cleared OnRoundStart
+    DataDictionaryInterface RoundData { get; }   //this dictionary is automatically cleared OnRoundStart
 
     /* Other methods */
     String LogFile { get; }
@@ -3869,7 +3869,7 @@ public interface ServerInfoInterface
     /* Data Repository set/get custom data */
 
     DataDictionaryInterface Data { get; }        //this dictionary is user-managed
-    DataDictionaryInterface DataRound { get; }   //this dictionary is automatically cleared OnRoundStart
+    DataDictionaryInterface RoundData { get; }   //this dictionary is automatically cleared OnRoundStart
 
 }
     </pre>
@@ -3997,7 +3997,7 @@ public interface PlayerInfoInterface
     /* Data Repository set/get custom data */
 
     DataDictionaryInterface Data { get; }        //this dictionary is user-managed
-    DataDictionaryInterface DataRound { get; }   //this dictionary is automatically cleared OnRoundStart
+    DataDictionaryInterface RoundData { get; }   //this dictionary is automatically cleared OnRoundStart
 }
 </pre>
 
@@ -4112,7 +4112,7 @@ public interface PluginInterface
     /* Data Repository set/get custom data */
 
     DataDictionaryInterface Data { get; }        //this dictionary is user-managed
-    DataDictionaryInterface DataRound { get; }   //this dictionary is automatically cleared OnRoundStart
+    DataDictionaryInterface RoundData { get; }   //this dictionary is automatically cleared OnRoundStart
 }
 </pre>
 
