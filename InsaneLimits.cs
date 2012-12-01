@@ -342,6 +342,11 @@ namespace PRoConEvents
         int NextMapIndex { get; }
         String NextMapFileName { get; }
         String NextGamemode { get; }
+        
+        /* Map Rotation */
+        List<String> MapFileNameRotation { get; }
+        List<String> GamemodeRotation { get; }
+        List<int> LevelRoundsRotation { get; }
 
         /* All players, Current Round, Stats */
         double KillsRound { get; }
@@ -3480,7 +3485,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.0.9.1";
+            return "0.0.9.2";
         }
 
         public string GetPluginAuthor()
@@ -3758,7 +3763,7 @@ public interface LimitInfoInterface
     /* Data Repository set/get custom data */
 
     DataDictionaryInterface Data { get; }        //this dictionary is user-managed
-    DataDictionaryInterface DataRound { get; }   //this dictionary is automatically cleared OnRoundStart
+    DataDictionaryInterface RoundData { get; }   //this dictionary is automatically cleared OnRoundStart
 
     /* Other methods */
     String LogFile { get; }
@@ -3771,7 +3776,7 @@ public interface LimitInfoInterface
     <pre>
 public interface TeamInfoInterface
 {
-    List<PlayerInfoInterface> players { get; }
+    List&lt;PlayerInfoInterface&gt; players { get; }
 
     double KillsRound { get; }
     double DeathsRound { get; }
@@ -3811,6 +3816,11 @@ public interface ServerInfoInterface
     int NextMapIndex { get; }
     String NextMapFileName { get; }
     String NextGamemode { get; }
+
+    /* Map Rotation */
+    List&lt;String&gt; MapFileNameRotation { get; }
+    List&lt;String&gt; GamemodeRotation { get; }
+    List&lt;int&gt; LevelRoundsRotation { get; }
 
     /* All players, Current Round, Stats */
     double KillsRound { get; }
@@ -3859,7 +3869,7 @@ public interface ServerInfoInterface
     /* Data Repository set/get custom data */
 
     DataDictionaryInterface Data { get; }        //this dictionary is user-managed
-    DataDictionaryInterface DataRound { get; }   //this dictionary is automatically cleared OnRoundStart
+    DataDictionaryInterface RoundData { get; }   //this dictionary is automatically cleared OnRoundStart
 
 }
     </pre>
@@ -3987,7 +3997,7 @@ public interface PlayerInfoInterface
     /* Data Repository set/get custom data */
 
     DataDictionaryInterface Data { get; }        //this dictionary is user-managed
-    DataDictionaryInterface DataRound { get; }   //this dictionary is automatically cleared OnRoundStart
+    DataDictionaryInterface RoundData { get; }   //this dictionary is automatically cleared OnRoundStart
 }
 </pre>
 
@@ -4102,7 +4112,7 @@ public interface PluginInterface
     /* Data Repository set/get custom data */
 
     DataDictionaryInterface Data { get; }        //this dictionary is user-managed
-    DataDictionaryInterface DataRound { get; }   //this dictionary is automatically cleared OnRoundStart
+    DataDictionaryInterface RoundData { get; }   //this dictionary is automatically cleared OnRoundStart
 }
 </pre>
 
@@ -5272,10 +5282,20 @@ public interface DataDictionaryInterface
                 fetch and one insert. Any remaining time is spent sleeping.
                 The value for minSecs is adaptive. The more errors there are,
                 the longer it gets. Each success reduces it back.
+                
+                According to
+                
+                http://www.phogue.net/forumvb/showthread.php?5313-Battlelog-stats-make-plugins-amp-procon-lag-Solution-Global-stats-fetching&p=62259&viewfull=1#post62259
+                
+                the upper bound for request rate is 15 requests every 20 seconds.
+                To allow head-room for other plugins running simultaneously,
+                we cap our rate at 5 requests every 20 seconds. For a full
+                server of 64 players, that means a minimum time to empty the
+                initial fetch queue is about 4.5 minutes.
                 */
                 DateTime since = DateTime.Now; // lower bound
-                double minSecs = 1.0; // min between fetches
-                double maxSecs = 12.0; // max between fetches
+                double minSecs = 4.0; // min between fetches
+                double maxSecs = 10.0; // max between fetches
                 double lowerBound = minSecs;
 
                 
@@ -5360,12 +5380,14 @@ public interface DataDictionaryInterface
                             if (lowerBound > minSecs && DateTime.Now.Subtract(since).TotalSeconds < lowerBound) {
                                  // Add some delay between consecutive fetches
                                  DebugWrite("adding delay before next fetch, lower bound is " + lowerBound + " secs", 4);
-                                 while (DateTime.Now.Subtract(since).TotalSeconds < lowerBound) {
+                                 double upperBound = maxSecs * 2;
+                                 while (DateTime.Now.Subtract(since).TotalSeconds < lowerBound && upperBound > 0.0) {
                                     // Give some time to enforcer thread
                                     fetch_handle.Reset();
                                     enforcer_handle.Set();
                                     fetch_handle.WaitOne(500);
                                     enforcer_handle.Reset();
+                                    upperBound = upperBound - 1.0;
                                  }
                                  DebugWrite("awake, proceeding with next fetch", 4);
                             }
@@ -11762,7 +11784,8 @@ public interface DataDictionaryInterface
             {
                 if (client == null) {
                     client = new WebClient();
-                    String ua = "Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; WOW64; Trident/5.0; .NET CLR 3.5.30729)";
+                    String ua = "Mozilla/5.0 (compatible; PRoCon 1; Insane Limits)";
+                    // XXX String ua = "Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; WOW64; Trident/5.0; .NET CLR 3.5.30729)";
                     plugin.DebugWrite("Using user-agent: " + ua, 4);
                     client.Headers.Add("user-agent", ua);
                 }
@@ -12170,6 +12193,10 @@ public interface DataDictionaryInterface
         List<MaplistEntry> mlist = null;
         List<TeamScore> _TeamTickets = null;
         Dictionary<int, double> _StartTickets = null;
+        
+        List<String> _mapRotation = new List<String>();
+        List<String> _modeRotation = new List<String>();
+        List<int> _roundRotation = new List<int>();
 
         int _WinTeamId = 0;
         int[] indices = null;
@@ -12199,7 +12226,9 @@ public interface DataDictionaryInterface
         [A("map")]
         public int NextMapIndex { get { return indices[1]; } }
 
-
+        public List<String> MapFileNameRotation { get { return _mapRotation; } }
+        public List<String> GamemodeRotation { get { return _modeRotation; } }
+        public List<int> LevelRoundsRotation { get { return _roundRotation; } }
 
         [A("round")]
         public int PlayerCount { get { return data.PlayerCount; } }
@@ -12398,9 +12427,25 @@ public interface DataDictionaryInterface
             ResetTickets();
         }
 
+        public void updateRotation(List<MaplistEntry> mlist)
+        {  
+            _mapRotation.Clear();
+            _modeRotation.Clear();
+            _roundRotation.Clear();
+            
+            if (mlist == null) return;
+
+            foreach (MaplistEntry m in mlist) {
+                _mapRotation.Add(m.MapFileName);
+                _modeRotation.Add(m.Gamemode);
+                _roundRotation.Add(m.Rounds);
+            }
+        }
+
         public void updateMapList(List<MaplistEntry> mlist)
         {
             this.mlist = mlist;
+            updateRotation(mlist);
         }
 
         public void updateIndices(int[] indices)
@@ -13734,3 +13779,4 @@ public interface DataDictionaryInterface
 
     }
 }
+
