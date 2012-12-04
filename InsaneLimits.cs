@@ -3485,7 +3485,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.0.9.2";
+            return "0.0.9.3";
         }
 
         public string GetPluginAuthor()
@@ -5487,7 +5487,7 @@ public interface DataDictionaryInterface
                             // Sync request for updates
                             DebugWrite("waiting for player list updates", 4);
                             scratch_handle.Reset();
-                            scratch_handle.WaitOne();
+                            WaitOn("scratch_handle", scratch_handle);
                             getMapInfoSync();
                             DebugWrite("awake! got player list updates", 4);
                         }
