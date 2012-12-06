@@ -11936,9 +11936,9 @@ public interface DataDictionaryInterface
             catch (StatsException e)
             {
                 if (e.web_exception == null) {
-                    plugin.ConsoleError(e.Message);
+                    plugin.ConsoleWarn("(StatsException) " + e.Message);
                 } else {
-                    plugin.DebugWrite("(StatException) System.Net.WebException: " + e.web_exception.Message, 4);
+                    plugin.DebugWrite("(StatsException) System.Net.WebException: " + e.web_exception.Message, 4);
                     pinfo._web_exception = e.web_exception;
                 }
 
