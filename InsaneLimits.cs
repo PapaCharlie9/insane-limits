@@ -963,7 +963,7 @@ namespace PRoConEvents
 
         public static String NL = System.Environment.NewLine;
 
-        bool plugin_enabled = false;
+        public bool plugin_enabled = false;
         bool plugin_activated = false;
         string oauth_token = String.Empty;
         string oauth_token_secret = String.Empty;
@@ -5382,6 +5382,7 @@ public interface DataDictionaryInterface
                                  DebugWrite("adding delay before next fetch, lower bound is " + lowerBound + " secs", 4);
                                  double upperBound = maxSecs * 2;
                                  while (DateTime.Now.Subtract(since).TotalSeconds < lowerBound && upperBound > 0.0) {
+                                    if (!plugin_enabled) break;
                                     // Give some time to enforcer thread
                                     fetch_handle.Reset();
                                     enforcer_handle.Set();
@@ -5456,6 +5457,8 @@ public interface DataDictionaryInterface
                                 DebugWrite("Unable to fetch stats for ^b" + name + "^n", 3);
                             }
                         }
+
+                        if (!plugin_enabled) break;
 
                         if (GetBCount() > 0) {
                             break;
@@ -6422,13 +6425,21 @@ public interface DataDictionaryInterface
         }
 
 
-        public void JoinWith(Thread thread)
+        public void JoinWith(Thread thread, int secs)
         {
             if (thread == null || !thread.IsAlive)
                 return;
 
             DebugWrite("Waiting for ^b" + thread.Name + "^n to finish", 3);
-            thread.Join(3*1000);
+            thread.Join(secs*1000);
+        }
+
+        public void JoinWith(Thread thread)
+        {
+            if (thread == null || !thread.IsAlive)
+                return;
+
+            JoinWith(thread, 3);
         }
 
 
@@ -6452,12 +6463,12 @@ public interface DataDictionaryInterface
                         {
                             DestroyWaitHandles();
 
-                            JoinWith(enforcer_thread);
-                            JoinWith(fetching_thread);
                             JoinWith(say_thread);
                             JoinWith(settings_thread);
+                            JoinWith(enforcer_thread);
+                            JoinWith(fetching_thread, 45);
 
-
+                            this.blog.CleanUp();
                             this.players.Clear();
 
                             CleanupLimits();
@@ -11776,6 +11787,11 @@ public interface DataDictionaryInterface
             this.plugin = plugin;
 
         }
+        
+        public void CleanUp()
+        {
+            client = null; // Release WebClient to avoid re-use error
+        }
 
 
         private String fetchWebPage(ref String html_data, String url)
@@ -11823,7 +11839,15 @@ public interface DataDictionaryInterface
 
                 String result = "";
 
+                if (!plugin.plugin_enabled) {
+                    throw new StatsException("fetchStats aborted, disabling plugin ...");
+                }
+
                 fetchWebPage(ref result, "http://battlelog.battlefield.com/bf3/user/" + player);
+                
+                if (!plugin.plugin_enabled) {
+                    throw new StatsException("fetchStats aborted, disabling plugin ...");
+                }
 
 
                 /* Extract the persona id */
@@ -11844,8 +11868,16 @@ public interface DataDictionaryInterface
                 extractClanTag(result, pinfo);
 
 
+                if (!plugin.plugin_enabled) {
+                    throw new StatsException("fetchStats aborted, disabling plugin ...");
+                }
+
                 fetchWebPage(ref result, "http://battlelog.battlefield.com/bf3/overviewPopulateStats/" + personaId + "/bf3-us-engineer/1/");
 
+
+                if (!plugin.plugin_enabled) {
+                    throw new StatsException("fetchStats aborted, disabling plugin ...");
+                }
 
                 Hashtable json = (Hashtable)JSON.JsonDecode(result);
 
@@ -11901,6 +11933,10 @@ public interface DataDictionaryInterface
                 /*  extract the kit times (percentage) */
                 extractKitTimes((Hashtable)stats["kitTimesInPercentage"], id2kit, pinfo, "_p");
 
+                if (!plugin.plugin_enabled) {
+                    throw new StatsException("fetchStats aborted, disabling plugin ...");
+                }
+
                 try {
 
                     String logName = @"Logs\" + plugin.server_host + "_" + plugin.server_port + @"\" + DateTime.Now.ToString("yyyyMMdd") + "_battle.log";
@@ -11916,6 +11952,10 @@ public interface DataDictionaryInterface
                     wstats = extractWeaponStats(pinfo, personaId);
 
                     pinfo.BWS.setWeaponData(wstats);
+
+                    if (!plugin.plugin_enabled) {
+                        throw new StatsException("fetchStats aborted, disabling plugin ...");
+                    }
 
                     if (plugin.getIntegerVarValue("debug_level") >= 3) {
                         String bwsBlob = "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + pinfo.FullName + " Battlelog weapon stats:\n";
@@ -11966,6 +12006,11 @@ public interface DataDictionaryInterface
         {
             /* extract per-weapon stats */
             String result = String.Empty;
+
+            if (!plugin.plugin_enabled) {
+                throw new StatsException("fetchStats aborted, disabling plugin ...");
+            }
+
             fetchWebPage(ref result, "http://battlelog.battlefield.com/bf3/weaponsPopulateStats/" + personaId + "/1");
 
             Hashtable json = (Hashtable)JSON.JsonDecode(result);
@@ -12002,6 +12047,10 @@ public interface DataDictionaryInterface
             List<BattlelogWeaponStats> all_weapons = new List<BattlelogWeaponStats>();
             foreach (Object item in wstats)
             {
+
+                if (!plugin.plugin_enabled) {
+                    throw new StatsException("fetchStats aborted, disabling plugin ...");
+                }
 
                 try
                 {
