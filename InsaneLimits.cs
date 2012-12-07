@@ -5275,6 +5275,7 @@ public interface DataDictionaryInterface
                 
                 Dictionary<String,int> retryCount = new Dictionary<String,int>();
                 Dictionary<String, CPunkbusterInfo> retryInfo = new Dictionary<string, CPunkbusterInfo>();
+                bool gaveEnforcerTime = false;
 
                 /*
                 In order to reduce the rate of fetches to avoid "Too Many Requests"
@@ -5301,6 +5302,8 @@ public interface DataDictionaryInterface
                 
                 while (true)
                 {
+                    gaveEnforcerTime = false;
+                    
                     while (GetQCount() == 0)
                     {
                         if (retryCount.Count > 0) {
@@ -5318,17 +5321,28 @@ public interface DataDictionaryInterface
                         DebugWrite("no new players, will wait, signalling ^benforcer^n thread", 7);
                         fetch_handle.Reset();
                         enforcer_handle.Set();
+                        gaveEnforcerTime = true;
                         fetch_handle.WaitOne();
                         if (!plugin_enabled) break;
                         DebugWrite("awake!, block ^benforcer^n thread", 7);
                         enforcer_handle.Reset();
                     }
 
+                    if (!gaveEnforcerTime && plugin_enabled) {
+                        // Give some time to enforcer thread
+                        fetch_handle.Reset();
+                        enforcer_handle.Set();
+                        gaveEnforcerTime = true;
+                        fetch_handle.WaitOne(2*1000);
+                        enforcer_handle.Reset();
+                    }
 
                     while (GetQCount() > 0)
                     {
                         if (!plugin_enabled)
                             break;
+                        
+                        gaveEnforcerTime = false;
  
                         List<String> keys = null;
 
@@ -5386,6 +5400,7 @@ public interface DataDictionaryInterface
                                     // Give some time to enforcer thread
                                     fetch_handle.Reset();
                                     enforcer_handle.Set();
+                                    gaveEnforcerTime = true;
                                     fetch_handle.WaitOne(500);
                                     enforcer_handle.Reset();
                                     upperBound = upperBound - 1.0;
@@ -5458,6 +5473,15 @@ public interface DataDictionaryInterface
                             }
                         }
 
+                        if (plugin_enabled) {
+                            // Give some time to enforcer thread
+                            fetch_handle.Reset();
+                            enforcer_handle.Set();
+                            gaveEnforcerTime = true;
+                            fetch_handle.WaitOne(1*1000);
+                            enforcer_handle.Reset();
+                        }
+
                         if (!plugin_enabled) break;
 
                         if (GetBCount() > 0) {
@@ -5482,11 +5506,20 @@ public interface DataDictionaryInterface
                     if (bb > 0) {
                         DebugWrite("done fetching stats, " + bb + " player" + ((bb > 1) ? "s" : "") + " in new batch, updating player's list", 4);
 
+                        if (!gaveEnforcerTime && plugin_enabled) {
+                            // Give some time to enforcer thread
+                            fetch_handle.Reset();
+                            enforcer_handle.Set();
+                            gaveEnforcerTime = true;
+                            fetch_handle.WaitOne(2*1000);
+                            enforcer_handle.Reset();
+                        }
+
                         // Async request for updates
                         getPBPlayersList();
                         getPlayersList();
 
-                        if (GetQCount() == 0) {
+                        if (GetQCount() == 0 && plugin_enabled) {
                             // Sync request for updates
                             DebugWrite("waiting for player list updates", 4);
                             scratch_handle.Reset();
