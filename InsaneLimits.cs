@@ -5526,7 +5526,8 @@ public interface DataDictionaryInterface
                         foreach (KeyValuePair<String, PlayerInfo> pair in new_players_batch)
                             if (pair.Value != null && scratch_list.Contains(pair.Key))
                             {
-                                players.Add(pair.Key, pair.Value);
+                                //players.Add(pair.Key, pair.Value);
+                                players[pair.Key] = pair.Value;
                                 inserted.Add(pair.Value);
                             }
 
