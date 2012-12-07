@@ -5327,13 +5327,17 @@ public interface DataDictionaryInterface
                         DebugWrite("awake!, block ^benforcer^n thread", 7);
                         enforcer_handle.Reset();
                     }
+                    
+                    DateTime fetchSince = DateTime.Now;
 
                     if (!gaveEnforcerTime && plugin_enabled) {
                         // Give some time to enforcer thread
+                        DebugWrite("players in fetch queue, giving time to ^benforcer^n thread", 7);
                         fetch_handle.Reset();
                         enforcer_handle.Set();
                         gaveEnforcerTime = true;
                         fetch_handle.WaitOne(2*1000);
+                        DebugWrite("awake!, block ^benforcer^n thread", 7);
                         enforcer_handle.Reset();
                     }
 
@@ -5473,21 +5477,14 @@ public interface DataDictionaryInterface
                             }
                         }
 
-                        if (plugin_enabled) {
-                            // Give some time to enforcer thread
-                            fetch_handle.Reset();
-                            enforcer_handle.Set();
-                            gaveEnforcerTime = true;
-                            fetch_handle.WaitOne(1*1000);
-                            enforcer_handle.Reset();
-                        }
-
                         if (!plugin_enabled) break;
 
                         if (GetBCount() > 0) {
                             break;
                         }
                     }
+
+                    DebugWrite("^4^bTIME^n took " + DateTime.Now.Subtract(fetchSince).TotalSeconds.ToString("F2") + " secs, fetching players from queue", 4);
 
                     // abort the thread if the plugin was disabled
                     if (!plugin_enabled)
@@ -5503,16 +5500,20 @@ public interface DataDictionaryInterface
 
                     int bb = GetBCount();
                     
+                    DateTime batchSince = DateTime.Now;
+                    
                     if (bb > 0) {
                         DebugWrite("done fetching stats, " + bb + " player" + ((bb > 1) ? "s" : "") + " in new batch, updating player's list", 4);
 
                         if (!gaveEnforcerTime && plugin_enabled) {
                             // Give some time to enforcer thread
+                            DebugWrite("processing player batch, giving time to ^benforcer^n thread", 7);
                             fetch_handle.Reset();
                             enforcer_handle.Set();
                             gaveEnforcerTime = true;
                             fetch_handle.WaitOne(2*1000);
                             enforcer_handle.Reset();
+                            DebugWrite("awake!, block ^benforcer^n thread", 7);
                         }
 
                         // Async request for updates
@@ -5588,6 +5589,9 @@ public interface DataDictionaryInterface
                         if (!plugin_enabled)
                             break;
                     }
+                    
+                    DebugWrite("^4^bTIME^n took " + DateTime.Now.Subtract(batchSince).TotalSeconds.ToString("F2") + " secs, process player batch", 4);
+
 
                     // abort the thread if the plugin was disabled
                     if (!plugin_enabled)
@@ -5601,7 +5605,7 @@ public interface DataDictionaryInterface
                         return;
                     }
 
-                    DebugWrite("^4done inserting " + bb + " new players, took " + DateTime.Now.Subtract(since).TotalSeconds.ToString("F0") + " secs^0", 4);
+                    DebugWrite("^4^bDONE^n inserting " + bb + " new players, took a total of " + DateTime.Now.Subtract(since).TotalSeconds.ToString("F0") + " secs^0", 4);
                 }
             }
             catch (Exception e)
@@ -11839,8 +11843,12 @@ public interface DataDictionaryInterface
                     plugin.DebugWrite("Using user-agent: " + ua, 4);
                     client.Headers.Add("user-agent", ua);
                 }
+                
+                DateTime since = DateTime.Now;
 
                 html_data = client.DownloadString(url);
+                
+                plugin.DebugWrite("^bTIME^0^n took " + DateTime.Now.Subtract(since).TotalSeconds.ToString("F2") + " secs, fetchWebPage: " + url, 4);
 
                 if (Regex.Match(html_data, @"that\s+page\s+doesn't\s+exist", RegexOptions.IgnoreCase | RegexOptions.Singleline).Success)
                     throw new StatsException("^b" + url + "^n does not exist", 404);
@@ -11898,9 +11906,11 @@ public interface DataDictionaryInterface
                 if (personaId.Length == 0)
                     throw new StatsException("could not find persona-id for ^b" + player);
 
+                DateTime since = DateTime.Now;
 
                 extractClanTag(result, pinfo);
 
+                plugin.DebugWrite("^2^bTIME^n took " + DateTime.Now.Subtract(since).TotalSeconds.ToString("F2") + " secs, extractClanTag", 4);
 
                 if (!plugin.plugin_enabled) {
                     throw new StatsException("fetchStats aborted, disabling plugin ...");
@@ -11939,7 +11949,11 @@ public interface DataDictionaryInterface
                     throw new StatsException("JSON response ^bdata^n does not contain ^boverviewStats^n");
 
                 /* extract the fields from the stats */
+                since = DateTime.Now;
+
                 extractBasicFields(stats, pinfo);
+
+                plugin.DebugWrite("^2^bTIME^n took " + DateTime.Now.Subtract(since).TotalSeconds.ToString("F2") + " secs, extractBasicFields ", 4);
 
                 /* verify there is a kitmap structure */
                 Hashtable kitMap = null;
@@ -11977,27 +11991,39 @@ public interface DataDictionaryInterface
 
                     /* print the collected stats to log */
                     if (plugin.getIntegerVarValue("debug_level") >= 3) {
+                        since = DateTime.Now;
+                        
                         plugin.Log(logName, "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + pinfo.FullName + " Battlelog player stats:");
                         pinfo.dumpStatProperties("web", logName);
+                        
+                        plugin.DebugWrite("^2^bTIME^n took " + DateTime.Now.Subtract(since).TotalSeconds.ToString("F2") + " secs, dumpStatProperties", 4);
                     }
 
                     /* extract weapon level statistics */
+                    since = DateTime.Now;
+                    
                     List<BattlelogWeaponStats> wstats = new List<BattlelogWeaponStats>();
                     wstats = extractWeaponStats(pinfo, personaId);
 
                     pinfo.BWS.setWeaponData(wstats);
+
+                    plugin.DebugWrite("^2^bTIME^n took " + DateTime.Now.Subtract(since).TotalSeconds.ToString("F2") + " secs, extractWeaponStats", 4);
 
                     if (!plugin.plugin_enabled) {
                         throw new StatsException("fetchStats aborted, disabling plugin ...");
                     }
 
                     if (plugin.getIntegerVarValue("debug_level") >= 3) {
+                        since = DateTime.Now;
+                        
                         String bwsBlob = "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + pinfo.FullName + " Battlelog weapon stats:\n";
                         foreach (BattlelogWeaponStats bws in wstats) {
                             bwsBlob = bwsBlob + "    N:" + bws.Name + ", S:" + bws.Slug + ", C:" + bws.Category +  ", Code:" + bws.Code + ", K:" + bws.Kills.ToString("F0") + ", SF:" + bws.ShotsFired.ToString("F0") + ", SH:" + bws.ShotsHit.ToString("F0") + ", A:" + bws.Accuracy.ToString("F3") + ", HS:" + bws.Headshots.ToString("F0") + ", T:" + TimeSpan.FromSeconds(bws.TimeEquipped).ToString() + "\n";
                         }
                         bwsBlob = bwsBlob + "=====================\n";
                         plugin.AppendData(bwsBlob, logName); // raw version of Log()
+                        
+                        plugin.DebugWrite("^2^bTIME^n took " + DateTime.Now.Subtract(since).TotalSeconds.ToString("F2") + " secs, log weapon stats", 4);
                     }
                     plugin.DebugWrite("done logging stats for " + pinfo.Name, 4);
                 
