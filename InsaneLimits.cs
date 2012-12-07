@@ -1102,6 +1102,7 @@ namespace PRoConEvents
 
                 this.booleanVariables.Add("use_white_list", false);
                 this.booleanVariables.Add("use_weapon_stats", false);
+                this.booleanVariables.Add("use_slow_weapon_stats", false);
                 this.booleanVariables.Add("use_custom_lists", false);
                 this.booleanVariables.Add("use_custom_smtp", false);
                 this.booleanVariables.Add("use_custom_storage", false);
@@ -1127,6 +1128,7 @@ namespace PRoConEvents
                 this.booleanVarValidators.Add("load_limits", booleanValidator);
                 this.booleanVarValidators.Add("use_white_list", booleanValidator);
                 this.booleanVarValidators.Add("use_weapon_stats", booleanValidator);
+                this.booleanVarValidators.Add("use_slow_weapon_stats", booleanValidator);
                 this.booleanVarValidators.Add("use_custom_lists", booleanValidator);
                 this.booleanVarValidators.Add("smtp_ssl", booleanValidator);
                 this.booleanVarValidators.Add("auto_hide_sections", booleanValidator);
@@ -12004,9 +12006,14 @@ public interface DataDictionaryInterface
                         if (DateTime.Now.Subtract(since).TotalSeconds > 1) plugin.DebugWrite("^2^bTIME^n took " + DateTime.Now.Subtract(since).TotalSeconds.ToString("F2") + " secs, dumpStatProperties", 4);
                     }
 
+                    
                     /* extract weapon level statistics */
-                    List<BattlelogWeaponStats> wstats = new List<BattlelogWeaponStats>();
-                    wstats = extractWeaponStats(pinfo, personaId);
+                    List<BattlelogWeaponStats> wstats = null;
+                    if (plugin.getBooleanVarValue("use_slow_weapon_stats")) {
+                        wstats = extractWeaponStats(pinfo, personaId);
+                    } else {
+                        plugin.DebugWrite("^1^buse_slow_weapon_stats^n is ^bFalse^n, skipping fetch from Battlelog", 4);
+                    }
 
                     pinfo.BWS.setWeaponData(wstats);
 
@@ -12014,7 +12021,7 @@ public interface DataDictionaryInterface
                         throw new StatsException("fetchStats aborted, disabling plugin ...");
                     }
 
-                    if (plugin.getIntegerVarValue("debug_level") >= 3) {
+                    if (wstats != null && plugin.getIntegerVarValue("debug_level") >= 3) {
                         since = DateTime.Now;
                         
                         String bwsBlob = "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + pinfo.FullName + " Battlelog weapon stats:\n";
@@ -13590,6 +13597,7 @@ public interface DataDictionaryInterface
         public Dictionary<String, BattlelogWeaponStats> data;
         BattlelogWeaponStats NullWeaponStats = new BattlelogWeaponStats();
         BattlelogWeaponStats UnknownWeaponStats = new BattlelogWeaponStats();
+        BattlelogWeaponStats SkippedWeaponStats = new BattlelogWeaponStats();
 
         private void init(InsaneLimits plugin)
         {
@@ -13598,7 +13606,11 @@ public interface DataDictionaryInterface
             UnknownWeaponStats.Name = "UNKNOWN";
             UnknownWeaponStats.Kills = -1;
             UnknownWeaponStats.ShotsFired = -1;
-            UnknownWeaponStats.Headshots = -1;            
+            UnknownWeaponStats.Headshots = -1;
+            SkippedWeaponStats.Name = "NOT AVAILABLE";
+            SkippedWeaponStats.Category = SkippedWeaponStats.Name;
+            SkippedWeaponStats.Slug = SkippedWeaponStats.Name;
+            SkippedWeaponStats.Code = SkippedWeaponStats.Name;
         }
 
         public BattlelogWeaponStatsDictionary(InsaneLimits plugin)
@@ -13645,10 +13657,15 @@ public interface DataDictionaryInterface
             
             // Special cases
             if (plugin.rcon2bw.ContainsKey(shortName)) return plugin.rcon2bw[shortName];
+            
+            if (data.Keys.Count == 0) {
+                if (verbose) plugin.ConsoleWarn("Battlelog Weapon Stats: use_slow_weapons_stats is False, so no stats to find for " + shortName);
+                return shortName;
+            }
 
+            // Narrow down keys to those that contain shortName as a substring
             List<String> keys = new List<string>(data.Keys);
             
-            // Narrow down keys to those that contain shortName as a substring
             List<String> subKeys = new List<String>();
             foreach (String k in keys) {
                 if (Regex.Match(k, shortName, RegexOptions.IgnoreCase).Success) subKeys.Add(k);
@@ -13676,7 +13693,11 @@ public interface DataDictionaryInterface
 
         public BattlelogWeaponStats getWeaponData(String name)
         {
-
+            if (data.Keys.Count == 0) {
+                plugin.ConsoleWarn("Battlelog Weapon Stats: use_slow_weapon_stats is False, so no weapon stats available");
+                return SkippedWeaponStats;
+            }
+            
             try
             {
                 // special case
@@ -13701,7 +13722,8 @@ public interface DataDictionaryInterface
                 
         public void setWeaponData(List<BattlelogWeaponStats> bws)
         {
-            
+            if (bws == null) return;
+
             foreach (BattlelogWeaponStats s in bws) {
                 /*
                 The names used in the stats are different from the RCON weapon names!
