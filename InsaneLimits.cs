@@ -3492,7 +3492,7 @@ namespace PRoConEvents
 
         public string GetPluginAuthor()
         {
-            return "micovery, PapaCharlie9 mod";
+            return "micovery";
         }
 
         public string GetPluginWebsite()
