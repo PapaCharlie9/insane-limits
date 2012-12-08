@@ -13608,7 +13608,7 @@ public interface DataDictionaryInterface
             UnknownWeaponStats.Kills = -1;
             UnknownWeaponStats.ShotsFired = -1;
             UnknownWeaponStats.Headshots = -1;
-            SkippedWeaponStats.Name = "NOT AVAILABLE";
+            SkippedWeaponStats.Name = "UNAVAILABLE";
             SkippedWeaponStats.Category = SkippedWeaponStats.Name;
             SkippedWeaponStats.Slug = SkippedWeaponStats.Name;
             SkippedWeaponStats.Code = SkippedWeaponStats.Name;
