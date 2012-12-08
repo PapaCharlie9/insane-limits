@@ -1386,6 +1386,7 @@ namespace PRoConEvents
                 rcon2bw["L86"] = "l86a2";
                 rcon2bw["MP5K"] = "m5k";
                 rcon2bw["MTAR"] = "mtar-21";
+                rcon2bw["CrossBow"] = "xbow-scoped";
 
             }
             catch (Exception e)
