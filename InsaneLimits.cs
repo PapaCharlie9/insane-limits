@@ -3472,7 +3472,7 @@ namespace PRoConEvents
             parameters.IncludeDebugInformation = false;
 
             String procon_path = Directory.GetParent(Application.ExecutablePath).FullName;
-            String plugins_path = Path.Combine(procon_path, Path.Combine("plugins", "BF3"));
+            String plugins_path = Path.Combine(procon_path, Path.Combine("Plugins", "BF3"));
 
             parameters.TempFiles = new TempFileCollection(plugins_path);
             //parameters.TempFiles.KeepFiles = false;
@@ -5682,7 +5682,9 @@ public interface DataDictionaryInterface
         {
             try
             {
+#pragma warning disable
             %FirstCheck%
+#pragma warning restore
             }
             catch(Exception e)
             {
@@ -5695,7 +5697,9 @@ public interface DataDictionaryInterface
         {
             try
             {
+#pragma warning disable
             %SecondCheck%
+#pragma warning restore
             }
             catch(Exception e)
             {
@@ -11895,6 +11899,7 @@ public interface DataDictionaryInterface
             }
             catch (WebException e)
             {
+                client = null; // release WebClient
                 if (e.Status.Equals(WebExceptionStatus.Timeout)) {
                     StatsException se = new StatsException("HTTP request timed-out");
                     se.web_exception = e;
@@ -11902,6 +11907,11 @@ public interface DataDictionaryInterface
                 } else {
                     throw;
                 }
+            }
+            catch (Exception ae)
+            {
+                client = null; // release WebClient
+                throw;
             }
 
             return html_data;
