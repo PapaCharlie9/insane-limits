@@ -11889,6 +11889,14 @@ public interface DataDictionaryInterface
 
                 html_data = client.DownloadString(url);
                 
+                /* TESTS
+                String testUrl = "http://status.savanttools.com/?code=";
+                html_data = client.DownloadString(testUrl + "429%20Too%20Many%20Requests");
+                //html_data = client.DownloadString(testUrl + "509%20Bandwidth%20Limit%20Exceeded");
+                //html_data = client.DownloadString(testUrl + "408%20Request%20Timeout");
+                //html_data = client.DownloadString(testUrl + "404%20Not%20Found");
+                */
+                
                 plugin.DebugWrite("^2^bTIME^n took " + DateTime.Now.Subtract(since).TotalSeconds.ToString("F2") + " secs, fetchWebPage: " + url, 4);
 
                 if (Regex.Match(html_data, @"that\s+page\s+doesn't\s+exist", RegexOptions.IgnoreCase | RegexOptions.Singleline).Success)
