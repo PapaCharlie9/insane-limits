@@ -4323,7 +4323,19 @@ public interface DataDictionaryInterface
         <br />
         <h2>Settings</h2>
         <ol>
-           <li><blockquote><strong>limits_file</strong><br />
+          <li><blockquote><b>use_slow_weapon_stats</b><br />
+                <i>False</i> - skip fetching weapon stats for new players<br />
+                <i>True</i> - fetch weapon stats for new players<br />
+                <br />
+                Fetching weapon stats from Battlelog takes a long time, 15 seconds or more
+                per player. By default, this slow fetch is disabled (False), so that
+                your Procon restart or initial plugin enable time on a full server
+                won't be delayed or bogged down while fetching weapon stats. However,
+                if you have limits that use the GetBattlelog() function, you <b>must</b>
+                set this value to True, or else stats will not be available.
+                </blockquote>
+          </li>
+          <li><blockquote><strong>limits_file</strong><br />
                 <i>(string, path)</i> - path to the file where limits, and lists are saved
                 </blockquote>
            </li>
@@ -4341,8 +4353,8 @@ public interface DataDictionaryInterface
                 </blockquote>
            </li>
            <li><blockquote><strong>virtual_mode</strong><br />
-                <i>true</i> - limit <b>actions</b> (kick, ban) are simulated, the actual commands are not sent to server <br />
-                <i>false</i> - limit <b>actions</b> (kick, ban) are not simulated <br />
+                <i>True</i> - limit <b>actions</b> (kick, ban) are simulated, the actual commands are not sent to server <br />
+                <i>False</i> - limit <b>actions</b> (kick, ban) are not simulated <br />
             </blockquote>
            </li>
            <li><blockquote><strong>console</strong><br />
@@ -4354,7 +4366,7 @@ public interface DataDictionaryInterface
                 </blockquote>
            </li>
           <li><blockquote><b>smtp_port</b><br />
-                <i>(String)</i> - Address of the SMTP Mail server used for <i>Mail</i> action<br />
+                <i>(string)</i> - Address of the SMTP Mail server used for <i>Mail</i> action<br />
                 </blockquote>
           </li>
            <li><blockquote><b>smtp_port</b><br />
@@ -4362,11 +4374,11 @@ public interface DataDictionaryInterface
                 </blockquote>
           </li>
           <li><blockquote><b>smtp_account</b><br />
-                <i>(Stirng)</i> - mail address for authenticating with the SMTP Mail used for <i>Mail</i> action<br />
+                <i>(string)</i> - mail address for authenticating with the SMTP Mail used for <i>Mail</i> action<br />
                 </blockquote>
           </li>
           <li><blockquote><b>smtp_mail</b><br />
-                <i>(Stirng)</i> - mail address (Sender/From) that is used for sending used for <i>Mail</i> action<br />
+                <i>(string)</i> - mail address (Sender/From) that is used for sending used for <i>Mail</i> action<br />
                 <br />
                 This is usually the same as <b>smtp_account</b> ... depends on your SMTP Mail provider.
                 </blockquote>
@@ -4375,6 +4387,14 @@ public interface DataDictionaryInterface
                 <i>(float)</i> - interval in seconds between say messages. Default value is 0.05, which is 50 milli-seconds<br />
                 <br />
                 The point of this setting is to avoid spam, but you should not set this value too large. Ideally it should be between 0 and 1 second.
+                </blockquote>
+          </li>
+          <li><blockquote><b>wait_timeout</b><br />
+                <i>(int)</i> - interval in seconds to wait for a response from the game server<br />
+                <br />
+                If you get several <b>Timeout(xx seconds) expired, while waiting for ...</b>
+                exceptions in plugin.log, try increasing the wait_timeout value by 10 seconds.
+                Repeat until the exceptions stop, but you should not exceed 90 seconds.
                 </blockquote>
           </li>
         </ol>
