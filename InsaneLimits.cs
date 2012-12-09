@@ -13660,7 +13660,7 @@ public interface DataDictionaryInterface
             if (plugin.rcon2bw.ContainsKey(shortName)) return plugin.rcon2bw[shortName];
             
             if (data.Keys.Count == 0) {
-                if (verbose) plugin.ConsoleWarn("Battlelog Weapon Stats: use_slow_weapons_stats is False, so no stats to find for " + shortName);
+                if (verbose) plugin.DebugWrite("^1^bWARNING^0^n: GetBattlelog: use_slow_weapon_stats was False at time of fetch for this player, so no stats to find for " + shortName, 3);
                 return shortName;
             }
 
@@ -13683,19 +13683,19 @@ public interface DataDictionaryInterface
             if (new_name == null)
             {
                 if (verbose)
-                    plugin.ConsoleError("Battlelog Weapon Stats: could not find weapon ^b" + shortName + "^n in dictionary");
+                    plugin.DebugWrite("^1^bWARNING^0^n: GetBattlelog: could not find weapon ^b" + shortName + "^n in dictionary", 3);
                 return null;
             }
 
             if (verbose)
-                plugin.ConsoleWarn("Battlelog Weapon Stats: could not find weapon ^b" + shortName + "^n, but found ^b" + new_name + "^n, edit distance of ^b" + distance.ToString("F3") + "^n");
+                plugin.DebugWrite("^1^bWARNING^0^n: GetBattlelog: could not find weapon ^b" + shortName + "^n, but guessed ^b" + new_name + "^n, with inaccuracy of ^b" + distance.ToString("F3") + "^n (10 or less is a good guess)", 3);
             return new_name;
         }
 
         public BattlelogWeaponStats getWeaponData(String name)
         {
             if (data.Keys.Count == 0) {
-                plugin.ConsoleWarn("Battlelog Weapon Stats: use_slow_weapon_stats is False, so no weapon stats available");
+                plugin.DebugWrite("^1^bWARNING^0^n: GetBattlelog: use_slow_weapon_stats was False at time of fetch for this player, so no weapon stats available", 3);
                 return SkippedWeaponStats;
             }
             
