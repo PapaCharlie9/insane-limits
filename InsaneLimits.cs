@@ -6644,7 +6644,30 @@ public interface DataDictionaryInterface
                             var_value = "...";
                         }
                         else if (field.Equals("evaluation"))
-                            var_type = "enum." + var_name + "(" + String.Join("|", Enum.GetNames(typeof(Limit.EvaluationType))) + ")";
+                        {
+                            List<String> rawNames = new List<String>(Enum.GetNames(typeof(Limit.EvaluationType)));
+                            if (rawNames.Contains("OnIntervalPlayers")) {
+                                // move it to the end
+                                rawNames.Remove("OnIntervalPlayers");
+                                rawNames.Add("OnIntervalPlayers");
+                            }
+                            if (rawNames.Contains("OnInterval")) {
+                                // move it to the end
+                                rawNames.Remove("OnInterval");
+                                rawNames.Add("OnInterval");
+                            }
+                            if (rawNames.Contains("OnAnyChat")) {
+                                // move to item #3 (will end up being #4)
+                                rawNames.Remove("OnAnyChat");
+                                rawNames.Insert(2, "OnAnyChat");
+                            }
+                            if (rawNames.Contains("OnIntervalServer")) {
+                                // move to item #3
+                                rawNames.Remove("OnIntervalServer");
+                                rawNames.Insert(2, "OnIntervalServer");
+                            }
+                            var_type = "enum." + var_name + "(" + String.Join("|", rawNames.ToArray()) + ")";
+                        }
                         else if (field.Equals("say_audience"))
                             var_type = "enum." + var_name + "(" + String.Join("|", Enum.GetNames(typeof(MessageAudience))) + ")";
                         else if (field.Equals("say_procon_chat"))
