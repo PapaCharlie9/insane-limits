@@ -805,6 +805,12 @@ becomes
 Settings  
 -------------
   
+0. **use_slow_weapon_stats**
+  _False_ - skip fetching weapon stats for new players
+  _True_ - fetch weapon stats for new players
+
+  > Fetching weapon stats from Battlelog takes a long time, 15 seconds or more per player. By default, this slow fetch is disabled (False), so that your Procon restart or initial plugin enable time on a full server won't be delayed or bogged down while fetching weapon stats. However, if you have limits that use the GetBattlelog() function, you **must** set this value to True, or else stats will not be available.
+
 0. **player_white_list**
 
   _(string, csv)_ - list of players that should never be kicked or banned
@@ -815,8 +821,8 @@ Settings
   
 0. **virtual_mode**
 
-  _true_ - limit **actions** (kick, ban) are simulated, the actual commands are not sent to server
-  _false_ - limit **actions** (kick, ban) are not simulated
+  _True_ - limit **actions** (kick, ban) are simulated, the actual commands are not sent to server
+  _False_ - limit **actions** (kick, ban) are not simulated
   
 0. **console**
 
@@ -873,7 +879,11 @@ Note that plugin commands, are currently supported only inside ProCon, and not I
   _(String)_ - this field is displayed for you to enter the Twitter verification PIN, it disappears as soon as you enter it
   
   > After entering your PIN, the plugin will try to exchange the PIN for a Twitter **access_token**, and **access_token_secret**. If the verifcation stage fails, you must re-initiate the Twitter setup process.   
-  
+
+0. **wait_timeout**
+  _(int)_ - interval in seconds to wait for a response from the game server
+
+  > If you get several **Timeout(xx seconds) expired, while waiting for ...** exceptions in plugin.log, try increasing the wait_timeout value by 10 seconds. Repeat until the exceptions stop, but you should not exceed 90 seconds.
   
 Plugin Commands  
 -------------
