@@ -826,11 +826,9 @@ Settings
   
 0. **console**
 
-  _(string)_ - you can use this field to run plugin commands
+  _(String)_ - you can use this field to run plugin commands
   
-> For example: !stats micovery will print the player statistic for the current round in the plugin console.
-  
-Note that plugin commands, are currently supported only inside ProCon, and not In-Game. 
+  > For example: !stats micovery will print the player statistic for the current round in the plugin console. Note that plugin commands, are currently supported only inside ProCon, and not In-Game. 
   
 0. **smtp_port**
 
@@ -842,11 +840,11 @@ Note that plugin commands, are currently supported only inside ProCon, and not I
   
 0. **smtp_account**
 
-  _(Stirng)_ - mail address for authenticating with the SMTP Mail used for _Mail_ action  
+  _(String)_ - mail address for authenticating with the SMTP Mail used for _Mail_ action  
   
 0. **smtp_mail**
 
-  _(Stirng)_ - mail address (Sender/From) that is used for sending used for _Mail_ action  
+  _(String)_ - mail address (Sender/From) that is used for sending used for _Mail_ action  
   
   > This is usually the same as **smtp_account** ... depends on your SMTP Mail provider.
   
