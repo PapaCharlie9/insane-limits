@@ -1056,7 +1056,7 @@ namespace PRoConEvents
         public static String default_twitter_screen_name = "InsaneLimits";
 
         public Dictionary<String,String> rcon2bw;
-
+        
         public InsaneLimits()
         {
             try
@@ -1101,6 +1101,7 @@ namespace PRoConEvents
                 this.booleanVariables.Add("load_limits", false);
 
                 this.booleanVariables.Add("use_white_list", false);
+                this.booleanVariables.Add("use_direct_fetch", true);
                 this.booleanVariables.Add("use_weapon_stats", false);
                 this.booleanVariables.Add("use_slow_weapon_stats", false);
                 this.booleanVariables.Add("use_custom_lists", false);
@@ -1127,6 +1128,7 @@ namespace PRoConEvents
                 this.booleanVarValidators.Add("save_limits", booleanValidator);
                 this.booleanVarValidators.Add("load_limits", booleanValidator);
                 this.booleanVarValidators.Add("use_white_list", booleanValidator);
+                this.booleanVarValidators.Add("use_direct_fetch", booleanValidator);
                 this.booleanVarValidators.Add("use_weapon_stats", booleanValidator);
                 this.booleanVarValidators.Add("use_slow_weapon_stats", booleanValidator);
                 this.booleanVarValidators.Add("use_custom_lists", booleanValidator);
@@ -3488,7 +3490,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.0.9.3";
+            return "0.0.9.4";
         }
 
         public string GetPluginAuthor()
@@ -4618,6 +4620,11 @@ public interface DataDictionaryInterface
                 enabledTime = DateTime.Now;
 
                 this.players.Clear();
+                
+                bool cacheOK = IsCacheEnabled(true); // side-effect of logging messages
+                if (!cacheOK && !getBooleanVarValue("use_direct_fetch")) {
+                    ConsoleWarn("Player stats fetching is disabled!");
+                }
 
                 //start a thread that waits for the settings to be read from file
 
@@ -6927,7 +6934,7 @@ public interface DataDictionaryInterface
             if (hidden_variables.ContainsKey(name) && hidden_variables[name])
                 return hidden_variables[name];
 
-
+            if (name.Equals("use_slow_weapon_stats") && !getBooleanVarValue("use_direct_fetch")) return true;
 
             return false;
         }
@@ -11835,6 +11842,25 @@ public interface DataDictionaryInterface
 
             return total;
         }
+        
+        public bool IsCacheEnabled(bool verbose)
+        {
+            List<MatchCommand> registered = this.GetRegisteredCommands();
+            foreach (MatchCommand command in registered)
+            {
+                if (command.RegisteredClassname.CompareTo("CBattlelogCache") == 0 && command.RegisteredMethodName.CompareTo("PlayerLookup") == 0)
+                {
+                    if (verbose) ConsoleWrite("^bBattlelog Cache^n plugin is enabled (CBattlelogCache.PlayerLookup found)!");
+                    return true;
+                }
+                else
+                {
+                    DebugWrite("Registered P: " + command.RegisteredClassname + ", M: " + command.RegisteredMethodName, 4);
+                }
+            }
+            if (verbose) ConsoleWarn("^1^bBattlelog Cache^n plugin is disabled; installing/updating and enabling the plugin is recommended for Insane Limits!");
+            return false;
+        }
     }
 
 
@@ -11944,80 +11970,157 @@ public interface DataDictionaryInterface
 
             return html_data;
         }
+        
+        private bool CheckSuccess(Hashtable json, out StatsException statsEx)
+        {
+            String m;
+            
+            if (!json.ContainsKey("type")) {
+                // clanTag does not contain status
+                if (json.ContainsKey("clanTag")) {
+                    statsEx = null;
+                    return true;
+                }
+                m = "JSON response malformed: does not contain 'type'!";
+                plugin.DebugWrite(m, 4);
+                statsEx =  new StatsException(m);
+                return false;
+            }
+            
+            String type = (String)json["type"];
+
+            if (Regex.Match(type, @"success", RegexOptions.IgnoreCase).Success) {
+                statsEx = null;
+                return true;
+            }
+            
+            String message = (String)json["message"];
+            m = "Cache fetch failed (type: " + type + ", message: " + message + ")!";
+            plugin.DebugWrite(m, 4);
+            statsEx = new StatsException(m); 
+            return false;
+        }
+        
+        
+        private String fetchJSON(ref String bigText, String url, String playerName, String requestType)
+        {
+            bool directFetchEnabled = plugin.getBooleanVarValue("use_direct_fetch");
+            bool cacheEnabled = plugin.IsCacheEnabled(false);
+            bool ok = false;
+            
+            if (cacheEnabled) {
+                // XXX TBD, return from here
+                // DebugWrite fetchTime/age
+            }
+            
+            if (!ok && directFetchEnabled) {
+                return fetchWebPage(ref bigText, url);
+            }
+            
+            // Unable to fetch JSON
+            plugin.DebugWrite("Unable to fetch stats for " + playerName + ", caching is disabled and direct fetch is disabled!", 3);
+            throw new StatsException("stats fetching is disabled");
+            
+            return String.Empty;
+        }
 
 
         public PlayerInfo fetchStats(PlayerInfo pinfo)
         {
             try
             {
+                bool directFetchEnabled = plugin.getBooleanVarValue("use_direct_fetch");
+                bool cacheEnabled = plugin.IsCacheEnabled(true);
+                
                 String player = pinfo.Name;
+                String result = String.Empty;
+                String personaId = String.Empty;
+                Hashtable json = null;
+                String type = null;
+                String message = null;
+                StatsException statsEx = null;
+
+                if (!cacheEnabled && !directFetchEnabled) {
+                    throw new StatsException("Unable to fetch stats for " + player + ", cache is disabled and direct fetching is disabled!");
+                }
 
                 /* First fetch the player's main page to get the persona id */
 
-                String result = "";
+                if (!cacheEnabled && directFetchEnabled)
+                {
+                    if (!plugin.plugin_enabled) {
+                        throw new StatsException("fetchStats aborted, disabling plugin ...");
+                    }
 
-                if (!plugin.plugin_enabled) {
-                    throw new StatsException("fetchStats aborted, disabling plugin ...");
+                    fetchWebPage(ref result, "http://battlelog.battlefield.com/bf3/user/" + player);
+
+                    if (!plugin.plugin_enabled) {
+                        throw new StatsException("fetchStats aborted, disabling plugin ...");
+                    }
+
+
+                    /* Extract the persona id */
+                    MatchCollection pid = Regex.Matches(result, @"bf3/soldier/" + player + @"/stats/(\d+)([^/""]+)?", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+
+
+                    foreach (Match match in pid)
+                        if (match.Success && !Regex.Match(match.Groups[2].Value.Trim(), @"(ps3|xbox)", RegexOptions.IgnoreCase).Success)
+                            personaId = match.Groups[1].Value.Trim();
+
+
+                    if (personaId.Length == 0)
+                        throw new StatsException("could not find persona-id for ^b" + player);
+
+                    extractClanTag(result, pinfo);
+                } 
+                else if (cacheEnabled)
+                {
+                    /* Get clan tag from cache */
+                    fetchJSON(ref result, null, player, "clanTag");
+                    
+                    json = (Hashtable)JSON.JsonDecode(result);
+                    
+                    if (!CheckSuccess(json, out statsEx)) throw statsEx;
+                    
+                    type = (String)json["type"];
+                    message = (String)json["message"];
+
+                    if (!json.ContainsKey("clanTag")) {
+                        throw new StatsException("clanTag cache lookup for " + player + " failed (type: " + type + ", message: " + message + ")!");
+                    }
+                    pinfo.tag = (String)json["clanTag"];
                 }
 
-                fetchWebPage(ref result, "http://battlelog.battlefield.com/bf3/user/" + player);
+                /* Next, get player's overview stats */
                 
                 if (!plugin.plugin_enabled) {
                     throw new StatsException("fetchStats aborted, disabling plugin ...");
                 }
 
-
-                /* Extract the persona id */
-                MatchCollection pid = Regex.Matches(result, @"bf3/soldier/" + player + @"/stats/(\d+)([^/""]+)?", RegexOptions.IgnoreCase | RegexOptions.Singleline);
-
-
-                String personaId = String.Empty;
-
-                foreach (Match match in pid)
-                    if (match.Success && !Regex.Match(match.Groups[2].Value.Trim(), @"(ps3|xbox)", RegexOptions.IgnoreCase).Success)
-                        personaId = match.Groups[1].Value.Trim();
-
-
-                if (personaId.Length == 0)
-                    throw new StatsException("could not find persona-id for ^b" + player);
-
-                extractClanTag(result, pinfo);
-
-                if (!plugin.plugin_enabled) {
-                    throw new StatsException("fetchStats aborted, disabling plugin ...");
-                }
-
-                fetchWebPage(ref result, "http://battlelog.battlefield.com/bf3/overviewPopulateStats/" + personaId + "/bf3-us-engineer/1/");
+                fetchJSON(ref result, "http://battlelog.battlefield.com/bf3/overviewPopulateStats/" + personaId + "/bf3-us-engineer/1/", player, "overview");
+                //fetchWebPage(ref result, "http://battlelog.battlefield.com/bf3/overviewPopulateStats/" + personaId + "/bf3-us-engineer/1/");
 
 
                 if (!plugin.plugin_enabled) {
                     throw new StatsException("fetchStats aborted, disabling plugin ...");
                 }
 
-                Hashtable json = (Hashtable)JSON.JsonDecode(result);
+                json = (Hashtable)JSON.JsonDecode(result);
 
                 // check we got a valid response
 
-                if (!(json.ContainsKey("type") && json.ContainsKey("message")))
-                    throw new StatsException("JSON response does not contain \"type\" or \"message\" fields");
-
-                String type = (String)json["type"];
-                String message = (String)json["message"];
-
                 /* verify we got a success message */
-                if (!(type.StartsWith("success") && message.StartsWith("OK")))
-                    throw new StatsException("JSON response was ^btype^n=^b" + type + "^b, ^bmessage^n=^b" + message);
-
+                if (!CheckSuccess(json, out statsEx)) throw statsEx;
 
                 /* verify there is data structure */
                 Hashtable data = null;
                 if (!json.ContainsKey("data") || (data = (Hashtable)json["data"]) == null)
-                    throw new StatsException("JSON response was does not contain a ^bdata^n field");
+                    throw new StatsException("JSON response does not contain a ^bdata^n field, for " + player);
 
                 /* verify there is stats structure */
                 Hashtable stats = null;
                 if (!data.ContainsKey("overviewStats") || (stats = (Hashtable)data["overviewStats"]) == null)
-                    throw new StatsException("JSON response ^bdata^n does not contain ^boverviewStats^n");
+                    throw new StatsException("JSON response ^bdata^n does not contain ^boverviewStats^n, for " + player);
 
                 /* extract the fields from the stats */
                 extractBasicFields(stats, pinfo);
@@ -12025,9 +12128,9 @@ public interface DataDictionaryInterface
                 /* verify there is a kitmap structure */
                 Hashtable kitMap = null;
                 if (!data.ContainsKey("kitMap") || (kitMap = (Hashtable)data["kitMap"]) == null)
-                    throw new StatsException("JSON response ^bdata^n does not contain ^bkitMap^n");
+                    throw new StatsException("JSON response ^bdata^n does not contain ^bkitMap^n, for " + player);
 
-                /* Buuild the id->kit and kit->id maps */
+                /* Build the id->kit and kit->id maps */
                 List<Dictionary<String, String>> maps = buildKitMaps(kitMap);
                 Dictionary<String, String> kit2id = maps[1];
                 Dictionary<String, String> id2kit = maps[1];
@@ -12035,7 +12138,7 @@ public interface DataDictionaryInterface
                 /* verify there is kit times (seconds) structure */
                 Hashtable kitTimes = null;
                 if (!stats.ContainsKey("kitTimes") || (kitTimes = (Hashtable)stats["kitTimes"]) == null)
-                    throw new StatsException("JSON response ^boverviewStats^n does not contain ^bkitTimes^n");
+                    throw new StatsException("JSON response ^boverviewStats^n does not contain ^bkitTimes^n, for " + player);
 
                 /*  extract the kit times (seconds) */
                 extractKitTimes(kitTimes, id2kit, pinfo, "_t");
@@ -12043,7 +12146,7 @@ public interface DataDictionaryInterface
                 /* verify there is kit time (percent) structure */
                 Hashtable kitTimesInPercentage = null;
                 if (!stats.ContainsKey("kitTimesInPercentage") || (kitTimesInPercentage = (Hashtable)stats["kitTimesInPercentage"]) == null)
-                    throw new StatsException("JSON response ^boverviewStats^n does not contain ^bkitTimesInPercentage^n");
+                    throw new StatsException("JSON response ^boverviewStats^n does not contain ^bkitTimesInPercentage^n, for " + player);
 
                 /*  extract the kit times (percentage) */
                 extractKitTimes((Hashtable)stats["kitTimesInPercentage"], id2kit, pinfo, "_p");
@@ -12126,6 +12229,7 @@ public interface DataDictionaryInterface
             }
             catch (Exception e)
             {
+                pinfo.StatsError = true;
                 plugin.DumpException(e);
             }
 
@@ -12136,38 +12240,35 @@ public interface DataDictionaryInterface
         {
             /* extract per-weapon stats */
             String result = String.Empty;
+            String player = pinfo.Name;
+            Hashtable json = null;
+            StatsException statsEx = null;
 
             if (!plugin.plugin_enabled) {
                 throw new StatsException("fetchStats aborted, disabling plugin ...");
             }
 
-            fetchWebPage(ref result, "http://battlelog.battlefield.com/bf3/weaponsPopulateStats/" + personaId + "/1");
+            fetchJSON(ref result, "http://battlelog.battlefield.com/bf3/weaponsPopulateStats/" + personaId + "/1", player, "weapon");
+            //fetchWebPage(ref result, "http://battlelog.battlefield.com/bf3/weaponsPopulateStats/" + personaId + "/1");
 
-            Hashtable json = (Hashtable)JSON.JsonDecode(result);
+            json = (Hashtable)JSON.JsonDecode(result);
 
             result = null;
 
             // check we got a valid response
-
-            if (!(json.ContainsKey("type") && json.ContainsKey("message")))
-                throw new StatsException("JSON response does not contain \"type\" or \"message\" fields for weapon stats");
-
-            String type = (String)json["type"];
-            String message = (String)json["message"];
-
+            
             /* verify we got a success message */
-            if (!(type.StartsWith("success") && message.StartsWith("OK")))
-                throw new StatsException("JSON response was ^btype^n=^b" + type + "^b, ^bmessage^n=^b" + message + " for weapon stats");
+            if (!CheckSuccess(json, out statsEx)) throw statsEx;
 
             /* verify there is data structure */
             Hashtable data = null;
             if (!json.ContainsKey("data") || (data = (Hashtable)json["data"]) == null)
-                throw new StatsException("JSON response was does not contain a ^bdata^n field");
+                throw new StatsException("JSON weapon response was does not contain a ^bdata^n field, for " + player);
 
             /* verify there is stats structure */
             ArrayList wstats = null;
             if (!data.ContainsKey("mainWeaponStats") || (wstats = (ArrayList)data["mainWeaponStats"]) == null)
-                throw new StatsException("JSON response ^bdata^n does not contain ^bmainWeaponStats^n");
+                throw new StatsException("JSON weapon response ^bdata^n does not contain ^bmainWeaponStats^n, for " + player);
 
             int count = 0;
             int parsed = 0;
@@ -12185,11 +12286,11 @@ public interface DataDictionaryInterface
                 try
                 {
                     if (item == null || !item.GetType().Equals(typeof(Hashtable)))
-                        throw new Exception();
+                        throw new Exception("weapon item invalid");
 
                     Hashtable wstat = null;
                     if ((wstat = (Hashtable)item) == null)
-                        throw new Exception();
+                        throw new Exception("weapon item null");
 
 
                     BattlelogWeaponStats bwstats = new BattlelogWeaponStats();
@@ -12201,7 +12302,7 @@ public interface DataDictionaryInterface
                     {
                         if (!wstat.ContainsKey(key) || wstat[key] == null)
                         {
-                            plugin.ConsoleError("JSON structure of weapon stat does not contain ^b" + key + "^n");
+                            plugin.ConsoleError("JSON structure of weapon stat does not contain ^b" + key + "^n, for " + player);
                             failed = true;
                             break;
                         }
@@ -12210,7 +12311,7 @@ public interface DataDictionaryInterface
                         PropertyInfo prop = null;
                         if ((prop = dtype.GetProperty(pname)) == null)
                         {
-                            plugin.ConsoleError(dtype.Name + " does not contain ^b" + pname + "^n property");
+                            plugin.ConsoleError(dtype.Name + " does not contain ^b" + pname + "^n property, for " + player);
                             failed = true;
                             break;
                         }
