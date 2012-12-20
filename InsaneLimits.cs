@@ -4325,10 +4325,24 @@ public interface DataDictionaryInterface
         <br />
         <h2>Settings</h2>
         <ol>
+          <li><blockquote><b>use_direct_fetch</b><br />
+                <i>True</i> - if the cache is not available, fetch stats directly from Battlelog<br />
+                <i>False</i> - disable direct fetches from Battlelog<br />
+                <br />
+                If the <b>Battlelog Cache</b> plugin is installed, up to date and enabled,
+                it will be used for player stats regardless of the setting of this
+                option. If the <b>Battlelog Cache</b> plugin
+                is not installed, not up to date or disabled, setting
+                <b>use_direct_fetch</b> to True will act as a fallback system, fetching
+                stats directly from Battlelog. Otherwise, stats fetching will
+                fail since the cache is not available and this setting is False.
+                </blockquote>
+          </li>
           <li><blockquote><b>use_slow_weapon_stats</b><br />
                 <i>False</i> - skip fetching weapon stats for new players<br />
                 <i>True</i> - fetch weapon stats for new players<br />
                 <br />
+                Visible only if <b>use_direct_fetch</b> is set to True.
                 Fetching weapon stats from Battlelog takes a long time, 15 seconds or more
                 per player. By default, this slow fetch is disabled (False), so that
                 your Procon restart or initial plugin enable time on a full server
