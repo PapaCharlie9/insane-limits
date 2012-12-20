@@ -1058,6 +1058,8 @@ namespace PRoConEvents
         public Dictionary<String,String> rcon2bw;
         public Dictionary<String,String> cacheResponseTable;
         
+        private bool isRoundReset = false;
+        
         public InsaneLimits()
         {
             try
@@ -4610,7 +4612,8 @@ public interface DataDictionaryInterface
                 "OnCurrentLevel",
                 "OnLoadingLevel",
                 "OnLevelStarted",
-                "OnLevelLoaded"
+                "OnLevelLoaded",
+                "OnRestartLevel"
                 );
 
             //initialize the dictionary with countries, carriers, gateways
@@ -7944,12 +7947,41 @@ public interface DataDictionaryInterface
         public override void OnMaplistNextLevelIndex(int mapIndex) { getMapInfo(); }
         public override void OnMaplistMapRemoved(int mapIndex) { getMapInfo(); }
         public override void OnMaplistMapInserted(int mapIndex, string mapFileName) { getMapInfo(); }
-        public override void OnEndRound(int winTeamId) { getMapInfo(); }
-        public override void OnRunNextLevel() { getMapInfo(); }
+        public override void OnRestartLevel()
+        {
+            DebugWrite("Got ^bOnRestartLevel^n!", 8);
+        }
+        public override void OnEndRound(int winTeamId)
+        {
+            DebugWrite("Got ^bOnEndRound^n!", 8);
+            getMapInfo();
+        }
+        public override void OnRunNextLevel()
+        {
+            DebugWrite("Got ^bOnRunNextLevel^n!", 8);
+            getMapInfo();
+        }
         public override void OnCurrentLevel(string mapFileName) { getMapInfo(); }
         public override void OnLoadingLevel(string mapFileName, int roundsPlayed, int roundsTotal) { getMapInfo(); }
-        public override void OnLevelStarted() { getMapInfo(); }
-        public override void OnLevelLoaded(string mapFileName, string Gamemode, int roundsPlayed, int roundsTotal) { getMapInfo(); }
+        public override void OnLevelStarted()
+        { 
+            DebugWrite("Got ^bOnLevelStarted^n!", 8);
+            getMapInfo();
+        }
+        public override void OnLevelLoaded(string mapFileName, string Gamemode, int roundsPlayed, int roundsTotal) {
+            DebugWrite("Got ^bOnLevelLoaded^n!", 8);
+            getMapInfo();
+            
+            if (!isRoundReset) {
+                // Do all of the essential stuff that would happen at normal round end
+                DebugWrite("^bRound was aborted, do reset OnLevelLoaded", 3);
+                evaluateLimitsForEvent(BaseEvent.RoundOver, null, null, null, null);
+                round_over = true;
+                RoundOverReset();
+            }
+            
+            isRoundReset = false;
+        }
 
         public override void OnMaplistList(List<MaplistEntry> lstMaplist)
         {
@@ -8042,7 +8074,7 @@ public interface DataDictionaryInterface
 
             this.RoundData.Clear();
 
-
+            isRoundReset = true;
         }
 
         public void getMapList()
