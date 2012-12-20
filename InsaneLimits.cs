@@ -1056,6 +1056,7 @@ namespace PRoConEvents
         public static String default_twitter_screen_name = "InsaneLimits";
 
         public Dictionary<String,String> rcon2bw;
+        public Dictionary<String,String> cacheResponseTable;
         
         public InsaneLimits()
         {
@@ -1390,6 +1391,7 @@ namespace PRoConEvents
                 rcon2bw["MTAR"] = "mtar-21";
                 rcon2bw["CrossBow"] = "xbow-scoped";
 
+                cacheResponseTable = new Dictionary<String,String>();
             }
             catch (Exception e)
             {
@@ -11875,6 +11877,109 @@ public interface DataDictionaryInterface
             if (verbose) ConsoleWarn("^1^bBattlelog Cache^n plugin is disabled; installing/updating and enabling the plugin is recommended for Insane Limits!");
             return false;
         }
+        
+        public String SendCacheRequest(String playerName, String requestType)
+        {
+            /* 
+            Called in the fetch_thread_loop thread, but defined in the
+            main class in order to have access to all the wait handles.
+            */
+            Hashtable request = new Hashtable();
+            request["playerName"] = playerName;
+            request["pluginName"] = "InsaneLimits";
+            request["pluginMethod"] = "CacheResponse";
+            request["requestType"] = requestType;
+            
+            // Set up response entry
+            lock (cacheResponseTable) {
+                cacheResponseTable[playerName] = null;
+            }
+
+            // Send request
+            DateTime since = DateTime.Now;
+            this.ExecuteCommand("procon.protected.plugins.call", "CBattlelogCache", "PlayerLookup", JSON.JsonEncode(request));
+
+            // block for reply
+            DebugWrite(requestType + "(" + playerName + "), waiting for cache to respond", 4);
+            double maxWait = 45; // max seconds to wait for a reply
+            while (DateTime.Now.Subtract(since).TotalSeconds < maxWait) {
+                if (!plugin_enabled) break;
+                // Give some time to enforcer thread
+                fetch_handle.Reset();
+                enforcer_handle.Set();
+                fetch_handle.WaitOne(500);
+                enforcer_handle.Reset();
+                lock (cacheResponseTable) {
+                    if (cacheResponseTable[playerName] != null) break;
+                }
+            }
+            
+            lock (cacheResponseTable) {
+                if (cacheResponseTable[playerName] == null) {
+                    ConsoleError(requestType + "(" + playerName + ") timed out, request exceeded " + maxWait + " seconds!");
+                    return String.Empty;
+                }
+            }
+            
+            String r = null;
+            
+            lock (cacheResponseTable) {
+                r = cacheResponseTable[playerName];
+                cacheResponseTable.Remove(playerName);
+            }
+            
+            Hashtable header = (Hashtable)JSON.JsonDecode(r);
+            double fetchTime = -1;
+            Double.TryParse((String)header["fetchTime"], out fetchTime);
+            double age = -1;
+            Double.TryParse((String)header["age"], out age);
+            
+            if (fetchTime > 0) {
+                DebugWrite(requestType + "(" + playerName + "), cache refreshed from Battlelog, took ^2" + fetchTime.ToString("F1") + " seconds", 4);
+            } else if (age > 0) {
+                TimeSpan a = TimeSpan.FromSeconds(age);
+                DebugWrite(requestType + "(" + playerName + "), cached stats used, age is " + a.ToString(), 4);
+            }
+            
+            return r;
+        }
+        
+        public void CacheResponse(params String[] response)
+        {
+            /*
+            Called from the Battlelog Cache plugin Response thread
+            */
+            String val = null;
+            DebugWrite("CacheResponse called with " + response.Length + " parameters", 4);
+            if (getIntegerVarValue("debug_level") >= 4) {
+                for (int i = 0; i < response.Length; ++i) {
+                    ConsoleWrite("#" + i + ") Length: " + response[i].Length);
+                    val = response[i];
+                    if (val.Length > 100) val = val.Substring(0, 100) + " ... ";
+                    if (val.Contains("{")) val = val.Replace('{','<').Replace('}','>'); // ConsoleWrite doesn't like messages with "{" in it
+                    ConsoleWrite("#" + i + ") Value: " + val);
+                }
+            }
+            
+            String key = response[0]; // Player's name
+            val = response[1]; // JSON string
+            
+            if (!cacheResponseTable.ContainsKey(key)) {
+                ConsoleError("Unknown cache response for " + key);
+                return;
+            }
+            
+            if (cacheResponseTable[key] != null) {
+                ConsoleError("Cache response collision for " + key);
+                return;
+            }
+            
+            lock (cacheResponseTable) {
+                cacheResponseTable[key] = val;
+            }
+            fetch_handle.Set(); // signal SendCacheRequest to unblock
+        }
+
     }
 
 
@@ -11990,11 +12095,6 @@ public interface DataDictionaryInterface
             String m;
             
             if (!json.ContainsKey("type")) {
-                // clanTag does not contain status
-                if (json.ContainsKey("clanTag")) {
-                    statsEx = null;
-                    return true;
-                }
                 m = "JSON response malformed: does not contain 'type'!";
                 plugin.DebugWrite(m, 4);
                 statsEx =  new StatsException(m);
@@ -12023,12 +12123,18 @@ public interface DataDictionaryInterface
             bool ok = false;
             
             if (cacheEnabled) {
-                // XXX TBD, return from here
-                // DebugWrite fetchTime/age
+                // block waiting for cache to respond
+                bigText = plugin.SendCacheRequest(playerName, requestType);
+                ok = !String.IsNullOrEmpty(bigText);
+                if (ok) return String.Empty;
             }
             
-            if (!ok && directFetchEnabled) {
+            if (!ok && directFetchEnabled && url != null) {
                 return fetchWebPage(ref bigText, url);
+            }
+            
+            if (url == null && requestType == "clanTag") {
+                return String.Empty; // caller may try direct
             }
             
             // Unable to fetch JSON
@@ -12059,8 +12165,32 @@ public interface DataDictionaryInterface
                 }
 
                 /* First fetch the player's main page to get the persona id */
+                
+                bool okClanTag = false;
+                if (cacheEnabled) {
+                    /* Get clan tag from cache */
+                    fetchJSON(ref result, null, player, "clanTag");
+                    
+                    if (!String.IsNullOrEmpty(result)) {
+                        json = (Hashtable)JSON.JsonDecode(result);
 
-                if (!cacheEnabled && directFetchEnabled)
+                        if (!CheckSuccess(json, out statsEx)) throw statsEx;
+
+                        /* verify there is data structure */
+                        Hashtable d = null;
+                        if (!json.ContainsKey("data") || (d = (Hashtable)json["data"]) == null)
+                            throw new StatsException("JSON clanTag response does not contain a ^bdata^n field, for " + player);
+
+                        if (!d.ContainsKey("clanTag"))
+                            throw new StatsException("JSON clanTag response does not contain a ^bclanTag^n field, for " + player);
+
+                        String t = (String)d["clanTag"];
+                        if (!String.IsNullOrEmpty(t)) pinfo.tag = t;
+                        okClanTag = true;
+                    }
+                }
+
+                if (!okClanTag && directFetchEnabled)
                 {
                     if (!plugin.plugin_enabled) {
                         throw new StatsException("fetchStats aborted, disabling plugin ...");
@@ -12087,23 +12217,6 @@ public interface DataDictionaryInterface
 
                     extractClanTag(result, pinfo);
                 } 
-                else if (cacheEnabled)
-                {
-                    /* Get clan tag from cache */
-                    fetchJSON(ref result, null, player, "clanTag");
-                    
-                    json = (Hashtable)JSON.JsonDecode(result);
-                    
-                    if (!CheckSuccess(json, out statsEx)) throw statsEx;
-                    
-                    type = (String)json["type"];
-                    message = (String)json["message"];
-
-                    if (!json.ContainsKey("clanTag")) {
-                        throw new StatsException("clanTag cache lookup for " + player + " failed (type: " + type + ", message: " + message + ")!");
-                    }
-                    pinfo.tag = (String)json["clanTag"];
-                }
 
                 /* Next, get player's overview stats */
                 
