@@ -12292,7 +12292,7 @@ public interface DataDictionaryInterface
                     if (plugin.getIntegerVarValue("debug_level") >= 3) {
                         since = DateTime.Now;
                         
-                        plugin.Log(logName, "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + pinfo.FullName + " Battlelog player stats:");
+                        plugin.Log(logName, "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + pinfo.FullName + ((okClanTag && cacheEnabled) ? " Battlelog CACHED stats: " : " Battlelog player stats:"));
                         pinfo.dumpStatProperties("web", logName);
                         
                         if (DateTime.Now.Subtract(since).TotalSeconds > 1) plugin.DebugWrite("^2^bTIME^n took " + DateTime.Now.Subtract(since).TotalSeconds.ToString("F2") + " secs, dumpStatProperties", 4);
