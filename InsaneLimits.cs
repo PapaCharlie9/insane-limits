@@ -3492,7 +3492,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.0.9.4";
+            return "0.9.4.0";
         }
 
         public string GetPluginAuthor()
@@ -3512,10 +3512,10 @@ namespace PRoConEvents
         <h2>Description</h2>
         This plugin is a customizable limits/rules enforcer. It allows you to setup and enforce limits based on player statistics, and server state. <br />
         <br />
-        It tracks extensive Battlelog stats, and round stats. If you feel that there is a stat, or aggregate, or information that really needs to be included, post feedback on the forum at phogue.net<br />
+        It tracks extensive Battlelog stats and round stats. Several limits are available in the <a href='http://www.phogue.net/forumvb/forumdisplay.php?36-Plugin-Enhancements'>Procon Plugin Enhancements forum</a>.<br />
         <br />
-        This version of the plugin is a major re-rewrite of the original release. If you are feeling lost, try the original 0.0.0.1 version, which was much simpler.
-        On this new version, the plugin supports a events like OnKill, OnTeamKill, OnJoin, OnSpawn, etc. You are able to perform actions triggered by those events.<br />
+        Version 0.9.4.0 and later is optionally integrated with a MySQL server (using the Battlelog Cache plugin). This enables caching of Battlelog stats fetching, which
+        over time should reduce the delay caused by restarting Procon/enabling Insane Limits when your server is full. This should also reduce load on Battlelog, which in turn will reduce the number of Web errors and exceptions. This version is compatible with TrueBalancer and other plugins that use stats fetching.<br />
         <br />
         In addition to keeping track of player statistics, the plugin also keeps tracks of the number of times a player has activated a certain limit/rule.
         I got this idea from the ProCon Rulz plugin. With this meta-information about limits, you are able to create much more powerful rules such as Spree messages.
@@ -11866,15 +11866,15 @@ public interface DataDictionaryInterface
             {
                 if (command.RegisteredClassname.CompareTo("CBattlelogCache") == 0 && command.RegisteredMethodName.CompareTo("PlayerLookup") == 0)
                 {
-                    if (verbose) ConsoleWrite("^bBattlelog Cache^n plugin is enabled (CBattlelogCache.PlayerLookup found)!");
+                    if (verbose) DebugWrite("^bBattlelog Cache^n plugin is enabled (CBattlelogCache.PlayerLookup found)!", 3);
                     return true;
                 }
                 else
                 {
-                    DebugWrite("Registered P: " + command.RegisteredClassname + ", M: " + command.RegisteredMethodName, 4);
+                    DebugWrite("Registered P: " + command.RegisteredClassname + ", M: " + command.RegisteredMethodName, 7);
                 }
             }
-            if (verbose) ConsoleWarn("^1^bBattlelog Cache^n plugin is disabled; installing/updating and enabling the plugin is recommended for Insane Limits!");
+            if (verbose) DebugWrite("^1^bBattlelog Cache^n plugin is disabled; installing/updating and enabling the plugin is recommended for Insane Limits!", 3);
             return false;
         }
         

@@ -3,9 +3,12 @@ Description
 
 This plugin is a customizable limits/rules enforcer. It allows you to setup and enforce limits based on player statistics, and server state.   
   
-It tracks extensive Battlelog stats, and round stats. If you feel that there is a stat, or aggregate, or information that really needs to be included, post feedback on the PRoCon forums. The plugin supports events like OnKill, OnTeamKill, OnJoin, OnSpawn, etc. You are able to perform actions triggered by those events.  
+It tracks extensive Battlelog stats and round stats. If you feel that there is a stat, or aggregate, or information that really needs to be included, post feedback on the PRoCon forums. The plugin supports events like OnKill, OnTeamKill, OnJoin, OnSpawn, etc. You are able to perform actions triggered by those events.
+
+Version 0.9.4.0 and later is optionally integrated with a MySQL server (using the Battlelog Cache plugin). This enables caching of Battlelog stats fetching, which
+over time should reduce the delay caused by restarting Procon/enabling Insane Limits when your server is full. This should also reduce load on Battlelog, which in turn will reduce the number of Web errors and exceptions. This version is compatible with TrueBalancer and other plugins that use stats fetching.
   
-For a full list of examples, jump to the index in the <a href="http://www.phogue.net/forumvb/showthread.php?3448-Insane-Limits-Examples" >Insane Limits - Examples thread.</a>  
+Several limits have been developed and can be found in the <a href="http://www.phogue.net/forumvb/forumdisplay.php?36-Plugin-Enhancements">Procon Plugin Enhancements forum</a>.  
   
 By default, the plugin ships with **virtual_mode** set to _True_. This allows you to test your limits/rules without any risk of accidentally kicking or banning anyone. Once you feel your limits/rules are ready, you can disable **virtual_mode**.  
    
@@ -805,11 +808,17 @@ becomes
 Settings  
 -------------
   
+0. **use_direct_fetch**
+  _True_ - if the cache is not available, fetch stats directly from Battlelog
+  _False_ - disable direct fetches from Battlelog
+
+  > If the **Battlelog Cache** plugin is installed, up to date and enabled, it will be used for player stats regardless of the setting of this option. If the **Battlelog Cache** plugin is not installed, not up to date or disabled, setting **use_direct_fetch** to True will act as a fallback system, fetching stats directly from Battlelog. Otherwise, stats fetching will fail since the cache is not available and this setting is False.
+
 0. **use_slow_weapon_stats**
   _False_ - skip fetching weapon stats for new players
   _True_ - fetch weapon stats for new players
 
-  > Fetching weapon stats from Battlelog takes a long time, 15 seconds or more per player. By default, this slow fetch is disabled (False), so that your Procon restart or initial plugin enable time on a full server won't be delayed or bogged down while fetching weapon stats. However, if you have limits that use the GetBattlelog() function, you **must** set this value to True, or else stats will not be available.
+  > Visible only if **use_direct_fetch** is set to True. Fetching weapon stats from Battlelog takes a long time, 15 seconds or more per player. By default, this slow fetch is disabled (False), so that your Procon restart or initial plugin enable time on a full server won't be delayed or bogged down while fetching weapon stats. However, if you have limits that use the GetBattlelog() function, you **must** set this value to True, or else stats will not be available.
 
 0. **player_white_list**
 
@@ -1013,7 +1022,7 @@ The change log is no longer updated in this document. Instead, look at the commi
 
 As of 0.0.9.0, only the latest version is listed below without any change details. This just marks the version that this document corresponds to.
 
-Latest version: **0.0.9.2 (BF3)**
+Latest version: **0.9.4.0 (BF3)**
 
 ### Historical Change Log (prior to GitHub repo creation)
 
