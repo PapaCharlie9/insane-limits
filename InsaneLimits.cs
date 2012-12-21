@@ -4797,9 +4797,28 @@ public interface DataDictionaryInterface
             if (AdvancedReplacementsDict == null)
                 return message;
 
+/*
             foreach (KeyValuePair<String, String> pair in AdvancedReplacementsDict)
                 if (message.Contains(pair.Key))
                     message = message.Replace(pair.Key, pair.Value);
+*/
+
+            // Ensure correct match for aliased substrings
+            // Battlelog404 is the only property that ends with a digit
+            // Use [^A-Za-z] as the terminator of the prop name
+            
+            Match m = null;
+            String ds = message;
+
+            foreach (KeyValuePair<String, String> pair in AdvancedReplacementsDict) {
+                while ((m = Regex.Match(message, pair.Key + @"(?:[^A-Za-z]|$)")).Success) {
+                    if (getIntegerVarValue("debug_level") >= 1) ds = message.Insert(m.Index, "^b").Insert(m.Index + pair.Key.Length + 2, "^n");
+                    DebugWrite("Replacing " + pair.Key + ": " + ds, 5);
+                    message = message.Replace(pair.Key, pair.Value);
+                }
+            }
+            
+            DebugWrite("New repl: " + message, 5);
 
             return message;
 
@@ -11898,7 +11917,7 @@ public interface DataDictionaryInterface
             {
                 if (command.RegisteredClassname.CompareTo("CBattlelogCache") == 0 && command.RegisteredMethodName.CompareTo("PlayerLookup") == 0)
                 {
-                    if (verbose) DebugWrite("^bBattlelog Cache^n plugin is enabled (CBattlelogCache.PlayerLookup found)!", 3);
+                    if (verbose) DebugWrite("^bBattlelog Cache^n plugin will be used for next stats fetch!", 3);
                     return true;
                 }
                 else
