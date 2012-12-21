@@ -165,7 +165,8 @@ These are all the allowed actions:
 * _PRoConChat_ - sends the specified text to PRoCon's Chat-Tab, if the limit evaluates _True_
 * _PRoConEvent_ - adds the specified event to PRoCon's Events-Tab, if the limit evaluates_True_
 * _TaskbarNotify_ - sends a Windows Taskbar notification, if the limit evaluates _True_
-* _SoundNotify_ - plays an audio notification, if the limit evaluates _True_
+* _SoundNotify_ - plays a sound notification with the specified sound file, if the limit evaluates _True_
+* _Yell_ - yells a message to the server (All, Team, or Player), if the limit evaluates _True_
   
 Depending on the selected action, other fields are shown to specify more information about the action.  
   
@@ -519,6 +520,10 @@ public interface PluginInterface
     bool SendGlobalMessage(String message, int delay);
     bool SendTeamMessage(int teamId, String message, int delay);
     bool SendSquadMessage(int teamId, int squadId, String message, int delay);
+
+    bool SendGlobalYell(String message, int duration);
+    bool SendTeamYell(int teamId, String message, int duration);
+    bool SendPlayerYell(String name, String message, int duration);
 
     bool SendMail(String address, String subject, String body);
     bool SendSMS(String country, String carrier, String number, String message);

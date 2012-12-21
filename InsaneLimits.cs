@@ -133,8 +133,8 @@ namespace PRoConEvents
         ServerCommand = 0x1000,
         PRoConEvent = 0x2000,
         PRoConChat = 0x4000,
-        SoundNotify = 0x8000
-
+        SoundNotify = 0x8000,
+        Yell = 0x10000
     }
 
     public enum TrueFalse
@@ -540,11 +540,16 @@ namespace PRoConEvents
         bool SendGlobalMessage(String message);
         bool SendTeamMessage(int teamId, String message);
         bool SendSquadMessage(int teamId, int squadId, String message);
-
+        bool SendPlayerMessage(String name, String message);
 
         bool SendGlobalMessage(String message, int delay);
         bool SendTeamMessage(int teamId, String message, int delay);
         bool SendSquadMessage(int teamId, int squadId, String message, int delay);
+        bool SendPlayerMessage(String name, String message, int delay);
+
+        bool SendGlobalYell(String message, int duration);
+        bool SendTeamYell(int teamId, String message, int duration);
+        bool SendPlayerYell(String name, String message, int duration);
 
         bool SendMail(String address, String subject, String body);
         bool SendSMS(String country, String carrier, String number, String message);
@@ -1783,7 +1788,8 @@ namespace PRoConEvents
                 ServerCommand = Actions.ServerCommand,
                 PRoConEvent = Actions.PRoConEvent,
                 PRoConChat = Actions.PRoConChat,
-                SoundNotify = Actions.SoundNotify
+                SoundNotify = Actions.SoundNotify,
+                Yell = Actions.Yell
             };
 
 
@@ -1845,7 +1851,8 @@ namespace PRoConEvents
                 "SMS Action", "sms_group", @"^sms_",
                 "Mail Action", "mail_group", @"^mail_",
                 "Tweet Action", "tweet_group", @"^tweet_",
-                "Sound Notify Action", "sound_notify_group", @"^sound_"
+                "Sound Notify Action", "sound_notify_group", @"^sound_",
+                "Yell Action",  "yell_group", @"^yell_",
             };
 
 
@@ -1870,7 +1877,8 @@ namespace PRoConEvents
                 "mail_group", "mail_address", "mail_subject", "mail_body",
                 "tweet_group", "tweet_status",
                 "sound_notify_group", "sound_notify_file", "sound_notify_repeat",
-                "delete"
+                "delete",
+                "yell_group", "yell_message", "yell_audience", "yell_duration", "yell_procon_chat",
                 });
 
 
@@ -2040,6 +2048,16 @@ namespace PRoConEvents
                 get { return ((TrueFalse)Enum.Parse(typeof(TrueFalse), fields["say_procon_chat"])).Equals(TrueFalse.True); }
             }
 
+            public MessageAudience YellAudience
+            {
+                get { return (MessageAudience)Enum.Parse(typeof(MessageAudience), fields["yell_audience"]); }
+            }
+
+            public bool YellProConChat
+            {
+                get { return ((TrueFalse)Enum.Parse(typeof(TrueFalse), fields["yell_procon_chat"])).Equals(TrueFalse.True); }
+            }
+
             public LimitType SecondCheck
             {
                 get { return (LimitType)Enum.Parse(typeof(LimitType), fields["second_check"]); }
@@ -2190,6 +2208,11 @@ namespace PRoConEvents
                 get { return fields["say_message"]; }
             }
 
+            public String YellMessage
+            {
+                get { return fields["yell_message"]; }
+            }
+
             public String PBBMessage
             {
                 get { return fields["pb_ban_message"]; }
@@ -2208,6 +2231,11 @@ namespace PRoConEvents
             public int SayDelay
             {
                 get { return int.Parse(fields["say_delay"]); }
+            }
+
+            public int YellDuration
+            {
+                get { return int.Parse(fields["yell_duration"]); }
             }
 
             public int KillDelay
@@ -2577,6 +2605,11 @@ namespace PRoConEvents
                         return true;
 
 
+                    if (Regex.Match(field_key, @"yell_").Success &&
+                        !((Action & LimitAction.Yell) > 0))
+                        return true;
+
+
                     if (Regex.Match(field_key, @"kill_").Success &&
                         !((Action & LimitAction.Kill) > 0))
                         return true;
@@ -2761,6 +2794,12 @@ namespace PRoConEvents
 
                 setFieldValue("mail_body", body);
                 setFieldValue("sms_message", body);
+
+                setFieldValue("yell_group", auto_hide);
+                setFieldValue("yell_message", "activated " + FullReplaceName);
+                setFieldValue("yell_audience", MessageAudience.All.ToString());
+                setFieldValue("yell_procon_chat", TrueFalse.False.ToString());
+                setFieldValue("yell_duration", (5).ToString());
             }
 
             private void SetupCounts()
@@ -3047,6 +3086,8 @@ namespace PRoConEvents
                          field.Equals("evaluation") ||
                          field.Equals("say_audience") ||
                          field.Equals("say_procon_chat") ||
+                         field.Equals("yell_audience") ||
+                         field.Equals("yell_procon_chat") ||
                          field.Equals("hide") ||
                          field.Equals("procon_event_type") ||
                          field.Equals("procon_event_name") ||
@@ -3067,6 +3108,10 @@ namespace PRoConEvents
                     else if (field.Equals("say_audience"))
                         type = typeof(MessageAudience);
                     else if (field.Equals("say_procon_chat"))
+                        type = typeof(TrueFalse);
+                    else if (field.Equals("yell_audience"))
+                        type = typeof(MessageAudience);
+                    else if (field.Equals("yell_procon_chat"))
                         type = typeof(TrueFalse);
                     else if (field.Equals("procon_event_type"))
                         type = typeof(EventType);
@@ -3101,6 +3146,12 @@ namespace PRoConEvents
                             return true;
                         }
 
+                        if (field.Equals("yell_audience") && fields[field].Equals("Squad"))
+                        {
+                            setFieldValue("yell_audience", MessageAudience.All.ToString());
+                            plugin.ConsoleWarn("^byell_audience^n cannot be set to Squad, reverting to All");
+                        }
+
                         recompile(field, val, ui);
 
                         // Warning for BF3 player say
@@ -3116,7 +3167,6 @@ namespace PRoConEvents
                         if ((field.Equals("evaluation") && origValue != fields[field])
                         || (fields.Equals("evaluation_interval") && origValue != fields[field])) {
                         */
-                            plugin.DebugWrite("^8^b============= In validateAndSetFieldValue #" + id, 7); // XXX
                             ResetLastInterval(DateTime.Now);
                         }
 
@@ -3132,7 +3182,7 @@ namespace PRoConEvents
                     }
 
                 }
-                else if (Regex.Match(field, @"(id|((ea|pb)_ban_minutes)|say_delay|kill_delay|evaluation_interval)").Success)
+                else if (Regex.Match(field, @"(id|((ea|pb)_ban_minutes)|say_delay|yell_duration|kill_delay|evaluation_interval)").Success)
                 {
                     /* Parse Integer Values */
                     int integerValue = 0;
@@ -3143,7 +3193,7 @@ namespace PRoConEvents
                     if (Regex.Match(field, @"(id|((ea|pb)_ban_minutes))").Success &&
                             !plugin.intAssertGTE(field, integerValue, 1))
                         return false;
-                    else if (Regex.Match(field, @"(say_delay|kill_delay)").Success &&
+                    else if (Regex.Match(field, @"(say_delay|kill_delay|yell_duration)").Success &&
                             !plugin.intAssertGTE(field, integerValue, 0))
                         return false;
                     else if (Regex.Match(field, @"^evaluation_interval$").Success &&
@@ -3654,6 +3704,8 @@ namespace PRoConEvents
                 <li><i>PRoConChat</i> - sends the specified text to PRoCon's Chat-Tab, if the limit evaluates <i>True</i><br /></li>
                 <li><i>PRoConEvent</i> - adds the specified event to PRoCon's Events-Tab, if the limit evaluates <i>True</i><br /></li>
                 <li><i>TaskbarNotify</i> - sends a Windows Taskbar notification, if the limit evaluates <i>True</i><br /></li>
+                <li><i>SoundNotify</i> - plays a sound notification with the specified sound file, if the limit evaluates <i>True</i><br /></li>
+                <li><i>Yell</i> - yells a message to the server (All, Team, or Player), if the limit evaluates <i>True</i><br /></li>
                 </ul>
                 <br />
                 <br />
@@ -4024,10 +4076,16 @@ public interface PluginInterface
     bool SendGlobalMessage(String message);
     bool SendTeamMessage(int teamId, String message);
     bool SendSquadMessage(int teamId, int squadId, String message);
+    bool SendPlayerMessage(String name, String message);
 
     bool SendGlobalMessage(String message, int delay);
     bool SendTeamMessage(int teamId, String message, int delay);
     bool SendSquadMessage(int teamId, int squadId, String message, int delay);
+    bool SendPlayerMessage(String name, String message, int delay);
+
+    bool SendGlobalYell(String message, int duration);
+    bool SendTeamYell(int teamId, String message, int duration);
+    bool SendPlayerYell(String name, String message, int duration);
 
     bool SendMail(String address, String subject, String body);
     bool SendSMS(String country, String carrier, String number, String message);
@@ -6218,6 +6276,53 @@ public interface DataDictionaryInterface
                 }
 
 
+                if ((action & Limit.LimitAction.Yell) > 0)
+                {
+                    action = action & ~Limit.LimitAction.Yell;
+
+                    int duration = limit.YellDuration;
+
+                    String message = R(limit.YellMessage);
+                    DebugWrite("yell(" + limit.YellAudience.ToString() + "), ^b" + target.Name + "^n, activated " + limit.ShortDisplayName + ": " + message, 1);
+
+                    bool chat = limit.YellProConChat;
+                    MessageAudience audience = limit.YellAudience;
+
+                    switch (audience)
+                    {
+                        case MessageAudience.All:
+                            SendGlobalYell(message, duration);
+                            if (chat)
+                                PRoConChat("Admin > Yell All: " + message);
+                            break;
+                        case MessageAudience.Team:
+                            SendTeamYell(target.TeamId, message, duration);
+                            if (chat)
+                                PRoConChat("Admin > Yell Team(" + target.TeamId + "): " + message);
+                            break;
+                        case MessageAudience.Player:
+                            SendPlayerYell(target.Name, message, duration);
+                            if (chat)
+                                PRoConChat("Admin > Yell " + player.Name + ": " + message);
+                            break;
+                        case MessageAudience.Squad:
+                            /*
+                            SendSquadYell(target.TeamId, target.SquadId, message, duration);
+                            if (chat)
+                                PRoConChat("Admin > Team(" + target.TeamId + ").Squad(" + target.SquadId + "): " + message);
+                            */
+                        default:
+                            ConsoleError("Unknown " + typeof(MessageAudience).Name + " for " + limit.ShortDisplayName);
+                            break;
+                    }
+
+
+
+                    // exit early if action is only yell
+                    if (action.Equals(Limit.LimitAction.Yell))
+                        return !VMode;
+                }
+
                 if ((action & Limit.LimitAction.Log) > 0)
                 {
                     action = action & ~Limit.LimitAction.Log;
@@ -6773,6 +6878,10 @@ public interface DataDictionaryInterface
                             limit.SMSCarrier = var_value;
 
                             var_type = "enum." + var_name + limit.SMSCountry + "(" + String.Join("|", EnumValues(keys)) + ")";
+                        } else if (field.Equals("yell_audience")) {
+                            var_type = "enum." + var_name + "(" + String.Join("|", Enum.GetNames(typeof(MessageAudience))) + ")";
+                        } else if (field.Equals("yell_procon_chat")) {
+                            var_type = "enum." + var_name + "(" + String.Join("|", Enum.GetNames(typeof(TrueFalse))) + ")";
                         }
                         group_order = "";
                     }
@@ -8641,6 +8750,27 @@ public interface DataDictionaryInterface
             return true;
         }
 
+
+        private void SendPlayerYellV(string name, string message, int duration)
+        {
+            if (name == null)
+                return;
+
+            ServerCommand("admin.yell", StripModifiers(E(message)), duration.ToString(), "player", name);
+        }
+
+        private bool SendGlobalYellV(String message, int duration)
+        {
+            ServerCommand("admin.yell", StripModifiers(E(message)), duration.ToString(), "all");
+            return true;
+        }
+
+        private bool SendTeamYellV(int teamId, String message, int duration)
+        {
+            ServerCommand("admin.yell", StripModifiers(E(message)), duration.ToString(), "team", (teamId).ToString());
+            return true;
+        }
+
         //escape replacements
         public String E(String text)
         {
@@ -8664,6 +8794,11 @@ public interface DataDictionaryInterface
             {
                 ConsoleWarn("not sending global-message, ^bvirtual_mode^n is ^bon^n");
                 return false;
+            }
+
+            if (delay == 0) {
+                SendGlobalMessageV(message);
+                return true;
             }
 
             Thread delayed = new Thread(new ThreadStart(delegate()
@@ -8690,6 +8825,11 @@ public interface DataDictionaryInterface
                 return false;
             }
 
+            if (delay == 0) {
+                SendTeamMessageV(teamId, message);
+                return true;
+            }
+
             Thread delayed = new Thread(new ThreadStart(delegate()
             {
                 Thread.Sleep(delay * 1000);
@@ -8712,6 +8852,11 @@ public interface DataDictionaryInterface
             {
                 ConsoleWarn("not sending squad-message to TeamId(^b" + teamId + "^n,).SquadId(^b" + squadId + "^n), ^bvirtual_mode^n is ^bon^n");
                 return false;
+            }
+
+            if (delay == 0) {
+                SendSquadMessageV(teamId, squadId, message);
+                return true;
             }
 
             Thread delayed = new Thread(new ThreadStart(delegate()
@@ -8738,6 +8883,11 @@ public interface DataDictionaryInterface
                 ConsoleWarn("not sending player-message to ^b" + name + "^n, ^bvirtual_mode^n is ^bon^n");
                 return false;
             }
+            
+            if (delay == 0) {
+                SendPlayerMessageV(name, message);
+                return true;
+            }
 
             Thread delayed = new Thread(new ThreadStart(delegate()
             {
@@ -8749,6 +8899,45 @@ public interface DataDictionaryInterface
 
             return true;
         }
+
+        public bool SendPlayerYell(string name, string message, int duration)
+        {
+            if (name == null) return false;
+
+            if (VMode)
+            {
+                ConsoleWarn("not yelling player-message to ^b" + name + "^n, ^bvirtual_mode^n is ^bon^n");
+                return false;
+            }
+
+            SendPlayerYellV(name, message, duration);
+            return true;
+        }
+
+        public bool SendGlobalYell(String message, int duration)
+        {
+            if (VMode)
+            {
+                ConsoleWarn("not yelling global-message, ^bvirtual_mode^n is ^bon^n");
+                return false;
+            }
+
+            SendGlobalYellV(message, duration);
+            return true;
+        }
+
+        public bool SendTeamYell(int teamId, String message, int duration)
+        {
+            if (VMode)
+            {
+                ConsoleWarn("not yelling team-message, ^bvirtual_mode^n is ^bon^n");
+                return false;
+            }
+
+            SendTeamYellV(teamId, message, duration);
+            return true;
+        }
+
 
         public bool VMode
         {
