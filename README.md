@@ -814,13 +814,17 @@ Settings
 -------------
   
 0. **use_direct_fetch**
+
   _True_ - if the cache is not available, fetch stats directly from Battlelog
+  
   _False_ - disable direct fetches from Battlelog
 
   > If the **Battlelog Cache** plugin is installed, up to date and enabled, it will be used for player stats regardless of the setting of this option. If the **Battlelog Cache** plugin is not installed, not up to date or disabled, setting **use_direct_fetch** to True will act as a fallback system, fetching stats directly from Battlelog. Otherwise, stats fetching will fail since the cache is not available and this setting is False.
 
 0. **use_slow_weapon_stats**
+
   _False_ - skip fetching weapon stats for new players
+  
   _True_ - fetch weapon stats for new players
 
   > Visible only if **use_direct_fetch** is set to True. Fetching weapon stats from Battlelog takes a long time, 15 seconds or more per player. By default, this slow fetch is disabled (False), so that your Procon restart or initial plugin enable time on a full server won't be delayed or bogged down while fetching weapon stats. However, if you have limits that use the GetBattlelog() function, you **must** set this value to True, or else stats will not be available.
@@ -836,6 +840,7 @@ Settings
 0. **virtual_mode**
 
   _True_ - limit **actions** (kick, ban) are simulated, the actual commands are not sent to server
+
   _False_ - limit **actions** (kick, ban) are not simulated
   
 0. **console**
@@ -864,8 +869,9 @@ Settings
   
 0. **smtp_ssl**
 
-  _true_ - mail sent using secure socket (use this only if your SMTP provider requires it)  
-  _false_ - mail sent without using secure socket  
+  _True_ - mail sent using secure socket (use this only if your SMTP provider requires it)
+  
+  _False_ - mail sent without using secure socket  
   
 0. **say_interval**
 
@@ -875,16 +881,17 @@ Settings
   
 0. **auto_hide_sections**
 
-  _true_ - when creating a new section, it will be hidden by default  
-  _false_ - when creating a new section, it will not be hidden  
+  _True_ - when creating a new section, it will be hidden by default
+  
+  _False_ - when creating a new section, it will not be hidden  
   
 0. **twitter_reset_defaults**
 
-  _true_ - resets the Twitter's **access_token**, and **access_token_secret** back to default values  
+  _True_ - resets the Twitter's **access_token**, and **access_token_secret** back to default values  
   
 0. **twitter_setup**
 
-  _true_ - initiates the Twitter configuration, it will show a link that you have to visit to get the verification PIN  
+  _True_ - initiates the Twitter configuration, it will show a link that you have to visit to get the verification PIN  
   
 0. **twitter_verifier_pin**
 
@@ -893,6 +900,7 @@ Settings
   > After entering your PIN, the plugin will try to exchange the PIN for a Twitter **access_token**, and **access_token_secret**. If the verifcation stage fails, you must re-initiate the Twitter setup process.   
 
 0. **wait_timeout**
+
   _(int)_ - interval in seconds to wait for a response from the game server
 
   > If you get several **Timeout(xx seconds) expired, while waiting for ...** exceptions in plugin.log, try increasing the wait_timeout value by 10 seconds. Repeat until the exceptions stop, but you should not exceed 90 seconds.
