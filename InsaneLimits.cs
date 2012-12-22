@@ -972,7 +972,7 @@ namespace PRoConEvents
         bool plugin_activated = false;
         string oauth_token = String.Empty;
         string oauth_token_secret = String.Empty;
-        bool round_over = false;
+        bool round_over = false; // overloaded to also mean OnRoundOver limits evaled
         bool sleeping = false;
         public ServerInfo serverInfo = null;
         List<MaplistEntry> mapList = null;
@@ -6681,6 +6681,7 @@ public interface DataDictionaryInterface
 
                 plugin_enabled = false;
                 round_over = false;
+                isRoundReset = false;
 
 
                 finalizer = new Thread(new ThreadStart(delegate()
@@ -7733,6 +7734,16 @@ public interface DataDictionaryInterface
             if (!plugin_activated)
                 return;
 
+            /* 
+            To avoid a situation where OnLevelLoaded executed multiple
+            times in a row causes multiple OnRoundOver evals, delay
+            reset of isRoundReset flag until first spawn or first
+            interval limit evals (see enforcer thread).
+            */
+            if (isRoundReset) {
+                isRoundReset = false;
+            }
+
             //first player to spawn after round over, we fetch the map info again
             if (round_over == true)
             {
@@ -7746,6 +7757,7 @@ public interface DataDictionaryInterface
                 }));
 
                 round_start_delayed.Start();
+                Thread.Sleep(1);
             }
 
 
@@ -8100,15 +8112,16 @@ public interface DataDictionaryInterface
             DebugWrite("Got ^bOnLevelLoaded^n!", 8);
             getMapInfo();
             
+            if (!round_over) {
+                DebugWrite("^bRound was aborted, eval OnRoundOver limits", 3);
+                evaluateLimitsForEvent(BaseEvent.RoundOver, null, null, null, null);
+                round_over = true;
+            }
             if (!isRoundReset) {
                 // Do all of the essential stuff that would happen at normal round end
                 DebugWrite("^bRound was aborted, do reset OnLevelLoaded", 3);
-                evaluateLimitsForEvent(BaseEvent.RoundOver, null, null, null, null);
-                round_over = true;
                 RoundOverReset();
             }
-            
-            isRoundReset = false;
         }
 
         public override void OnMaplistList(List<MaplistEntry> lstMaplist)
@@ -9361,6 +9374,17 @@ public interface DataDictionaryInterface
 
                         //Remove all limit for which there is still remaining time
                         sorted_limits.RemoveAll(delegate(Limit limit) { return limit.RemainingSeconds(now) > 0; });
+                        
+                        /*
+                        After OnLevelLoaded, if there is an interval limit to
+                        evaluate and we haven't seen the first spawn yet
+                        and the round was reset;
+                        the first limit to evaluate "dirties" the round,
+                        and therefore it is no longer reset.
+                        */
+                        if (isRoundReset && sorted_limits.Count > 0) {
+                            isRoundReset = false;
+                        }
 
 
                         // make sure we are the only ones scanning the player's list
