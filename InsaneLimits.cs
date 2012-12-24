@@ -3566,7 +3566,7 @@ namespace PRoConEvents
         <br />
         It tracks extensive Battlelog stats and round stats. Several limits are available in the <a href='http://www.phogue.net/forumvb/forumdisplay.php?36-Plugin-Enhancements'>Procon Plugin Enhancements forum</a>.<br />
         <br />
-        Version 0.9.4.0 and later is optionally integrated with a MySQL server (using the Battlelog Cache plugin). This enables caching of Battlelog stats fetching, which
+        Version 0.9.4.0 and later is optionally integrated with a MySQL server (using the <b>Battlelog Cache</b> plugin). This enables caching of Battlelog stats fetching, which
         over time should reduce the delay caused by restarting Procon/enabling Insane Limits when your server is full. This should also reduce load on Battlelog, which in turn will reduce the number of Web errors and exceptions. This version is compatible with TrueBalancer and other plugins that use stats fetching.<br />
         <br />
         In addition to keeping track of player statistics, the plugin also keeps tracks of the number of times a player has activated a certain limit/rule.
