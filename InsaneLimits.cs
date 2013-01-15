@@ -3546,7 +3546,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.9.4.11";
+            return "0.9.4.12";
         }
 
         public string GetPluginAuthor()
@@ -5658,7 +5658,6 @@ public interface DataDictionaryInterface
                         scratch_handle.Reset();
                         WaitOn("plist_handle", plist_handle);
                         plist_handle.Reset();
-                        getMapInfoSync();
                         DebugWrite("awake! got player list updates", 5);
                     }
 
@@ -5716,13 +5715,18 @@ public interface DataDictionaryInterface
                     }
 
                     // then for each of the players just inserted, evaluate OnJoin
-                    DebugWrite("For " + bb + " new players, evaluate OnJoin limits", 5);
-                    foreach (PlayerInfo pp in inserted)
-                    {
-                        OnPlayerJoin(pp);
-                        // quit early if plugin was disabled
-                        if (!plugin_enabled)
-                            break;
+                    if (bb > 0) {
+                        DebugWrite("For " + bb + " new players, evaluate OnJoin limits", 5);
+                        foreach (PlayerInfo pp in inserted)
+                        {
+                            OnPlayerJoin(pp); // each call syncs map info
+                            // quit early if plugin was disabled
+                            if (!plugin_enabled)
+                                break;
+                        }
+                    } else {
+                        DebugWrite("No players left in batch, skipping OnJoin limits, synching map info", 5);
+                        getMapInfoSync();
                     }
                     
                     DebugWrite("^4^bTIME^n took " + DateTime.Now.Subtract(batchSince).TotalSeconds.ToString("F2") + " secs, process player batch", 5);
@@ -9444,10 +9448,10 @@ public interface DataDictionaryInterface
 
                     DebugWrite("waiting for signal from ^bfetch^n thread", 7);
                     Thread.Sleep(1000);
-                    DateTime now = DateTime.Now;
 
                     // Wait for fetch thread to let us go through
                     enforcer_handle.WaitOne();
+                    DateTime now = DateTime.Now;
                     
                     DebugWrite("awake! processing interval limits ...", 7);
 
@@ -12273,12 +12277,11 @@ public interface DataDictionaryInterface
             this.ExecuteCommand("procon.protected.plugins.call", "CBattlelogCache", "PlayerLookup", JSON.JsonEncode(request));
 
             // block for reply
-            DebugWrite(requestType + "(" + playerName + "), waiting for cache to respond", 5);
+            DebugWrite("^b" + requestType + "(" + playerName + ")^n, waiting for cache to respond", 5);
             double maxWait = Convert.ToDouble(getIntegerVarValue("wait_timeout"));
             while (DateTime.Now.Subtract(since).TotalSeconds < maxWait) {
                 if (!plugin_enabled) break;
                 // Give some time for the cache to respond
-                DebugWrite("waiting for reply ...", 7);
                 reply_handle.WaitOne(500);
                 reply_handle.Reset();
                 if (!plugin_enabled) return String.Empty;
@@ -12313,6 +12316,7 @@ public interface DataDictionaryInterface
                 TimeSpan a = TimeSpan.FromSeconds(age);
                 DebugWrite(requestType + "(" + playerName + "), cached stats used, age is " + a.ToString(), 5);
             }
+            DebugWrite("^2^bTIME^n took " + DateTime.Now.Subtract(since).TotalSeconds.ToString("F2") + " secs, cache lookup for " + playerName, 5);
             
             return r;
         }
