@@ -653,7 +653,9 @@ namespace PRoConEvents
         DataDictionaryInterface RoundData { get; }   //this dictionary is automatically cleared OnRoundStart
         DataDictionaryInterface DataRound { get; }   //this dictionary is automatically cleared OnRoundStart
 
-
+        /* Friendly names */
+        String FriendlyMapName(String mapFileName);  //example: "MP_001" -> "Grand Bazaar"
+        String FriendlyModeName(String modeName);    //example: "TeamDeathMatch0" -> "TDM"
     }
 
 
@@ -1071,6 +1073,9 @@ namespace PRoConEvents
         
         private int expectedPBCount = 0;
         
+        public Dictionary<String,String> friendlyMaps = null;
+        public Dictionary<String,String> friendlyModes = null;
+        
         public InsaneLimits()
         {
             try
@@ -1406,6 +1411,8 @@ namespace PRoConEvents
 
                 cacheResponseTable = new Dictionary<String,String>();
                 
+                friendlyMaps = new Dictionary<String,String>();
+                friendlyModes = new Dictionary<String,String>();
             }
             catch (Exception e)
             {
@@ -3546,7 +3553,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.9.4.12";
+            return "0.9.5.0";
         }
 
         public string GetPluginAuthor()
@@ -4182,6 +4189,10 @@ public interface PluginInterface
 
     DataDictionaryInterface Data { get; }        //this dictionary is user-managed
     DataDictionaryInterface RoundData { get; }   //this dictionary is automatically cleared OnRoundStart
+
+    /* Friendly names */
+    String FriendlyMapName(String mapFileName);  //example: ""MP_001"" -> ""Grand Bazaar""
+    String FriendlyModeName(String modeName);    //example: ""TeamDeathMatch0"" -> ""TDM""
 }
 </pre>
 
@@ -4704,6 +4715,23 @@ public interface DataDictionaryInterface
                 if (!cacheOK && !getBooleanVarValue("use_direct_fetch")) {
                     ConsoleWarn("Player stats fetching is disabled!");
                 }
+                
+                friendlyMaps.Clear();
+                friendlyModes.Clear();
+                List<CMap> bf3_defs = this.GetMapDefines();
+                foreach (CMap m in bf3_defs) {
+                    if (!friendlyMaps.ContainsKey(m.FileName)) friendlyMaps[m.FileName] = m.PublicLevelName;
+                    if (!friendlyModes.ContainsKey(m.PlayList)) friendlyModes[m.PlayList] = m.GameMode;
+                }
+                if (getIntegerVarValue("debug_level") >= 8) {
+                    foreach (KeyValuePair<String,String> pair in friendlyMaps) {
+                        DebugWrite("friendlyMaps[" + pair.Key + "] = " + pair.Value, 8);
+                    }
+                    foreach (KeyValuePair<String,String> pair in friendlyModes) {
+                        DebugWrite("friendlyModes[" + pair.Key + "] = " + pair.Value, 8);
+                    }
+                }
+                DebugWrite("Friendly names loaded", 6);
 
                 //start a thread that waits for the settings to be read from file
 
@@ -5586,7 +5614,7 @@ public interface DataDictionaryInterface
                                     retryCount[name] = 0;
                                     retryInfo[name] = info;
                                     ptmp = null; // release failed fetch info
-                                    DebugWrite("^b" + name + "^n is one of ^b" + retryCount.Count + "^n players in the retry queue", 4);
+                                    DebugWrite("^b" + name + "^n is one of ^b" + retryCount.Count + "^n players in the retry queue", 5);
                                     continue;
                                 }
                                 retryCount[name] = retryCount[name] + 1;
@@ -5747,7 +5775,7 @@ public interface DataDictionaryInterface
                     DebugWrite("Request PB player's list for new players to queue ...", 8);
                     getPBPlayersList();
 
-                    DebugWrite("^4^bDONE^n inserting " + bb + " new players, took a total of " + DateTime.Now.Subtract(since).TotalSeconds.ToString("F0") + " secs^0", 5);
+                    DebugWrite("^4^bDONE^n inserting " + bb + " new players, " + GetQCount() + " still in queue, took a total of " + DateTime.Now.Subtract(since).TotalSeconds.ToString("F0") + " secs^0", 3);
                 }
             }
             catch (Exception e)
@@ -10801,7 +10829,7 @@ public interface DataDictionaryInterface
                     int lmcount = limits.Count;
                     int lscount = lists.Count;
 
-                    if (!quiet || getIntegerVarValue("debug_level") >= 4)
+                    if (!quiet || getIntegerVarValue("debug_level") >= 5)
                         ConsoleWrite(lmcount + " limit" + ((lmcount > 1 || lmcount == 0) ? "s" : "") + " and " + lscount + " list" + ((lscount > 1 || lscount == 0) ? "s" : "") + " saved to ^b" + file + "^n");
                 }
 
@@ -10870,7 +10898,7 @@ public interface DataDictionaryInterface
 
                     }
 
-                    if (!quiet || getIntegerVarValue("debug_level") >= 4)
+                    if (!quiet || getIntegerVarValue("debug_level") >= 5)
                         ConsoleWrite(lmcount + " limit" + ((lmcount > 1 || lmcount == 0) ? "s" : "") + " and " + lscount + " list" + ((lscount > 1 || lscount == 0) ? "s" : "") + " loaded from ^b" + file + "^n");
 
                     CompileAll();
@@ -11561,6 +11589,22 @@ public interface DataDictionaryInterface
             return formatted;
         }
 
+
+        public String FriendlyMapName(String mapFileName)
+        {
+            if (String.IsNullOrEmpty(mapFileName)) return String.Empty;
+            String ret = mapFileName;
+            if (friendlyMaps.ContainsKey(mapFileName)) ret = friendlyMaps[mapFileName];
+            return ret;
+        }
+
+        public String FriendlyModeName(String modeName)
+        {
+            if (String.IsNullOrEmpty(modeName)) return String.Empty;
+            String ret = modeName;
+            if (friendlyModes.ContainsKey(modeName)) ret = friendlyModes[modeName];
+            return ret;
+        }
 
         public bool Log(String file, String message)
         {
@@ -12682,7 +12726,7 @@ public interface DataDictionaryInterface
                     if (plugin.getBooleanVarValue("use_slow_weapon_stats")) {
                         wstats = extractWeaponStats(pinfo, personaId);
                     } else {
-                        plugin.DebugWrite("^1^buse_slow_weapon_stats^n is ^bFalse^n, skipping fetch from Battlelog", 5);
+                        plugin.DebugWrite("^1^buse_slow_weapon_stats^n is ^bFalse^n, skipping fetch of weapon stats", 5);
                     }
 
                     pinfo.BWS.setWeaponData(wstats);
@@ -13706,7 +13750,7 @@ public interface DataDictionaryInterface
 
             String log = (logName == null) ? "plugin.log" : logName;
             
-            plugin.DebugWrite(scope + "-Stats for " + FullDisplayName + " logged to: " + log, 4);
+            plugin.DebugWrite(scope + "-Stats for " + FullDisplayName + " logged to: " + log, 3);
             plugin.dumpPairs(pairs, 4, logName);
         }
 
@@ -14579,4 +14623,3 @@ public interface DataDictionaryInterface
 
     }
 }
-

@@ -598,6 +598,11 @@ public interface PluginInterface
     /* Data Repository set/get custom data */
     DataDictionaryInterface Data { get; }
     DataDictionaryInterface RoundData { get; }   //this dictionary is automaticaly cleared OnRoundStart
+
+    /* Friendly names */
+    String FriendlyMapName(String mapFileName);  //example: "MP_001" -> "Grand Bazaar"
+    String FriendlyModeName(String modeName);    //example: "TeamDeathMatch0" -> "TDM"
+
 }
 ~~~
 
@@ -1035,7 +1040,7 @@ The change log is no longer updated in this document. Instead, look at the commi
 
 As of 0.0.9.0, only the latest version is listed below without any change details. This just marks the version that this document corresponds to.
 
-Latest version: **0.9.4.0 (BF3)**
+Latest version: **0.9.5.0 (BF3)**
 
 ### Historical Change Log (prior to GitHub repo creation)
 
@@ -1416,3 +1421,4 @@ e.g.
 - Added numerous message replacement options like %k_n% (Killer-Name), %v_n% (Victim-Name), and %w_n% (Weapon-Name)
 
 **0.0.0.1 - original (beta, BF3) release**
+
