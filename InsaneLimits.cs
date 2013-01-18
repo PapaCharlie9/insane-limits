@@ -7785,10 +7785,17 @@ public interface DataDictionaryInterface
             {
                 DebugWrite("Marking round as in progress", 8);
                 round_over = false;
-                //round over, fetch map info again
-                DebugWrite("round start detected", 4);
-                getMapInfoSync();
-                evaluateLimitsForEvent(BaseEvent.RoundStart, null, null, null, null);
+                //round over, fetch map info again after a few seconds (avoid false positive)
+                Thread round_start_delayed = new Thread(new ThreadStart(delegate()
+                {
+                    Thread.CurrentThread.Name = "round_start_delayed";
+                    DebugWrite(":::::::::::: Round start detected ::::::::::::", 4);
+                    getMapInfoSync();
+                    evaluateLimitsForEvent(BaseEvent.RoundStart, null, null, null, null);
+                }));
+
+                round_start_delayed.Start();
+                Thread.Sleep(1);
             }
 
 
@@ -8220,7 +8227,7 @@ public interface DataDictionaryInterface
             getMapInfo();
             
             if (!round_over) {
-                DebugWrite("^bRound was aborted, eval OnRoundOver limits", 4);
+                DebugWrite(":::::::::::: ^bRound was aborted, eval OnRoundOver limits ::::::::::::", 4);
                 evaluateLimitsForEvent(BaseEvent.RoundOver, null, null, null, null);
                 DebugWrite("Marking round as over", 8);
                 round_over = true;
@@ -8269,7 +8276,7 @@ public interface DataDictionaryInterface
             serverInfo.updateTickets(teamScores);
             evaluateLimitsForEvent(BaseEvent.RoundOver, null, null, null, null);
             serverInfo.updateTickets(null);
-            DebugWrite("Marking round as over!", 8);
+            DebugWrite(":::::::::::: Marking round as over! ::::::::::::", 4);
             round_over = true;
 
             RoundOverReset();
