@@ -3553,7 +3553,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.9.5.0";
+            return "0.9.6.0";
         }
 
         public string GetPluginAuthor()
@@ -7776,23 +7776,19 @@ public interface DataDictionaryInterface
             interval limit evals (see enforcer thread).
             */
             if (isRoundReset) {
+                DebugWrite("The round NEEDS resetting!", 8);
                 isRoundReset = false;
             }
 
             //first player to spawn after round over, we fetch the map info again
             if (round_over == true)
             {
+                DebugWrite("Marking round as in progress", 8);
                 round_over = false;
-                //round over, fetch map info again after a few seconds (avoid false positive)
-                Thread round_start_delayed = new Thread(new ThreadStart(delegate()
-                {
-                    DebugWrite("round start detected", 4);
-                    getMapInfoSync();
-                    evaluateLimitsForEvent(BaseEvent.RoundStart, null, null, null, null);
-                }));
-
-                round_start_delayed.Start();
-                Thread.Sleep(1);
+                //round over, fetch map info again
+                DebugWrite("round start detected", 4);
+                getMapInfoSync();
+                evaluateLimitsForEvent(BaseEvent.RoundStart, null, null, null, null);
             }
 
 
@@ -7961,8 +7957,8 @@ public interface DataDictionaryInterface
                         pending_handle.WaitOne(200); // 1/5th second
                         lock (moves_mutex) {
                             if (RecentMove.Contains(name)) {
-                                name = null;
                                 RecentMove.Remove(name);
+                                name = null;
                                 break;
                             }
                         }
@@ -8038,6 +8034,12 @@ public interface DataDictionaryInterface
 
                 /* nothing to do, usually happens during join */
                 if (pinfo.TeamId == 0 || pinfo.TeamId == TeamId) return;
+                
+                /* if between rounds before first spawn, ignore */
+                if (round_over) {
+                    DebugWrite("Ignoring move between rounds before level loaded", 8);
+                    return;
+                }
 
                 /* Add to queue */
                 DebugWrite("Queing move of ^b" + name, 5);
@@ -8220,12 +8222,13 @@ public interface DataDictionaryInterface
             if (!round_over) {
                 DebugWrite("^bRound was aborted, eval OnRoundOver limits", 4);
                 evaluateLimitsForEvent(BaseEvent.RoundOver, null, null, null, null);
+                DebugWrite("Marking round as over", 8);
                 round_over = true;
-            }
-            if (!isRoundReset) {
-                // Do all of the essential stuff that would happen at normal round end
-                DebugWrite("^bRound was aborted, do reset OnLevelLoaded", 4);
-                RoundOverReset();
+                if (!isRoundReset) {
+                    // Do all of the essential stuff that would happen at normal round end
+                    DebugWrite("^bDo reset OnLevelLoaded also", 4);
+                    RoundOverReset(); // sets flag to true
+                }
             }
         }
 
@@ -8266,6 +8269,7 @@ public interface DataDictionaryInterface
             serverInfo.updateTickets(teamScores);
             evaluateLimitsForEvent(BaseEvent.RoundOver, null, null, null, null);
             serverInfo.updateTickets(null);
+            DebugWrite("Marking round as over!", 8);
             round_over = true;
 
             RoundOverReset();
@@ -8285,6 +8289,7 @@ public interface DataDictionaryInterface
 
         public void RoundOverReset()
         {
+            DebugWrite("RoundOverReset called!", 8);
             // reset the activations, and sprees, and round-data for all limits
             List<String> keys = new List<string>(limits.Keys);
             foreach (String key in keys)
@@ -8320,6 +8325,7 @@ public interface DataDictionaryInterface
 
             this.RoundData.Clear();
 
+            DebugWrite("Round HAS BEEN reset!", 8);
             isRoundReset = true;
         }
 
@@ -9508,6 +9514,7 @@ public interface DataDictionaryInterface
                         and therefore it is no longer reset.
                         */
                         if (isRoundReset && sorted_limits.Count > 0) {
+                            DebugWrite("Round NEEDS resetting!", 8);
                             isRoundReset = false;
                         }
                         
