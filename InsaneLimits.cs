@@ -1076,6 +1076,8 @@ namespace PRoConEvents
         public Dictionary<String,String> friendlyMaps = null;
         public Dictionary<String,String> friendlyModes = null;
         
+        private bool level_loaded = false;
+        
         public InsaneLimits()
         {
             try
@@ -6715,6 +6717,7 @@ public interface DataDictionaryInterface
                 plugin_enabled = false;
                 round_over = false;
                 isRoundReset = false;
+                level_loaded = false;
 
 
                 finalizer = new Thread(new ThreadStart(delegate()
@@ -7768,6 +7771,16 @@ public interface DataDictionaryInterface
             DebugWrite("Got ^bOnPlayerSpawned^n!", 8);
             if (!plugin_activated)
                 return;
+            
+            /*
+            Sometimes players can spawn after the OnRoundOver event,
+            so to prevent spurious round start detections, wait
+            until level_loaded is true.
+            */
+            if (round_over && !level_loaded) {
+                DebugWrite("Skipping player spawn, level is not loaded yet!", 8);
+                return;
+            }
 
             /* 
             To avoid a situation where OnLevelLoaded executed multiple
@@ -8038,7 +8051,7 @@ public interface DataDictionaryInterface
                 
                 /* if between rounds before first spawn, ignore */
                 if (round_over) {
-                    DebugWrite("Ignoring move between rounds before level loaded", 8);
+                    DebugWrite("Ignoring move between rounds before round start", 8);
                     return;
                 }
 
@@ -8218,8 +8231,13 @@ public interface DataDictionaryInterface
         }
         public override void OnLevelLoaded(string mapFileName, string Gamemode, int roundsPlayed, int roundsTotal) {
             DebugWrite("Got ^bOnLevelLoaded^n!", 8);
+            level_loaded = true;
             getMapInfo();
             
+            lock (moves_mutex) {
+                RecentMove.Clear();
+            }
+
             if (!round_over) {
                 DebugWrite("^bRound was aborted, eval OnRoundOver limits", 4);
                 evaluateLimitsForEvent(BaseEvent.RoundOver, null, null, null, null);
@@ -8281,6 +8299,7 @@ public interface DataDictionaryInterface
             DebugWrite("Got ^bOnRoundOver^n!", 8);
             if (!plugin_activated)
                 return;
+            level_loaded = false;
 
             if (serverInfo != null)
                 serverInfo.WinTeamId = winTeamId;
