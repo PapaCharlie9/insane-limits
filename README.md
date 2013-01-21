@@ -1033,14 +1033,14 @@ Wish-List for 0.0.0.9 (in order of priority)
 
 See Issues list at [https://github.com/PapaCharlie9/insane-limits](https://github.com/PapaCharlie9/insane-limits)
 
-Change LogÂ   
+Change Log   
 -------------
 
 The change log is no longer updated in this document. Instead, look at the commit history in the GitHub repo: [https://github.com/PapaCharlie9/insane-limits](https://github.com/PapaCharlie9/insane-limits)
 
 As of 0.0.9.0, only the latest version is listed below without any change details. This just marks the version that this document corresponds to.
 
-Latest version: **0.9.5.0 (BF3)**
+Latest version: **0.9.6.0 (BF3)**
 
 ### Historical Change Log (prior to GitHub repo creation)
 
