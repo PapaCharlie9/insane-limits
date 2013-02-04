@@ -1040,7 +1040,7 @@ The change log is no longer updated in this document. Instead, look at the commi
 
 As of 0.0.9.0, only the latest version is listed below without any change details. This just marks the version that this document corresponds to.
 
-Latest version: **0.9.6.0 (BF3)**
+Latest version: **0.9.7.0 (BF3)**
 
 ### Historical Change Log (prior to GitHub repo creation)
 
