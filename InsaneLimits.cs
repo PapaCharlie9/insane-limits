@@ -3555,7 +3555,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.9.7.0";
+            return "0.9.7.1";
         }
 
         public string GetPluginAuthor()
@@ -12544,6 +12544,13 @@ public interface DataDictionaryInterface
         {
             String m;
             
+            if (json == null) {
+                m = "JSON response is null!";
+                plugin.DebugWrite(m, 5);
+                statsEx =  new StatsException(m);
+                return false;
+            }
+            
             if (!json.ContainsKey("type")) {
                 m = "JSON response malformed: does not contain 'type'!";
                 plugin.DebugWrite(m, 5);
@@ -12553,12 +12560,34 @@ public interface DataDictionaryInterface
             
             String type = (String)json["type"];
 
+            if (type == null) {
+                m = "JSON response malformed: 'type' is null!";
+                plugin.DebugWrite(m, 5);
+                statsEx =  new StatsException(m);
+                return false;
+            }
+
             if (Regex.Match(type, @"success", RegexOptions.IgnoreCase).Success) {
                 statsEx = null;
                 return true;
             }
             
+            if (!json.ContainsKey("message")) {
+                m = "JSON response malformed: does not contain 'message'!";
+                plugin.DebugWrite(m, 5);
+                statsEx =  new StatsException(m);
+                return false;
+            }
+
             String message = (String)json["message"];
+
+            if (message == null) {
+                m = "JSON response malformed: 'message' is null!";
+                plugin.DebugWrite(m, 5);
+                statsEx =  new StatsException(m);
+                return false;
+            }
+
             m = "Cache fetch failed (type: " + type + ", message: " + message + ")!";
             plugin.DebugWrite(m, 5);
             statsEx = new StatsException(m); 
