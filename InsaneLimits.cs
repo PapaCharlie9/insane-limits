@@ -5515,10 +5515,10 @@ public interface DataDictionaryInterface
                         gaveEnforcerTime = true;
                         enforcer_handle.Set();
                         WaitOn("fetch_handle", fetch_handle);
-                        enforcer_handle.Reset();
+                        fetch_handle.Reset();
                         if (!plugin_enabled) break;
                         DebugWrite("awake! checking queue ...", 7);
-                        if (GetQCount() == 0) DebugWrite("Nothing to do, ^bfetch^n going back to sleep...", 5);
+                        if (GetQCount() == 0) DebugWrite("Nothing to do, ^bfetch^n going back to sleep...", 7);
                     }
                     
                     DateTime fetchSince = DateTime.Now;
@@ -5530,7 +5530,7 @@ public interface DataDictionaryInterface
                         gaveEnforcerTime = true;
                         enforcer_handle.Set();
                         WaitOn("fetch_handle", fetch_handle);
-                        enforcer_handle.Reset();
+                        fetch_handle.Reset();
                         DebugWrite("awake!, block ^benforcer^n thread", 7);
                     }
 
@@ -5598,7 +5598,7 @@ public interface DataDictionaryInterface
                                     gaveEnforcerTime = true;
                                     enforcer_handle.Set();
                                     WaitOn("fetch_handle", fetch_handle);
-                                    enforcer_handle.Reset();
+                                    fetch_handle.Reset();
                                     DebugWrite("awake, check throttling delay", 7);
                                     upperBound = upperBound - 1.0;
                                  }
@@ -9562,6 +9562,7 @@ public interface DataDictionaryInterface
 
                     // Wait for fetch thread to let us go through
                     enforcer_handle.WaitOne();
+                    enforcer_handle.Reset();
                     DateTime now = DateTime.Now;
                     
                     DebugWrite("awake! processing interval limits ...", 7);
@@ -9684,8 +9685,7 @@ public interface DataDictionaryInterface
                     finally
                     {
                         // Notify the fetch thread
-                        DebugWrite("done, will signal ^bfetch^n thread", 5);
-                        enforcer_handle.Reset();
+                        DebugWrite("done, will signal ^bfetch^n thread", 7);
                         fetch_handle.Set();
                     }
 
@@ -12500,7 +12500,7 @@ public interface DataDictionaryInterface
             }
                 
             if (!ok) {
-                ConsoleWarn("Unknown cache response for " + key);
+                DebugWrite("^1WARNING: Unknown cache response for " + key + " (perhaps request timed out?)", 4);
                 return;
             }
             
@@ -12509,7 +12509,7 @@ public interface DataDictionaryInterface
                 
             }
             if (!ok) {
-                ConsoleWarn("Cache response collision for " + key);
+                DebugWrite("^1WARNING: Cache response collision for " + key, 4);
                 return;
             }
             
