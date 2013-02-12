@@ -576,6 +576,8 @@ namespace PRoConEvents
         /* Method for checking generic lists */
         bool isInList(String item, String list_name);
 
+        List<String> GetReservedSlotsList();
+
         /*
          * Methods getting and setting the Plugin's variables
          */
@@ -1078,6 +1080,8 @@ namespace PRoConEvents
         
         private bool level_loaded = false;
         
+        public List<String> reserved_slots_list;
+        
         public InsaneLimits()
         {
             try
@@ -1415,6 +1419,8 @@ namespace PRoConEvents
                 
                 friendlyMaps = new Dictionary<String,String>();
                 friendlyModes = new Dictionary<String,String>();
+                
+                reserved_slots_list = new List<String>();
             }
             catch (Exception e)
             {
@@ -3555,7 +3561,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.9.7.1";
+            return "0.9.7.2";
         }
 
         public string GetPluginAuthor()
@@ -4120,6 +4126,8 @@ public interface PluginInterface
 
     /* Method for checking generic lists */
     bool isInList(String item, String list_name);
+    
+    List<String> GetReservedSlotsList();
 
     /*
      * Methods getting and setting the Plugin's variables
@@ -4686,7 +4694,8 @@ public interface DataDictionaryInterface
                 "OnLoadingLevel",
                 "OnLevelStarted",
                 "OnLevelLoaded",
-                "OnRestartLevel"
+                "OnRestartLevel",
+                "OnReservedSlotsList"
                 );
 
             //initialize the dictionary with countries, carriers, gateways
@@ -5378,6 +5387,7 @@ public interface DataDictionaryInterface
 
             getPlayersList();
             getPBPlayersList();
+            getReservedSlotsList();
 
             DelayedCompile(30);
 
@@ -8418,6 +8428,11 @@ public interface DataDictionaryInterface
         }
 
 
+        public override void OnReservedSlotsList(List<String> lstSoldierNames)
+        {
+            reserved_slots_list = lstSoldierNames;
+        }
+
 
 
         public bool stringValidator(string var, string value)
@@ -9699,6 +9714,10 @@ public interface DataDictionaryInterface
             getServerInfo();
         }
 
+        public void getReservedSlotsList()
+        {
+            ServerCommand("reservedSlotsList.list");
+        }
 
         public static List<String> getExtraFields()
         {
@@ -12121,6 +12140,11 @@ public interface DataDictionaryInterface
                 return false;
 
             return whitelist.Contains(field);
+        }
+
+        public List<String> GetReservedSlotsList()
+        {
+            return reserved_slots_list;
         }
 
         public static String makeRelativePath(String file)
