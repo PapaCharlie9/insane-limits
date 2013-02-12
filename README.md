@@ -548,6 +548,8 @@ public interface PluginInterface
     /* Method for checking generic lists */
     bool isInList(String item, String list_name);
 
+    List<String> GetReservedSlotsList();
+
     /*
      * Methods getting and setting the Plugin's variables
      */
@@ -588,6 +590,19 @@ public interface PluginInterface
     bool IsCommand(String text);                //checks if the given text start with one of these characters: !/@?
     String ExtractCommand(String text);         //if given text starts with one of these charactets !/@? it removes them
     String ExtractCommandPrefix(String text);   //if given text starts with one of these chracters !/@? it returns the character
+
+    /* This method checks if the currently in-game player with matching name has
+       a Procon account on the Procon instance controlling this game server. Returns
+       False if the name does not match any of the players currently joined to the game server.
+       The canBan value is set to true if the player can temporary ban or permanently ban.
+    */
+    bool CheckAccount(String name, out bool canKill, out bool canKick, out bool canBan, out bool canMove, out bool canChangeLevel);
+
+    /* This method looks in the internal player's list for player with matching name.
+     * If fuzzy argument is set to true, it will find the player name that best matches the given name
+     *
+     /
+    PlayerInfoInterface GetPlayer(String name, bool fuzzy);
 
     /*
      * Creates a file in ProCOn's directory  (InsaneLimits.dump)
@@ -1033,14 +1048,14 @@ Wish-List for 0.0.0.9 (in order of priority)
 
 See Issues list at [https://github.com/PapaCharlie9/insane-limits](https://github.com/PapaCharlie9/insane-limits)
 
-Change Log   
+Change Log
 -------------
 
 The change log is no longer updated in this document. Instead, look at the commit history in the GitHub repo: [https://github.com/PapaCharlie9/insane-limits](https://github.com/PapaCharlie9/insane-limits)
 
 As of 0.0.9.0, only the latest version is listed below without any change details. This just marks the version that this document corresponds to.
 
-Latest version: **0.9.7.0 (BF3)**
+Latest version: **0.9.8.0 (BF3)**
 
 ### Historical Change Log (prior to GitHub repo creation)
 
@@ -1421,5 +1436,3 @@ e.g.
 - Added numerous message replacement options like %k_n% (Killer-Name), %v_n% (Victim-Name), and %w_n% (Weapon-Name)
 
 **0.0.0.1 - original (beta, BF3) release**
-
-
