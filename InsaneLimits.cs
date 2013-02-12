@@ -638,6 +638,8 @@ namespace PRoConEvents
 
         String ExtractCommandPrefix(String text);   //if given text starts with one of these chracters !/@? it returns the character
 
+        bool CheckAccount(String name, out bool canKill, out bool canKick, out bool canBan, out bool canMove, out bool canChangeLevel);
+
         /* This method looks in the internal player's list for player with matching name.
          * If fuzzy argument is set to true, it will find the player name that best matches the given name
          */
@@ -4127,7 +4129,7 @@ public interface PluginInterface
     /* Method for checking generic lists */
     bool isInList(String item, String list_name);
     
-    List<String> GetReservedSlotsList();
+    List&lt;String&gt; GetReservedSlotsList();
 
     /*
      * Methods getting and setting the Plugin's variables
@@ -4181,6 +4183,13 @@ public interface PluginInterface
     bool IsCommand(String text);                //checks if the given text start with one of these characters: !/@?
     String ExtractCommand(String text);         //if given text starts with one of these charactets !/@? it removes them
     String ExtractCommandPrefix(String text);   //if given text starts with one of these chracters !/@? it returns the character
+    
+    /* This method checks if the currently in-game player with matching name has
+       a Procon account on the Procon instance controlling this game server. Returns
+       False if the name does not match any of the players currently joined to the game server.
+       The canBan value is set to true if the player can temporary ban or permanently ban.
+    */
+    bool CheckAccount(String name, out bool canKill, out bool canKick, out bool canBan, out bool canMove, out bool canChangeLevel);
 
 
     /* This method looks in the internal player's list for player with matching name.
@@ -7477,6 +7486,35 @@ public interface DataDictionaryInterface
             return String.Empty;
         }
 
+        public bool CheckAccount(String name, out bool canKill, out bool canKick, out bool canBan, out bool canMove, out bool canChangeLevel)
+        {
+            bool ret = false;
+            canKill = false;
+            canKick = false;
+            canBan = false;
+            canMove = false;
+            canChangeLevel = false;
+            try {
+                if (!players.ContainsKey(name)) {
+                    DebugWrite("^1WARNING: Unabled to CheckAccount for " + name + ": unrecognized name", 4);
+                    return false;
+                }
+                CPrivileges p = this.GetAccountPrivileges(name);
+                ret = true;
+                
+                canKill = p.CanKillPlayers;
+                canKick = p.CanKickPlayers;
+                canBan = (p.CanTemporaryBanPlayers || p.CanPermanentlyBanPlayers);
+                canMove = p.CanMovePlayers;
+                canChangeLevel = p.CanUseMapFunctions;
+            } catch (Exception e) {
+                DebugWrite("EXCEPTION: CheckAccount(" + name + "): " + e.Message, 4);
+                ret = false;
+            }
+            return ret;
+        }
+
+
         public PlayerInfoInterface GetPlayer(String name)
         {
             return GetPlayer(name, true);
@@ -8430,6 +8468,7 @@ public interface DataDictionaryInterface
 
         public override void OnReservedSlotsList(List<String> lstSoldierNames)
         {
+            DebugWrite("Got ^bOnReservedSlotsList^n!", 8);
             reserved_slots_list = lstSoldierNames;
         }
 
