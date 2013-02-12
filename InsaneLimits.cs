@@ -12423,25 +12423,41 @@ public interface DataDictionaryInterface
                 reply_handle.Reset();
                 if (!plugin_enabled) return String.Empty;
                 lock (cacheResponseTable) {
-                    if (cacheResponseTable[playerName] != null) break;
+                    if (cacheResponseTable.ContainsKey(playerName) && cacheResponseTable[playerName] != null) break;
                 }
             }
             
+            bool ok = false;
+            
             lock (cacheResponseTable) {
-                if (cacheResponseTable[playerName] == null) {
-                    DebugWrite(requestType + "(" + playerName + ") timed out, request exceeded " + maxWait.ToString("F1") + " seconds!", 4);
-                    return String.Empty;
+                ok = (cacheResponseTable.ContainsKey(playerName) && cacheResponseTable[playerName] != null);
+            }
+            if (!ok) {
+                DebugWrite(requestType + "(" + playerName + ") timed out, request exceeded " + maxWait.ToString("F1") + " seconds!", 4);
+                lock (cacheResponseTable) {
+                    if (cacheResponseTable.ContainsKey(playerName)) {
+                        cacheResponseTable.Remove(playerName);
+                    }
                 }
+                return String.Empty;
             }
             
-            String r = null;
+            String r = String.Empty;
             
             lock (cacheResponseTable) {
-                r = cacheResponseTable[playerName];
-                cacheResponseTable.Remove(playerName);
+                if (cacheResponseTable.ContainsKey(playerName)) {
+                    r = cacheResponseTable[playerName];
+                    cacheResponseTable.Remove(playerName);
+                }
             }
             
             Hashtable header = (Hashtable)JSON.JsonDecode(r);
+            
+            if (header == null) {
+                DebugWrite(requestType + "(" + playerName + "), failed, header is null", 4);
+                return r;
+            }
+            
             double fetchTime = -1;
             Double.TryParse((String)header["fetchTime"], out fetchTime);
             double age = -1;
@@ -12451,7 +12467,7 @@ public interface DataDictionaryInterface
                 DebugWrite(requestType + "(" + playerName + "), cache refreshed from Battlelog, took ^2" + fetchTime.ToString("F1") + " seconds", 5);
             } else if (age > 0) {
                 TimeSpan a = TimeSpan.FromSeconds(age);
-                DebugWrite(requestType + "(" + playerName + "), cached stats used, age is " + a.ToString(), 5);
+                DebugWrite(requestType + "(" + playerName + "), cached stats used, age is " + a.ToString().Substring(0,8), 5);
             }
             DebugWrite("^2^bTIME^n took " + DateTime.Now.Subtract(since).TotalSeconds.ToString("F2") + " secs, cache lookup for " + playerName, 5);
             
@@ -12676,11 +12692,14 @@ public interface DataDictionaryInterface
             bool cacheEnabled = plugin.IsCacheEnabled(false);
             bool ok = false;
             
+            bigText = String.Empty;
+            
             if (cacheEnabled) {
                 // block waiting for cache to respond
                 bigText = plugin.SendCacheRequest(playerName, requestType);
                 ok = !String.IsNullOrEmpty(bigText);
                 if (ok) return String.Empty;
+                // if !ok, fall back on direct fetch, if enabled
             }
             
             if (!ok && directFetchEnabled && url != null) {
@@ -12725,23 +12744,21 @@ public interface DataDictionaryInterface
                     /* Get clan tag from cache */
                     fetchJSON(ref result, null, player, "clanTag");
                     
-                    if (!String.IsNullOrEmpty(result)) {
-                        json = (Hashtable)JSON.JsonDecode(result);
+                    json = (Hashtable)JSON.JsonDecode(result);
 
-                        if (!CheckSuccess(json, out statsEx)) throw statsEx;
+                    if (!CheckSuccess(json, out statsEx)) throw statsEx;
 
-                        /* verify there is data structure */
-                        Hashtable d = null;
-                        if (!json.ContainsKey("data") || (d = (Hashtable)json["data"]) == null)
-                            throw new StatsException("JSON clanTag response does not contain a ^bdata^n field, for " + player);
+                    /* verify there is data structure */
+                    Hashtable d = null;
+                    if (!json.ContainsKey("data") || (d = (Hashtable)json["data"]) == null)
+                        throw new StatsException("JSON clanTag response does not contain a ^bdata^n field, for " + player);
 
-                        if (!d.ContainsKey("clanTag"))
-                            throw new StatsException("JSON clanTag response does not contain a ^bclanTag^n field, for " + player);
+                    if (!d.ContainsKey("clanTag"))
+                        throw new StatsException("JSON clanTag response does not contain a ^bclanTag^n field, for " + player);
 
-                        String t = (String)d["clanTag"];
-                        if (!String.IsNullOrEmpty(t)) pinfo.tag = t;
-                        okClanTag = true;
-                    }
+                    String t = (String)d["clanTag"];
+                    if (!String.IsNullOrEmpty(t)) pinfo.tag = t;
+                    okClanTag = true;
                 }
 
                 if (!okClanTag && directFetchEnabled)
