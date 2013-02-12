@@ -3563,7 +3563,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.9.8.0";
+            return "0.9.7.3";
         }
 
         public string GetPluginAuthor()
@@ -6748,11 +6748,14 @@ public interface DataDictionaryInterface
                             JoinWith(say_thread);
                             JoinWith(settings_thread);
                             JoinWith(enforcer_thread);
-                            JoinWith(fetching_thread, 45);
                             JoinWith(moving_thread);
+                            JoinWith(fetching_thread, 45);
 
                             this.blog.CleanUp();
                             this.players.Clear();
+                            lock (this.cacheResponseTable) {
+                                this.cacheResponseTable.Clear();
+                            }
 
                             CleanupLimits();
 
@@ -12414,7 +12417,7 @@ public interface DataDictionaryInterface
             DebugWrite("^b" + requestType + "(" + playerName + ")^n, waiting for cache to respond", 5);
             double maxWait = Convert.ToDouble(getIntegerVarValue("wait_timeout"));
             while (DateTime.Now.Subtract(since).TotalSeconds < maxWait) {
-                if (!plugin_enabled) break;
+                if (!plugin_enabled) return String.Empty;
                 // Give some time for the cache to respond
                 reply_handle.WaitOne(500);
                 reply_handle.Reset();
@@ -12475,12 +12478,21 @@ public interface DataDictionaryInterface
             String key = response[0]; // Player's name
             val = response[1]; // JSON string
             
-            if (!cacheResponseTable.ContainsKey(key)) {
+            bool ok = false;
+            lock (cacheResponseTable) {
+                ok = cacheResponseTable.ContainsKey(key);
+            }
+                
+            if (!ok) {
                 ConsoleWarn("Unknown cache response for " + key);
                 return;
             }
             
-            if (cacheResponseTable[key] != null) {
+            lock (cacheResponseTable) {
+                ok = (cacheResponseTable[key] == null);
+                
+            }
+            if (!ok) {
                 ConsoleWarn("Cache response collision for " + key);
                 return;
             }
@@ -12901,6 +12913,22 @@ public interface DataDictionaryInterface
             {
                 pinfo.StatsError = true;
                 plugin.DumpException(e);
+            }
+            finally
+            {
+                // Clean-up the cache response, if any
+                bool didit = false;
+                if (pinfo != null && pinfo.Name != null) {
+                    lock (plugin.cacheResponseTable) {
+                        if (plugin.cacheResponseTable.ContainsKey(pinfo.Name)) {
+                            plugin.cacheResponseTable.Remove(pinfo.Name);
+                            didit = true;
+                        }
+                    }
+                    if (didit) {
+                        plugin.DebugWrite("Finally cleaned up cacheResponseTable for " + pinfo.Name, 4);
+                    }
+                }
             }
 
             return pinfo;
