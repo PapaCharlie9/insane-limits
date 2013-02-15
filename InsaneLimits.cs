@@ -1131,6 +1131,7 @@ namespace PRoConEvents
                 this.booleanVariables.Add("use_direct_fetch", true);
                 this.booleanVariables.Add("use_weapon_stats", false);
                 this.booleanVariables.Add("use_slow_weapon_stats", false);
+                this.booleanVariables.Add("use_stats_log", false);
                 this.booleanVariables.Add("use_custom_lists", false);
                 this.booleanVariables.Add("use_custom_smtp", false);
                 this.booleanVariables.Add("use_custom_storage", false);
@@ -1145,8 +1146,6 @@ namespace PRoConEvents
                 this.booleanVariables.Add("auto_hide_sections", true);
                 this.booleanVariables.Add("smtp_ssl", true);
 
-
-
                 this.hidden_variables.Add("use_weapon_stats", true);
 
                 this.booleanVarValidators = new Dictionary<string, booleanVariableValidator>();
@@ -1158,6 +1157,7 @@ namespace PRoConEvents
                 this.booleanVarValidators.Add("use_direct_fetch", booleanValidator);
                 this.booleanVarValidators.Add("use_weapon_stats", booleanValidator);
                 this.booleanVarValidators.Add("use_slow_weapon_stats", booleanValidator);
+                this.booleanVarValidators.Add("use_stats_log", booleanValidator);
                 this.booleanVarValidators.Add("use_custom_lists", booleanValidator);
                 this.booleanVarValidators.Add("smtp_ssl", booleanValidator);
                 this.booleanVarValidators.Add("auto_hide_sections", booleanValidator);
@@ -3563,7 +3563,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.9.7.3";
+            return "0.9.7.4";
         }
 
         public string GetPluginAuthor()
@@ -12861,7 +12861,7 @@ public interface DataDictionaryInterface
                     String logName = @"Logs\" + plugin.server_host + "_" + plugin.server_port + @"\" + DateTime.Now.ToString("yyyyMMdd") + "_battle.log";
 
                     /* print the collected stats to log */
-                    if (plugin.getIntegerVarValue("debug_level") >= 3) {
+                    if (plugin.getBooleanVarValue("use_stats_log")) {
                         since = DateTime.Now;
                         
                         plugin.Log(logName, "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + pinfo.FullName + ((okClanTag && cacheEnabled) ? " Battlelog CACHED stats: " : " Battlelog player stats:"));
@@ -12885,7 +12885,7 @@ public interface DataDictionaryInterface
                         throw new StatsException("fetchStats aborted, disabling plugin ...");
                     }
 
-                    if (wstats != null && plugin.getIntegerVarValue("debug_level") >= 3) {
+                    if (wstats != null && plugin.getBooleanVarValue("use_stats_log")) {
                         since = DateTime.Now;
                         
                         String bwsBlob = "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + pinfo.FullName + " Battlelog weapon stats:\n";
