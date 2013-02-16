@@ -3563,7 +3563,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.9.7.4";
+            return "0.9.8.0";
         }
 
         public string GetPluginAuthor()
@@ -4443,6 +4443,13 @@ public interface DataDictionaryInterface
                 won't be delayed or bogged down while fetching weapon stats. However,
                 if you have limits that use the GetBattlelog() function, you <b>must</b>
                 set this value to True, or else stats will not be available.
+                </blockquote>
+          </li>
+          <li><blockquote><b>use_stats_log</b><br />
+                <i>False</i> - do not log Battlelog stats to the battle.log file<br />
+                <i>True</i> - log player stats to the battle.log file<br />
+                <br />
+                If stats fetching is enabled and stats are fetched successfully, all the stats that were fetched will be logged in a file that follows the standard logging file name pattern: procon/Logs/<server-ip>_<server-port>/YYYYMMDD_battle.log (text file).
                 </blockquote>
           </li>
           <li><blockquote><strong>limits_file</strong><br />
