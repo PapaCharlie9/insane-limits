@@ -849,6 +849,17 @@ Settings
 
   > Visible only if **use_direct_fetch** is set to True. Fetching weapon stats from Battlelog takes a long time, 15 seconds or more per player. By default, this slow fetch is disabled (False), so that your Procon restart or initial plugin enable time on a full server won't be delayed or bogged down while fetching weapon stats. However, if you have limits that use the GetBattlelog() function, you **must** set this value to True, or else stats will not be available.
 
+0. **use_stats_log**
+
+  _False_ - do not log Battlelog stats to the battle.log file
+  
+  _True_ - log player stats to the battle.log file
+
+  > If stats fetching is enabled and stats are fetched successfully, all the stats that were fetched will be logged in a file that follows the standard logging file name pattern: procon/Logs/<server-ip>_<server-port>/YYYYMMDD_battle.log (text file). An example of an entry of overview stats only follows:
+````
+[07:22:27] [USMC]Sgt_Chelios Battlelog CACHED stats: 
+    Kdr:1.37, Kpm:1.25, Spm:538, Rank:108, Time:1796850, Wins:733, Kills:37527, Score:16005419, Skill:533.91, Deaths:35299, Losses:765, Repairs:792, Revives:5767, Accuracy:16.68, ReconTime:367054, ResetTime:1195400, ResetWins:420, ScoreTeam:665860, ResetKills:20867, ResetScore:8164860, Ressuplies:7788, AssaultTime:556018, KillAssists:4084, QuitPercent:37.76, ResetDeaths:23163, ResetLosses:543, ScoreCombat:7993319, SupportTime:278559, VehicleTime:NaN, EngineerTime:312698, ReconPercent:24.24, ScoreVehicle:423229, ResetShotsHit:80489, AssaultPercent:36.72, ScoreObjective:481750, SupportPercent:18.39, VehiclePercent:NaN, VehiclesKilled:1607, EngineerPercent:20.65, KillStreakBonus:22, ResetShotsFired:532711
+````
 0. **player_white_list**
 
   _(string, csv)_ - list of players that should never be kicked or banned
