@@ -3563,7 +3563,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.9.8.0";
+            return "0.9.8.1";
         }
 
         public string GetPluginAuthor()
@@ -7506,10 +7506,11 @@ public interface DataDictionaryInterface
             canChangeLevel = false;
             try {
                 if (!players.ContainsKey(name)) {
-                    DebugWrite("^1WARNING: Unabled to CheckAccount for " + name + ": unrecognized name", 4);
+                    DebugWrite("^1WARNING: Unable to CheckAccount for " + name + ": unrecognized name", 4);
                     return false;
                 }
                 CPrivileges p = this.GetAccountPrivileges(name);
+                if (p == null) return false;
                 ret = true;
                 
                 canKill = p.CanKillPlayers;
