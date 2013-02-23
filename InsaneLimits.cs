@@ -4783,7 +4783,7 @@ public interface DataDictionaryInterface
                             {
                                 ConsoleWarn("You must review and accept the ^bPrivacy Policy^n before plugin can be activated");
                                 activate_handle.Reset();
-                                activate_handle.WaitOne();
+                                continue;
                             }
 
                             if (!plugin_enabled)
@@ -8198,7 +8198,7 @@ public interface DataDictionaryInterface
             {
                 StackTrace stack = new StackTrace();
                 String caller = stack.GetFrame(1).GetMethod().Name;
-                ConsoleException("Timeout(" + timeout + " seconds) expired, while waiting for " + name + " within " + caller);
+                ConsoleException("Timeout(" + timeout + " seconds), waiting for " + name + " within " + caller + ". Your net connection to game server may be congested or another plugin may be lagging Procon.");
             } else {
                 DebugWrite("awake! no timeout", 7);
             }
@@ -12441,7 +12441,7 @@ public interface DataDictionaryInterface
                 ok = (cacheResponseTable.ContainsKey(playerName) && cacheResponseTable[playerName] != null);
             }
             if (!ok) {
-                DebugWrite(requestType + "(" + playerName + ") timed out, request exceeded " + maxWait.ToString("F1") + " seconds!", 4);
+                DebugWrite(requestType + "(" + playerName + ") timed out, request exceeded " + maxWait.ToString("F1") + " seconds! Network congestion or another plugin lagging Procon?", 4);
                 lock (cacheResponseTable) {
                     if (cacheResponseTable.ContainsKey(playerName)) {
                         cacheResponseTable.Remove(playerName);
