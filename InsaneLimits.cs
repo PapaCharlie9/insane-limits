@@ -337,6 +337,8 @@ namespace PRoConEvents
         int MapIndex { get; }
         String MapFileName { get; }
         String Gamemode { get; }
+        double GameModeCounter { get; }
+        double CTFRoundTimeModifier { get; }
 
         /* Next Map Data */
         int NextMapIndex { get; }
@@ -466,7 +468,7 @@ namespace PRoConEvents
         String EAGuid { get; }
         int TeamId { get; }
         int SquadId { get; }
-
+        int Ping { get; }
 
         /* Current round, Player Stats */
         double KdrRound { get; }
@@ -639,6 +641,8 @@ namespace PRoConEvents
         String ExtractCommandPrefix(String text);   //if given text starts with one of these chracters !/@? it returns the character
 
         bool CheckAccount(String name, out bool canKill, out bool canKick, out bool canBan, out bool canMove, out bool canChangeLevel);
+        
+        double CheckPlayerIdle(String name); // -1 if unknown, otherwise idle time in seconds
 
         /* This method looks in the internal player's list for player with matching name.
          * If fuzzy argument is set to true, it will find the player name that best matches the given name
@@ -986,6 +990,8 @@ namespace PRoConEvents
 
         int curMapIndex = 0;
         int nextMapIndex = 0;
+        public double ctfRoundTimeModifier = 0;
+        public double gameModeCounter = 0;
 
         public Dictionary<String, bool> WeaponsDict = null;
 
@@ -3563,7 +3569,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.9.8.1";
+            return "0.9.9.0";
         }
 
         public string GetPluginAuthor()
@@ -3891,6 +3897,8 @@ public interface ServerInfoInterface
     int MapIndex { get; }
     String MapFileName { get; }
     String Gamemode { get; }
+    double GameModeCounter { get; }
+    double CTFRoundTimeModifier { get; }
 
     /* Next Map Data */
     int NextMapIndex { get; }
@@ -4026,6 +4034,7 @@ public interface PlayerInfoInterface
     String EAGuid { get; }
     int TeamId { get; }
     int SquadId { get; }
+    int Ping { get; }
 
 
     /* Current round, Player Stats */
@@ -4190,6 +4199,8 @@ public interface PluginInterface
        The canBan value is set to true if the player can temporary ban or permanently ban.
     */
     bool CheckAccount(String name, out bool canKill, out bool canKick, out bool canBan, out bool canMove, out bool canChangeLevel);
+
+    double CheckPlayerIdle(String name); // -1 if unknown, otherwise idle time in seconds
 
 
     /* This method looks in the internal player's list for player with matching name.
@@ -4711,15 +4722,31 @@ public interface DataDictionaryInterface
                 "OnLevelStarted",
                 "OnLevelLoaded",
                 "OnRestartLevel",
-                "OnReservedSlotsList"
+                "OnReservedSlotsList",
+                /* R38/Procon 1.4.0.7 */
+                "OnPlayerIdleDuration",
+                "OnPlayerIsAlive",
+                "OnPlayerPingedByAdmin",
+                "OnSquadLeader",
+                "OnSquadListActive",
+                "OnSquadListPlayers",
+                "OnSquadIsPrivate",
+                "OnCtfRoundTimeModifier",
+                "OnGunMasterWeaponsPreset",
+                "OnVehicleSpawnAllowed",
+                "OnVehicleSpawnDelay",
+                "OnBulletDamage",
+                "OnOnlySquadLeaderSpawn",
+                "OnSoldierHealth",
+                "OnPlayerManDownTime",
+                "OnPlayerRespawnTime",
+                "OnHud",
+                "OnGameModeCounter"
                 );
 
             //initialize the dictionary with countries, carriers, gateways
             initializeCarriers();
         }
-
-
-
 
         public void OnPluginEnable()
         {
@@ -7525,6 +7552,36 @@ public interface DataDictionaryInterface
             return ret;
         }
 
+        public double CheckPlayerIdle(String name) // -1 if unknown, otherwise idle time in seconds
+        {
+            double ret = -1;
+            try
+            {
+                if (String.IsNullOrEmpty(name)) return -1;
+
+                PlayerInfo pinfo = null;
+
+                lock (players_mutex) {
+                    if (players.ContainsKey(name)) {
+                        players.TryGetValue(name, out pinfo);
+                    }
+                }
+
+                if (pinfo == null) return -1;
+                
+                if (pinfo._idleTime == 0) {
+                    ServerCommand("player.idleDuration", name); // Update it
+                }
+                ret = pinfo._idleTime;
+                pinfo._idleTime = 0; // reset after every check
+            } 
+            catch (Exception e)
+            {
+                DebugWrite(e.Message, 5);
+            }
+            return ret;
+        }
+
 
         public PlayerInfoInterface GetPlayer(String name)
         {
@@ -8198,7 +8255,7 @@ public interface DataDictionaryInterface
             {
                 StackTrace stack = new StackTrace();
                 String caller = stack.GetFrame(1).GetMethod().Name;
-                ConsoleException("Timeout(" + timeout + " seconds), waiting for " + name + " within " + caller + ". Your net connection to game server may be congested or another plugin may be lagging Procon.");
+                ConsoleException("Timeout(" + timeout + " seconds), waiting for " + name + " in " + caller + ". Your net connection to game server may be congested or another plugin may be lagging Procon.");
             } else {
                 DebugWrite("awake! no timeout", 7);
             }
@@ -8444,6 +8501,12 @@ public interface DataDictionaryInterface
             ServerCommand("mapList.getMapIndices");
         }
 
+        public void getModeCounters()
+        {
+            ServerCommand("vars.gameModeCounter");
+            ServerCommand("vars.ctfRoundTimeModifier");
+        }
+
         public int[] getMapIndicesSync()
         {
             indices_handle.Reset();
@@ -8457,6 +8520,7 @@ public interface DataDictionaryInterface
 
         public void getMapInfoSync()
         {
+            getModeCounters();
             DebugWrite("waiting for map-list before proceeding", 6);
             getMapListSync();
             DebugWrite("waiting for map-indices before proceeding", 6);
@@ -8470,10 +8534,11 @@ public interface DataDictionaryInterface
             if (!plugin_activated)
                 return;
 
+            getModeCounters();
             getMapList();
             getMapIndices();
             getServerInfo();
-
+            getModeCounters();
         }
 
 
@@ -9255,6 +9320,17 @@ public interface DataDictionaryInterface
             plist_handle.Set();
         }
 
+        public void UpdateIdlePlayers(List<CPlayerInfo> lstPlayers)
+        {
+            foreach (CPlayerInfo cpiPlayer in lstPlayers) {
+                if ((cpiPlayer.Score == 0 || Double.IsNaN(cpiPlayer.Score)) && cpiPlayer.Deaths == 0) {
+                    DebugWrite("Updating idle duration for: " + cpiPlayer.SoldierName, 5);
+                    ServerCommand("player.idleDuration", cpiPlayer.SoldierName); // Update it
+                }
+            }
+        }
+
+
 
         public void RemovePlayer(String name)
         {
@@ -9300,6 +9376,7 @@ public interface DataDictionaryInterface
 
             updateQueues(lstPlayers);
             SyncPlayersList(lstPlayers);
+            UpdateIdlePlayers(lstPlayers);
         }
 
 
@@ -12528,6 +12605,147 @@ public interface DataDictionaryInterface
             reply_handle.Set();
         }
 
+        /* R38/Procon 1.4.0.7 */
+
+
+        public override void OnPlayerIdleDuration(string soldierName, int idleTime) 
+        {
+            DebugWrite("Got ^bOnPlayerIdleDuration^n: " + soldierName + ", " + idleTime, 8);
+            if (!plugin_activated) return;
+
+            try
+            {
+                if (String.IsNullOrEmpty(soldierName)) return;
+
+                PlayerInfo pinfo = null;
+
+                lock (players_mutex) {
+                    if (players.ContainsKey(soldierName)) {
+                        players.TryGetValue(soldierName, out pinfo);
+                    }
+                }
+
+                if (pinfo == null) return;
+                
+                pinfo._idleTime = Math.Max(0, idleTime);
+            } 
+            catch (Exception e)
+            {
+                DebugWrite(e.Message, 5);
+            }
+        }
+
+        public override void OnPlayerIsAlive(string soldierName, bool isAlive)
+        {
+            DebugWrite("Got ^bOnPlayerIsAlive^n: " + soldierName + ", " + isAlive, 8);
+        }
+        public override void OnPlayerPingedByAdmin(string soldierName, int ping)
+        {
+            DebugWrite("Got ^bOnPlayerPingedByAdmin^n: " + soldierName + ", " + ping, 8);
+            if (!plugin_activated) return;
+
+            try
+            {
+                if (String.IsNullOrEmpty(soldierName)) return;
+
+                PlayerInfo pinfo = null;
+
+                lock (players_mutex) {
+                    if (players.ContainsKey(soldierName)) {
+                        players.TryGetValue(soldierName, out pinfo);
+                    }
+                }
+
+                if (pinfo == null) return;
+                
+                pinfo.Ping = Math.Max(0, Math.Min(ping, 1000));
+            } 
+            catch (Exception e)
+            {
+                DebugWrite(e.Message, 5);
+            }
+        }
+
+        public override void OnSquadLeader(int teamId, int squadId, string soldierName)
+        {
+            DebugWrite("Got ^bOnSquadLeader^n: " + soldierName + ", " + teamId + ", " + squadId, 8);
+        }
+
+        public override void OnSquadListActive(int teamId, int squadClount, List<int> squadList)
+        {
+            DebugWrite("Got ^bOnSquadListActive^n: " + teamId + ", " + squadClount + ", " + squadList.Count, 8);
+        }
+
+        public override void OnSquadListPlayers(int teamId, int squadId, int playerCount, List<string> playersInSquad)
+        {
+            DebugWrite("Got ^bOnSquadListPlayers^n: " + teamId + ", " + squadId + ", " + playerCount + ", " + playersInSquad.Count, 8);
+        }
+        public override void OnSquadIsPrivate(int teamId, int squadId, bool isPrivate)
+        {
+            DebugWrite("Got ^bOnSquadIsPrivate^n: " + teamId + ", " + squadId + ", " + isPrivate, 8);
+        }
+        public override void OnCtfRoundTimeModifier(int limit)
+        {
+            DebugWrite("Got ^bOnCtfRoundTimeModifier^n: " + limit, 8);
+            if (!plugin_activated) return;
+
+            this.ctfRoundTimeModifier = limit;
+        }
+
+        public override void OnGunMasterWeaponsPreset(int preset)
+        {
+            DebugWrite("Got ^bOnGunMasterWeaponsPreset^n: " + preset, 8);
+        }
+        
+        public override void OnVehicleSpawnAllowed(bool isEnabled)
+        {
+            DebugWrite("Got ^bOnVehicleSpawnAllowed^n: " + isEnabled, 8);
+        }
+
+        public override void OnVehicleSpawnDelay(int limit)
+        {
+            DebugWrite("Got ^bOnVehicleSpawnDelay^n: " + limit, 8);
+        }
+
+        public override void OnBulletDamage(int limit)
+        {
+            DebugWrite("Got ^bOnBulletDamage^n: " + limit, 8);
+        }
+
+        public override void OnOnlySquadLeaderSpawn(bool isEnabled)
+        {
+            DebugWrite("Got ^bOnOnlySquadLeaderSpawn^n: " + isEnabled, 8);
+        }
+
+        public override void OnSoldierHealth(int limit)
+        {
+            DebugWrite("Got ^bOnSoldierHealth^n: " + limit, 8);
+        }
+
+        public override void OnPlayerManDownTime(int limit)
+        {
+            DebugWrite("Got ^bOnPlayerManDownTime^n: " + limit, 8);
+        }
+
+        public override void OnPlayerRespawnTime(int limit)
+        {
+            DebugWrite("Got ^bOnPlayerRespawnTime^n: " + limit, 8);
+        }
+
+        public override void OnHud(bool isEnabled)
+        {
+            DebugWrite("Got ^bOnHud^n: " + isEnabled, 8);
+        }
+
+        public override void OnGameModeCounter(int limit)
+        {
+            DebugWrite("Got ^bOOnGameModeCounter^n: " + limit, 8);
+            if (!plugin_activated) return;
+
+            this.gameModeCounter = limit;
+        }
+
+
     }
 
 
@@ -13228,6 +13446,10 @@ public interface DataDictionaryInterface
         public int MapIndex { get { return indices[0]; } }
         [A("map")]
         public int NextMapIndex { get { return indices[1]; } }
+        [A("map")]
+        public double GameModeCounter { get { return plugin.gameModeCounter; } }
+        [A("map")]
+        public double CTFRoundTimeModifier { get { return plugin.ctfRoundTimeModifier; } }
 
         public List<String> MapFileNameRotation { get { return _mapRotation; } }
         public List<String> GamemodeRotation { get { return _modeRotation; } }
@@ -13602,6 +13824,8 @@ public interface DataDictionaryInterface
         public String _last_chat = "";
         public double _score = 0;
         public WebException _web_exception = null;
+        public int _ping = 0;
+        public double _idleTime = 0;
 
         public WeaponStatsDictionary W = null;
         public BattlelogWeaponStatsDictionary BWS = null;
@@ -13715,6 +13939,7 @@ public interface DataDictionaryInterface
         public String PBGuid { get { return pbInfo.GUID; } }
         public int TeamId { get { return info.TeamID; } set { info.TeamID = value; } }
         public int SquadId { get { return info.SquadID; } set { info.SquadID = value; } }
+        public int Ping { get { return _ping; } set { _ping = value; } }
 
 
         /* Round Statistics */
