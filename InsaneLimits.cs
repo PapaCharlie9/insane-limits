@@ -133,8 +133,8 @@ namespace PRoConEvents
         ServerCommand = 0x1000,
         PRoConEvent = 0x2000,
         PRoConChat = 0x4000,
-        SoundNotify = 0x8000
-
+        SoundNotify = 0x8000,
+        Yell = 0x10000
     }
 
     public enum TrueFalse
@@ -337,6 +337,8 @@ namespace PRoConEvents
         int MapIndex { get; }
         String MapFileName { get; }
         String Gamemode { get; }
+        double GameModeCounter { get; }
+        double CTFRoundTimeModifier { get; }
 
         /* Next Map Data */
         int NextMapIndex { get; }
@@ -466,7 +468,7 @@ namespace PRoConEvents
         String EAGuid { get; }
         int TeamId { get; }
         int SquadId { get; }
-
+        int Ping { get; }
 
         /* Current round, Player Stats */
         double KdrRound { get; }
@@ -540,11 +542,16 @@ namespace PRoConEvents
         bool SendGlobalMessage(String message);
         bool SendTeamMessage(int teamId, String message);
         bool SendSquadMessage(int teamId, int squadId, String message);
-
+        bool SendPlayerMessage(String name, String message);
 
         bool SendGlobalMessage(String message, int delay);
         bool SendTeamMessage(int teamId, String message, int delay);
         bool SendSquadMessage(int teamId, int squadId, String message, int delay);
+        bool SendPlayerMessage(String name, String message, int delay);
+
+        bool SendGlobalYell(String message, int duration);
+        bool SendTeamYell(int teamId, String message, int duration);
+        bool SendPlayerYell(String name, String message, int duration);
 
         bool SendMail(String address, String subject, String body);
         bool SendSMS(String country, String carrier, String number, String message);
@@ -570,6 +577,8 @@ namespace PRoConEvents
 
         /* Method for checking generic lists */
         bool isInList(String item, String list_name);
+
+        List<String> GetReservedSlotsList();
 
         /*
          * Methods getting and setting the Plugin's variables
@@ -631,6 +640,10 @@ namespace PRoConEvents
 
         String ExtractCommandPrefix(String text);   //if given text starts with one of these chracters !/@? it returns the character
 
+        bool CheckAccount(String name, out bool canKill, out bool canKick, out bool canBan, out bool canMove, out bool canChangeLevel);
+        
+        double CheckPlayerIdle(String name); // -1 if unknown, otherwise idle time in seconds
+
         /* This method looks in the internal player's list for player with matching name.
          * If fuzzy argument is set to true, it will find the player name that best matches the given name
          */
@@ -648,7 +661,9 @@ namespace PRoConEvents
         DataDictionaryInterface RoundData { get; }   //this dictionary is automatically cleared OnRoundStart
         DataDictionaryInterface DataRound { get; }   //this dictionary is automatically cleared OnRoundStart
 
-
+        /* Friendly names */
+        String FriendlyMapName(String mapFileName);  //example: "MP_001" -> "Grand Bazaar"
+        String FriendlyModeName(String modeName);    //example: "TeamDeathMatch0" -> "TDM"
     }
 
 
@@ -967,7 +982,7 @@ namespace PRoConEvents
         bool plugin_activated = false;
         string oauth_token = String.Empty;
         string oauth_token_secret = String.Empty;
-        bool round_over = false;
+        bool round_over = false; // overloaded to also mean OnRoundOver limits evaled
         bool sleeping = false;
         public ServerInfo serverInfo = null;
         List<MaplistEntry> mapList = null;
@@ -975,6 +990,8 @@ namespace PRoConEvents
 
         int curMapIndex = 0;
         int nextMapIndex = 0;
+        public double ctfRoundTimeModifier = 0;
+        public double gameModeCounter = 0;
 
         public Dictionary<String, bool> WeaponsDict = null;
 
@@ -1025,18 +1042,22 @@ namespace PRoConEvents
         EventWaitHandle server_name_handle;
         EventWaitHandle server_desc_handle;
         EventWaitHandle activate_handle = new EventWaitHandle(false, EventResetMode.ManualReset);
+        EventWaitHandle plist_handle;
+        EventWaitHandle move_handle;
+        EventWaitHandle pending_handle;
+        EventWaitHandle reply_handle;
 
         Thread fetching_thread;
         Thread enforcer_thread;
         Thread say_thread;
         Thread settings_thread;
         Thread finalizer;
+        Thread moving_thread;
 
 
         public Object players_mutex = new Object();
         public Object settings_mutex = new Object();
         public Object message_mutex = new Object();
-        public Object remove_mutex = new Object();
         public Object moves_mutex = new Object();
         public Object evaluation_mutex = new Object();
         public Object lists_mutex = new Object();
@@ -1056,7 +1077,19 @@ namespace PRoConEvents
         public static String default_twitter_screen_name = "InsaneLimits";
 
         public Dictionary<String,String> rcon2bw;
-
+        public Dictionary<String,String> cacheResponseTable;
+        
+        private bool isRoundReset = false;
+        
+        private int expectedPBCount = 0;
+        
+        public Dictionary<String,String> friendlyMaps = null;
+        public Dictionary<String,String> friendlyModes = null;
+        
+        private bool level_loaded = false;
+        
+        public List<String> reserved_slots_list;
+        
         public InsaneLimits()
         {
             try
@@ -1101,8 +1134,10 @@ namespace PRoConEvents
                 this.booleanVariables.Add("load_limits", false);
 
                 this.booleanVariables.Add("use_white_list", false);
+                this.booleanVariables.Add("use_direct_fetch", true);
                 this.booleanVariables.Add("use_weapon_stats", false);
                 this.booleanVariables.Add("use_slow_weapon_stats", false);
+                this.booleanVariables.Add("use_stats_log", false);
                 this.booleanVariables.Add("use_custom_lists", false);
                 this.booleanVariables.Add("use_custom_smtp", false);
                 this.booleanVariables.Add("use_custom_storage", false);
@@ -1117,8 +1152,6 @@ namespace PRoConEvents
                 this.booleanVariables.Add("auto_hide_sections", true);
                 this.booleanVariables.Add("smtp_ssl", true);
 
-
-
                 this.hidden_variables.Add("use_weapon_stats", true);
 
                 this.booleanVarValidators = new Dictionary<string, booleanVariableValidator>();
@@ -1127,8 +1160,10 @@ namespace PRoConEvents
                 this.booleanVarValidators.Add("save_limits", booleanValidator);
                 this.booleanVarValidators.Add("load_limits", booleanValidator);
                 this.booleanVarValidators.Add("use_white_list", booleanValidator);
+                this.booleanVarValidators.Add("use_direct_fetch", booleanValidator);
                 this.booleanVarValidators.Add("use_weapon_stats", booleanValidator);
                 this.booleanVarValidators.Add("use_slow_weapon_stats", booleanValidator);
+                this.booleanVarValidators.Add("use_stats_log", booleanValidator);
                 this.booleanVarValidators.Add("use_custom_lists", booleanValidator);
                 this.booleanVarValidators.Add("smtp_ssl", booleanValidator);
                 this.booleanVarValidators.Add("auto_hide_sections", booleanValidator);
@@ -1388,6 +1423,12 @@ namespace PRoConEvents
                 rcon2bw["MTAR"] = "mtar-21";
                 rcon2bw["CrossBow"] = "xbow-scoped";
 
+                cacheResponseTable = new Dictionary<String,String>();
+                
+                friendlyMaps = new Dictionary<String,String>();
+                friendlyModes = new Dictionary<String,String>();
+                
+                reserved_slots_list = new List<String>();
             }
             catch (Exception e)
             {
@@ -1777,7 +1818,8 @@ namespace PRoConEvents
                 ServerCommand = Actions.ServerCommand,
                 PRoConEvent = Actions.PRoConEvent,
                 PRoConChat = Actions.PRoConChat,
-                SoundNotify = Actions.SoundNotify
+                SoundNotify = Actions.SoundNotify,
+                Yell = Actions.Yell
             };
 
 
@@ -1839,7 +1881,8 @@ namespace PRoConEvents
                 "SMS Action", "sms_group", @"^sms_",
                 "Mail Action", "mail_group", @"^mail_",
                 "Tweet Action", "tweet_group", @"^tweet_",
-                "Sound Notify Action", "sound_notify_group", @"^sound_"
+                "Sound Notify Action", "sound_notify_group", @"^sound_",
+                "Yell Action",  "yell_group", @"^yell_",
             };
 
 
@@ -1864,7 +1907,8 @@ namespace PRoConEvents
                 "mail_group", "mail_address", "mail_subject", "mail_body",
                 "tweet_group", "tweet_status",
                 "sound_notify_group", "sound_notify_file", "sound_notify_repeat",
-                "delete"
+                "delete",
+                "yell_group", "yell_message", "yell_audience", "yell_duration", "yell_procon_chat",
                 });
 
 
@@ -2034,6 +2078,16 @@ namespace PRoConEvents
                 get { return ((TrueFalse)Enum.Parse(typeof(TrueFalse), fields["say_procon_chat"])).Equals(TrueFalse.True); }
             }
 
+            public MessageAudience YellAudience
+            {
+                get { return (MessageAudience)Enum.Parse(typeof(MessageAudience), fields["yell_audience"]); }
+            }
+
+            public bool YellProConChat
+            {
+                get { return ((TrueFalse)Enum.Parse(typeof(TrueFalse), fields["yell_procon_chat"])).Equals(TrueFalse.True); }
+            }
+
             public LimitType SecondCheck
             {
                 get { return (LimitType)Enum.Parse(typeof(LimitType), fields["second_check"]); }
@@ -2184,6 +2238,11 @@ namespace PRoConEvents
                 get { return fields["say_message"]; }
             }
 
+            public String YellMessage
+            {
+                get { return fields["yell_message"]; }
+            }
+
             public String PBBMessage
             {
                 get { return fields["pb_ban_message"]; }
@@ -2202,6 +2261,11 @@ namespace PRoConEvents
             public int SayDelay
             {
                 get { return int.Parse(fields["say_delay"]); }
+            }
+
+            public int YellDuration
+            {
+                get { return int.Parse(fields["yell_duration"]); }
             }
 
             public int KillDelay
@@ -2571,6 +2635,11 @@ namespace PRoConEvents
                         return true;
 
 
+                    if (Regex.Match(field_key, @"yell_").Success &&
+                        !((Action & LimitAction.Yell) > 0))
+                        return true;
+
+
                     if (Regex.Match(field_key, @"kill_").Success &&
                         !((Action & LimitAction.Kill) > 0))
                         return true;
@@ -2755,6 +2824,12 @@ namespace PRoConEvents
 
                 setFieldValue("mail_body", body);
                 setFieldValue("sms_message", body);
+
+                setFieldValue("yell_group", auto_hide);
+                setFieldValue("yell_message", "activated " + FullReplaceName);
+                setFieldValue("yell_audience", MessageAudience.All.ToString());
+                setFieldValue("yell_procon_chat", TrueFalse.False.ToString());
+                setFieldValue("yell_duration", (5).ToString());
             }
 
             private void SetupCounts()
@@ -3009,11 +3084,6 @@ namespace PRoConEvents
                 ResetActivations();
                 ResetActivationsTotal();
                 ResetSprees();
-                /*
-                // Not needed anymore, OnJoin limits are evaluated once only in OnPlayerJoin
-                ResetEvaluations();
-                */
-                //plugin.DebugWrite("^8^b============= In Reset " + id, 7); // XXX
                 ResetLastInterval(DateTime.Now);
                 Data.Clear();
             }
@@ -3041,6 +3111,8 @@ namespace PRoConEvents
                          field.Equals("evaluation") ||
                          field.Equals("say_audience") ||
                          field.Equals("say_procon_chat") ||
+                         field.Equals("yell_audience") ||
+                         field.Equals("yell_procon_chat") ||
                          field.Equals("hide") ||
                          field.Equals("procon_event_type") ||
                          field.Equals("procon_event_name") ||
@@ -3061,6 +3133,10 @@ namespace PRoConEvents
                     else if (field.Equals("say_audience"))
                         type = typeof(MessageAudience);
                     else if (field.Equals("say_procon_chat"))
+                        type = typeof(TrueFalse);
+                    else if (field.Equals("yell_audience"))
+                        type = typeof(MessageAudience);
+                    else if (field.Equals("yell_procon_chat"))
                         type = typeof(TrueFalse);
                     else if (field.Equals("procon_event_type"))
                         type = typeof(EventType);
@@ -3095,6 +3171,12 @@ namespace PRoConEvents
                             return true;
                         }
 
+                        if (field.Equals("yell_audience") && fields[field].Equals("Squad"))
+                        {
+                            setFieldValue("yell_audience", MessageAudience.All.ToString());
+                            plugin.ConsoleWarn("^byell_audience^n cannot be set to Squad, reverting to All");
+                        }
+
                         recompile(field, val, ui);
 
                         // Warning for BF3 player say
@@ -3110,7 +3192,6 @@ namespace PRoConEvents
                         if ((field.Equals("evaluation") && origValue != fields[field])
                         || (fields.Equals("evaluation_interval") && origValue != fields[field])) {
                         */
-                            plugin.DebugWrite("^8^b============= In validateAndSetFieldValue #" + id, 7); // XXX
                             ResetLastInterval(DateTime.Now);
                         }
 
@@ -3126,7 +3207,7 @@ namespace PRoConEvents
                     }
 
                 }
-                else if (Regex.Match(field, @"(id|((ea|pb)_ban_minutes)|say_delay|kill_delay|evaluation_interval)").Success)
+                else if (Regex.Match(field, @"(id|((ea|pb)_ban_minutes)|say_delay|yell_duration|kill_delay|evaluation_interval)").Success)
                 {
                     /* Parse Integer Values */
                     int integerValue = 0;
@@ -3137,7 +3218,7 @@ namespace PRoConEvents
                     if (Regex.Match(field, @"(id|((ea|pb)_ban_minutes))").Success &&
                             !plugin.intAssertGTE(field, integerValue, 1))
                         return false;
-                    else if (Regex.Match(field, @"(say_delay|kill_delay)").Success &&
+                    else if (Regex.Match(field, @"(say_delay|kill_delay|yell_duration)").Success &&
                             !plugin.intAssertGTE(field, integerValue, 0))
                         return false;
                     else if (Regex.Match(field, @"^evaluation_interval$").Success &&
@@ -3488,7 +3569,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.0.9.3";
+            return "0.9.9.0";
         }
 
         public string GetPluginAuthor()
@@ -3504,14 +3585,14 @@ namespace PRoConEvents
 
         public string GetPluginDescription()
         {
-            return @"
+            return @"... and other contributors.
         <h2>Description</h2>
         This plugin is a customizable limits/rules enforcer. It allows you to setup and enforce limits based on player statistics, and server state. <br />
         <br />
-        It tracks extensive Battlelog stats, and round stats. If you feel that there is a stat, or aggregate, or information that really needs to be included, post feedback on the forum at phogue.net<br />
+        It tracks extensive Battlelog stats and round stats. Several limits are available in the <a href='http://www.phogue.net/forumvb/forumdisplay.php?36-Plugin-Enhancements'>Procon Plugin Enhancements forum</a>.<br />
         <br />
-        This version of the plugin is a major re-rewrite of the original release. If you are feeling lost, try the original 0.0.0.1 version, which was much simpler.
-        On this new version, the plugin supports a events like OnKill, OnTeamKill, OnJoin, OnSpawn, etc. You are able to perform actions triggered by those events.<br />
+        Version 0.9.4.0 and later is optionally integrated with a MySQL server (using the <b>Battlelog Cache</b> plugin). This enables caching of Battlelog stats fetching, which
+        over time should reduce the delay caused by restarting Procon/enabling Insane Limits when your server is full. This should also reduce load on Battlelog, which in turn will reduce the number of Web errors and exceptions. This version is compatible with TrueBalancer and other plugins that use stats fetching.<br />
         <br />
         In addition to keeping track of player statistics, the plugin also keeps tracks of the number of times a player has activated a certain limit/rule.
         I got this idea from the ProCon Rulz plugin. With this meta-information about limits, you are able to create much more powerful rules such as Spree messages.
@@ -3648,6 +3729,8 @@ namespace PRoConEvents
                 <li><i>PRoConChat</i> - sends the specified text to PRoCon's Chat-Tab, if the limit evaluates <i>True</i><br /></li>
                 <li><i>PRoConEvent</i> - adds the specified event to PRoCon's Events-Tab, if the limit evaluates <i>True</i><br /></li>
                 <li><i>TaskbarNotify</i> - sends a Windows Taskbar notification, if the limit evaluates <i>True</i><br /></li>
+                <li><i>SoundNotify</i> - plays a sound notification with the specified sound file, if the limit evaluates <i>True</i><br /></li>
+                <li><i>Yell</i> - yells a message to the server (All, Team, or Player), if the limit evaluates <i>True</i><br /></li>
                 </ul>
                 <br />
                 <br />
@@ -3814,6 +3897,8 @@ public interface ServerInfoInterface
     int MapIndex { get; }
     String MapFileName { get; }
     String Gamemode { get; }
+    double GameModeCounter { get; }
+    double CTFRoundTimeModifier { get; }
 
     /* Next Map Data */
     int NextMapIndex { get; }
@@ -3949,6 +4034,7 @@ public interface PlayerInfoInterface
     String EAGuid { get; }
     int TeamId { get; }
     int SquadId { get; }
+    int Ping { get; }
 
 
     /* Current round, Player Stats */
@@ -4018,10 +4104,16 @@ public interface PluginInterface
     bool SendGlobalMessage(String message);
     bool SendTeamMessage(int teamId, String message);
     bool SendSquadMessage(int teamId, int squadId, String message);
+    bool SendPlayerMessage(String name, String message);
 
     bool SendGlobalMessage(String message, int delay);
     bool SendTeamMessage(int teamId, String message, int delay);
     bool SendSquadMessage(int teamId, int squadId, String message, int delay);
+    bool SendPlayerMessage(String name, String message, int delay);
+
+    bool SendGlobalYell(String message, int duration);
+    bool SendTeamYell(int teamId, String message, int duration);
+    bool SendPlayerYell(String name, String message, int duration);
 
     bool SendMail(String address, String subject, String body);
     bool SendSMS(String country, String carrier, String number, String message);
@@ -4045,6 +4137,8 @@ public interface PluginInterface
 
     /* Method for checking generic lists */
     bool isInList(String item, String list_name);
+    
+    List&lt;String&gt; GetReservedSlotsList();
 
     /*
      * Methods getting and setting the Plugin's variables
@@ -4098,6 +4192,15 @@ public interface PluginInterface
     bool IsCommand(String text);                //checks if the given text start with one of these characters: !/@?
     String ExtractCommand(String text);         //if given text starts with one of these charactets !/@? it removes them
     String ExtractCommandPrefix(String text);   //if given text starts with one of these chracters !/@? it returns the character
+    
+    /* This method checks if the currently in-game player with matching name has
+       a Procon account on the Procon instance controlling this game server. Returns
+       False if the name does not match any of the players currently joined to the game server.
+       The canBan value is set to true if the player can temporary ban or permanently ban.
+    */
+    bool CheckAccount(String name, out bool canKill, out bool canKick, out bool canBan, out bool canMove, out bool canChangeLevel);
+
+    double CheckPlayerIdle(String name); // -1 if unknown, otherwise idle time in seconds
 
 
     /* This method looks in the internal player's list for player with matching name.
@@ -4116,6 +4219,10 @@ public interface PluginInterface
 
     DataDictionaryInterface Data { get; }        //this dictionary is user-managed
     DataDictionaryInterface RoundData { get; }   //this dictionary is automatically cleared OnRoundStart
+
+    /* Friendly names */
+    String FriendlyMapName(String mapFileName);  //example: ""MP_001"" -> ""Grand Bazaar""
+    String FriendlyModeName(String modeName);    //example: ""TeamDeathMatch0"" -> ""TDM""
 }
 </pre>
 
@@ -4323,16 +4430,37 @@ public interface DataDictionaryInterface
         <br />
         <h2>Settings</h2>
         <ol>
+          <li><blockquote><b>use_direct_fetch</b><br />
+                <i>True</i> - if the cache is not available, fetch stats directly from Battlelog<br />
+                <i>False</i> - disable direct fetches from Battlelog<br />
+                <br />
+                If the <b>Battlelog Cache</b> plugin is installed, up to date and enabled,
+                it will be used for player stats regardless of the setting of this
+                option. If the <b>Battlelog Cache</b> plugin
+                is not installed, not up to date or disabled, setting
+                <b>use_direct_fetch</b> to True will act as a fallback system, fetching
+                stats directly from Battlelog. Otherwise, stats fetching will
+                fail since the cache is not available and this setting is False.
+                </blockquote>
+          </li>
           <li><blockquote><b>use_slow_weapon_stats</b><br />
                 <i>False</i> - skip fetching weapon stats for new players<br />
                 <i>True</i> - fetch weapon stats for new players<br />
                 <br />
+                Visible only if <b>use_direct_fetch</b> is set to True.
                 Fetching weapon stats from Battlelog takes a long time, 15 seconds or more
                 per player. By default, this slow fetch is disabled (False), so that
                 your Procon restart or initial plugin enable time on a full server
                 won't be delayed or bogged down while fetching weapon stats. However,
                 if you have limits that use the GetBattlelog() function, you <b>must</b>
                 set this value to True, or else stats will not be available.
+                </blockquote>
+          </li>
+          <li><blockquote><b>use_stats_log</b><br />
+                <i>False</i> - do not log Battlelog stats to the battle.log file<br />
+                <i>True</i> - log player stats to the battle.log file<br />
+                <br />
+                If stats fetching is enabled and stats are fetched successfully, all the stats that were fetched will be logged in a file that follows the standard logging file name pattern: procon/Logs/<server-ip>_<server-port>/YYYYMMDD_battle.log (text file).
                 </blockquote>
           </li>
           <li><blockquote><strong>limits_file</strong><br />
@@ -4592,15 +4720,33 @@ public interface DataDictionaryInterface
                 "OnCurrentLevel",
                 "OnLoadingLevel",
                 "OnLevelStarted",
-                "OnLevelLoaded"
+                "OnLevelLoaded",
+                "OnRestartLevel",
+                "OnReservedSlotsList",
+                /* R38/Procon 1.4.0.7 */
+                "OnPlayerIdleDuration",
+                "OnPlayerIsAlive",
+                "OnPlayerPingedByAdmin",
+                "OnSquadLeader",
+                "OnSquadListActive",
+                "OnSquadListPlayers",
+                "OnSquadIsPrivate",
+                "OnCtfRoundTimeModifier",
+                "OnGunMasterWeaponsPreset",
+                "OnVehicleSpawnAllowed",
+                "OnVehicleSpawnDelay",
+                "OnBulletDamage",
+                "OnOnlySquadLeaderSpawn",
+                "OnSoldierHealth",
+                "OnPlayerManDownTime",
+                "OnPlayerRespawnTime",
+                "OnHud",
+                "OnGameModeCounter"
                 );
 
             //initialize the dictionary with countries, carriers, gateways
             initializeCarriers();
         }
-
-
-
 
         public void OnPluginEnable()
         {
@@ -4618,6 +4764,28 @@ public interface DataDictionaryInterface
                 enabledTime = DateTime.Now;
 
                 this.players.Clear();
+                
+                bool cacheOK = IsCacheEnabled(true); // side-effect of logging messages
+                if (!cacheOK && !getBooleanVarValue("use_direct_fetch")) {
+                    ConsoleWarn("Player stats fetching is disabled!");
+                }
+                
+                friendlyMaps.Clear();
+                friendlyModes.Clear();
+                List<CMap> bf3_defs = this.GetMapDefines();
+                foreach (CMap m in bf3_defs) {
+                    if (!friendlyMaps.ContainsKey(m.FileName)) friendlyMaps[m.FileName] = m.PublicLevelName;
+                    if (!friendlyModes.ContainsKey(m.PlayList)) friendlyModes[m.PlayList] = m.GameMode;
+                }
+                if (getIntegerVarValue("debug_level") >= 8) {
+                    foreach (KeyValuePair<String,String> pair in friendlyMaps) {
+                        DebugWrite("friendlyMaps[" + pair.Key + "] = " + pair.Value, 8);
+                    }
+                    foreach (KeyValuePair<String,String> pair in friendlyModes) {
+                        DebugWrite("friendlyModes[" + pair.Key + "] = " + pair.Value, 8);
+                    }
+                }
+                DebugWrite("Friendly names loaded", 6);
 
                 //start a thread that waits for the settings to be read from file
 
@@ -4642,7 +4810,7 @@ public interface DataDictionaryInterface
                             {
                                 ConsoleWarn("You must review and accept the ^bPrivacy Policy^n before plugin can be activated");
                                 activate_handle.Reset();
-                                activate_handle.WaitOne();
+                                continue;
                             }
 
                             if (!plugin_enabled)
@@ -4705,7 +4873,7 @@ public interface DataDictionaryInterface
                 if (weapon != null && !WeaponsDict.ContainsKey(weapon.Name))
                     WeaponsDict.Add(weapon.Name, true);
 
-            DebugWrite("^b" + WeaponsDict.Count + "^n weapons in dictionary", 3);
+            DebugWrite("^b" + WeaponsDict.Count + "^n weapons in dictionary", 5);
 
         }
 
@@ -4771,9 +4939,28 @@ public interface DataDictionaryInterface
             if (AdvancedReplacementsDict == null)
                 return message;
 
+/*
             foreach (KeyValuePair<String, String> pair in AdvancedReplacementsDict)
                 if (message.Contains(pair.Key))
                     message = message.Replace(pair.Key, pair.Value);
+*/
+
+            // Ensure correct match for aliased substrings
+            // Battlelog404 is the only property that ends with a digit
+            // Use [^A-Za-z] as the terminator of the prop name
+            
+            Match m = null;
+            String ds = message;
+
+            foreach (KeyValuePair<String, String> pair in AdvancedReplacementsDict) {
+                while ((m = Regex.Match(message, pair.Key + @"(?:[^A-Za-z]|$)")).Success) {
+                    if (getIntegerVarValue("debug_level") >= 1) ds = message.Insert(m.Index, "^b").Insert(m.Index + pair.Key.Length + 2, "^n");
+                    DebugWrite("Replacing " + pair.Key + ": " + ds, 6);
+                    message = message.Replace(pair.Key, pair.Value);
+                }
+            }
+            
+            DebugWrite("New repl: " + message, 6);
 
             return message;
 
@@ -5097,7 +5284,7 @@ public interface DataDictionaryInterface
                     }
                     catch (Exception e)
                     {
-                        DebugWrite("could not determine value for ^b" + key + "^n in replacement", 3);
+                        ConsoleWarn("could not determine value for ^b" + key + "^n in replacement");
                         continue;
                     }
                 }
@@ -5137,7 +5324,7 @@ public interface DataDictionaryInterface
 
         public void InitWaitHandles()
         {
-            DebugWrite("Initializing wait handles", 5);
+            DebugWrite("Initializing wait handles", 6);
             fetch_handle = new EventWaitHandle(false, EventResetMode.ManualReset);
             enforcer_handle = new EventWaitHandle(false, EventResetMode.ManualReset);
             settings_handle = new EventWaitHandle(false, EventResetMode.ManualReset);
@@ -5148,6 +5335,10 @@ public interface DataDictionaryInterface
             indices_handle = new EventWaitHandle(false, EventResetMode.ManualReset);
             server_name_handle = new EventWaitHandle(false, EventResetMode.ManualReset);
             server_desc_handle = new EventWaitHandle(false, EventResetMode.ManualReset);
+            plist_handle = new EventWaitHandle(false, EventResetMode.ManualReset);
+            move_handle = new EventWaitHandle(false, EventResetMode.ManualReset);
+            pending_handle = new EventWaitHandle(false, EventResetMode.ManualReset);
+            reply_handle = new EventWaitHandle(false, EventResetMode.ManualReset);
         }
 
         public void DestroyWaitHandles()
@@ -5177,31 +5368,43 @@ public interface DataDictionaryInterface
             if (activate_handle != null)
                 activate_handle.Set();
 
+            if (plist_handle != null)
+                plist_handle.Set();
+            if (move_handle != null)
+                move_handle.Set();
+            if (pending_handle != null)
+                pending_handle.Set();
+            if (reply_handle != null)
+                reply_handle.Set();
+
             plugin_activated = false;
 
         }
 
         public void InitThreads()
         {
-            DebugWrite("Initializing threads", 5);
+            DebugWrite("Initializing threads", 6);
             this.fetching_thread = new Thread(new ThreadStart(fetch_thread_loop));
             this.enforcer_thread = new Thread(new ThreadStart(enforcer_thread_loop));
             this.say_thread = new Thread(new ThreadStart(say_thread_loop));
             this.settings_thread = new Thread(new ThreadStart(settings_thread_loop));
+            this.moving_thread = new Thread(new ThreadStart(move_thread_loop));
 
             this.fetching_thread.IsBackground = true;
             this.enforcer_thread.IsBackground = true;
             this.say_thread.IsBackground = true;
             this.settings_thread.IsBackground = true;
+            this.moving_thread.IsBackground = true;
         }
 
         public void StartThreads()
         {
-            DebugWrite("Starting threads", 5);
+            DebugWrite("Starting threads", 6);
             settings_thread.Start();
             say_thread.Start();
             enforcer_thread.Start();
             fetching_thread.Start();
+            moving_thread.Start();
         }
 
         public void ActivatePlugin()
@@ -5227,6 +5430,7 @@ public interface DataDictionaryInterface
 
             getPlayersList();
             getPBPlayersList();
+            getReservedSlotsList();
 
             DelayedCompile(30);
 
@@ -5242,7 +5446,7 @@ public interface DataDictionaryInterface
             //delayed limit compilation
             Thread delayed_compilation = new Thread(new ThreadStart(delegate()
             {
-                DebugWrite("sleeping for " + sleep_time + " seconds, before compiling limits", 3);
+                DebugWrite("sleeping for " + sleep_time + " seconds, before compiling limits", 4);
                 Thread.Sleep(sleep_time * 1000);
                 CompileAll();
 
@@ -5292,7 +5496,7 @@ public interface DataDictionaryInterface
             {
 
                 Thread.CurrentThread.Name = "fetch";
-                DebugWrite(" starting", 3);
+                DebugWrite(" starting", 4);
 
                 InsaneLimits plugin = this;
                 
@@ -5322,7 +5526,6 @@ public interface DataDictionaryInterface
                 double maxSecs = 10.0; // max between fetches
                 double lowerBound = minSecs;
 
-                
                 while (true)
                 {
                     gaveEnforcerTime = false;
@@ -5337,18 +5540,19 @@ public interface DataDictionaryInterface
                                     }
                                 }
                             }
-                            DebugWrite("Retrying fetch for ^b" + retryCount.Count + "^n players in the retry queue", 3);
+                            DebugWrite("Retrying fetch for ^b" + retryCount.Count + "^n players in the retry queue", 4);
                             continue;
                         }
                         // if there are no more players, put yourself to sleep
                         DebugWrite("no new players, will wait, signalling ^benforcer^n thread", 7);
                         fetch_handle.Reset();
-                        enforcer_handle.Set();
                         gaveEnforcerTime = true;
-                        fetch_handle.WaitOne();
+                        enforcer_handle.Set();
+                        WaitOn("fetch_handle", fetch_handle);
+                        fetch_handle.Reset();
                         if (!plugin_enabled) break;
-                        DebugWrite("awake!, block ^benforcer^n thread", 7);
-                        enforcer_handle.Reset();
+                        DebugWrite("awake! checking queue ...", 7);
+                        if (GetQCount() == 0) DebugWrite("Nothing to do, ^bfetch^n going back to sleep...", 7);
                     }
                     
                     DateTime fetchSince = DateTime.Now;
@@ -5357,11 +5561,11 @@ public interface DataDictionaryInterface
                         // Give some time to enforcer thread
                         DebugWrite("players in fetch queue, giving time to ^benforcer^n thread", 7);
                         fetch_handle.Reset();
-                        enforcer_handle.Set();
                         gaveEnforcerTime = true;
-                        fetch_handle.WaitOne(2*1000);
+                        enforcer_handle.Set();
+                        WaitOn("fetch_handle", fetch_handle);
+                        fetch_handle.Reset();
                         DebugWrite("awake!, block ^benforcer^n thread", 7);
-                        enforcer_handle.Reset();
                     }
 
                     while (GetQCount() > 0)
@@ -5369,8 +5573,6 @@ public interface DataDictionaryInterface
                         if (!plugin_enabled)
                             break;
                         
-                        gaveEnforcerTime = false;
- 
                         List<String> keys = null;
 
                         lock (players_mutex)
@@ -5420,41 +5622,32 @@ public interface DataDictionaryInterface
 
                             if (lowerBound > minSecs && DateTime.Now.Subtract(since).TotalSeconds < lowerBound) {
                                  // Add some delay between consecutive fetches
-                                 DebugWrite("adding delay before next fetch, lower bound is " + lowerBound + " secs", 4);
+                                 DebugWrite("adding delay before next fetch, lower bound is " + lowerBound + " secs", 5);
                                  double upperBound = maxSecs * 2;
                                  while (DateTime.Now.Subtract(since).TotalSeconds < lowerBound && upperBound > 0.0) {
                                     if (!plugin_enabled) break;
                                     // Give some time to enforcer thread
                                     fetch_handle.Reset();
-                                    enforcer_handle.Set();
+                                    DebugWrite("throttling fetch, giving time to ^benforcer^n thread", 7);
                                     gaveEnforcerTime = true;
-                                    fetch_handle.WaitOne(500);
-                                    enforcer_handle.Reset();
+                                    enforcer_handle.Set();
+                                    WaitOn("fetch_handle", fetch_handle);
+                                    fetch_handle.Reset();
+                                    DebugWrite("awake, check throttling delay", 7);
                                     upperBound = upperBound - 1.0;
                                  }
-                                 DebugWrite("awake, proceeding with next fetch", 4);
+                                 DebugWrite("awake, proceeding with next fetch", 5);
                             }
 
-                            DebugWrite("^4getting battlelog stats for ^b" + name + "^n, " + msg + "^0", 4);
+                            DebugWrite("^4getting battlelog stats for ^b" + name + "^n, " + msg + "^0", 5);
                             since = DateTime.Now; // reset timer
                             PlayerInfo ptmp = plugin.blog.fetchStats(new PlayerInfo(plugin, info));
-
-                            if (!gaveEnforcerTime && plugin_enabled) {
-                                // Give some time to enforcer thread
-                                DebugWrite("finished fetching stats, giving time to ^benforcer^n thread", 7);
-                                fetch_handle.Reset();
-                                enforcer_handle.Set();
-                                gaveEnforcerTime = true;
-                                fetch_handle.WaitOne(2*1000);
-                                enforcer_handle.Reset();
-                                DebugWrite("awake!, block ^benforcer^n thread", 7);
-                            }
 
                             /* If there was a fetch error, remember for retry */
                             if (ptmp._web_exception != null) {
                                 // Adaptively increment
                                 lowerBound = Math.Min(lowerBound + 1.0, maxSecs);
-                                if (lowerBound != maxSecs) DebugWrite("increase lower bound to " + lowerBound.ToString("F0") + " secs", 4);
+                                if (lowerBound != maxSecs) DebugWrite("increase lower bound to " + lowerBound.ToString("F0") + " secs", 6);
                                 
                                 lock (players_mutex)
                                 {
@@ -5468,7 +5661,7 @@ public interface DataDictionaryInterface
                                     sheLeft = (!scratch_list.Contains(name));
                                 }
                                 if (sheLeft) {
-                                    DebugWrite("aborting fetch, looks like player " + name + " left the game!", 4);
+                                    DebugWrite("aborting fetch, looks like player " + name + " left the game!", 6);
                                     continue;
                                 }
                             
@@ -5476,24 +5669,24 @@ public interface DataDictionaryInterface
                                     retryCount[name] = 0;
                                     retryInfo[name] = info;
                                     ptmp = null; // release failed fetch info
-                                    DebugWrite("^b" + name + "^n is one of ^b" + retryCount.Count + "^n players in the retry queue", 3);
+                                    DebugWrite("^b" + name + "^n is one of ^b" + retryCount.Count + "^n players in the retry queue", 5);
                                     continue;
                                 }
                                 retryCount[name] = retryCount[name] + 1;
-                                DebugWrite("Retry " + retryCount[name] + " for " + name, 3);
+                                DebugWrite("Retry " + retryCount[name] + " for " + name, 4);
                                 if (retryCount[name] >= 3) {
                                     // give up
                                     retryCount.Remove(name);
                                     retryInfo.Remove(name);
                                     if (ptmp._web_exception == null) ptmp._web_exception = new System.Net.WebException("fetch retry failed");
-                                    ConsoleError("Fetching stats for ^b" + name + "^n: " + ptmp._web_exception.Message);
+                                    DebugWrite("Fetching stats for ^b" + name + "^n: " + ptmp._web_exception.Message, 4);
                                 } else {
                                     continue;
                                 }
                             } else {
                                 // Adaptively decrement
                                 lowerBound = Math.Max(lowerBound - 1.0, minSecs);
-                                if (lowerBound != minSecs) DebugWrite("decrease lower bound to " + lowerBound.ToString("F0") + " secs", 4);
+                                if (lowerBound != minSecs) DebugWrite("decrease lower bound to " + lowerBound.ToString("F0") + " secs", 5);
 
                                 if (retryCount.ContainsKey(name)) {
                                     retryCount.Remove(name);
@@ -5507,7 +5700,7 @@ public interface DataDictionaryInterface
                             }
                             
                             if (ptmp.StatsError) {
-                                DebugWrite("Unable to fetch stats for ^b" + name + "^n", 3);
+                                DebugWrite("Unable to fetch stats for ^b" + name + "^n", 4);
                             }
                         }
 
@@ -5518,12 +5711,12 @@ public interface DataDictionaryInterface
                         }
                     }
 
-                    DebugWrite("^4^bTIME^n took " + DateTime.Now.Subtract(fetchSince).TotalSeconds.ToString("F2") + " secs, fetching players from queue", 4);
+                    DebugWrite("^4^bTIME^n took " + DateTime.Now.Subtract(fetchSince).TotalSeconds.ToString("F2") + " secs, fetching players from queue", 5);
 
                     // abort the thread if the plugin was disabled
                     if (!plugin_enabled)
                     {
-                        DebugWrite("detected that plugin was disabled, aborting", 3);
+                        DebugWrite("detected that plugin was disabled, aborting", 4);
                         lock (players_mutex)
                         {
                             new_player_queue.Clear();
@@ -5535,33 +5728,20 @@ public interface DataDictionaryInterface
                     int bb = GetBCount();
                     
                     DateTime batchSince = DateTime.Now;
-                    
-                    if (plugin_enabled) {
-                        // Give some time to enforcer thread
-                        DebugWrite("processing player batch, giving time to ^benforcer^n thread", 7);
-                        fetch_handle.Reset();
-                        enforcer_handle.Set();
-                        gaveEnforcerTime = true;
-                        fetch_handle.WaitOne(2*1000);
-                        enforcer_handle.Reset();
-                        DebugWrite("awake!, block ^benforcer^n thread", 7);
-                    }
 
                     if (bb > 0) {
-                        DebugWrite("done fetching stats, " + bb + " player" + ((bb > 1) ? "s" : "") + " in new batch, updating player's list", 4);
+                        DebugWrite("done fetching stats, " + bb + " player" + ((bb > 1) ? "s" : "") + " in new batch, updating player's list", 5);
 
                         // Async request for updates
-                        getPBPlayersList();
+                        scratch_handle.Reset();
+                        plist_handle.Reset();
+                        DebugWrite("waiting for player list updates", 5);
                         getPlayersList();
-
-                        if (GetQCount() == 0 && plugin_enabled) {
-                            // Sync request for updates
-                            DebugWrite("waiting for player list updates", 4);
-                            scratch_handle.Reset();
-                            WaitOn("scratch_handle", scratch_handle);
-                            getMapInfoSync();
-                            DebugWrite("awake! got player list updates", 4);
-                        }
+                        WaitOn("scratch_handle", scratch_handle);
+                        scratch_handle.Reset();
+                        WaitOn("plist_handle", plist_handle);
+                        plist_handle.Reset();
+                        DebugWrite("awake! got player list updates", 5);
                     }
 
                     List<PlayerInfo> inserted = new List<PlayerInfo>();
@@ -5575,7 +5755,7 @@ public interface DataDictionaryInterface
                             if (pair.Value == null || !scratch_list.Contains(pair.Key))
                                 if (!players_to_remove.Contains(pair.Key))
                                 {
-                                    plugin.DebugWrite("looks like ^b" + pair.Key + "^n left, removing him from new batch", 4);
+                                    plugin.DebugWrite("looks like ^b" + pair.Key + "^n left, removing him from new batch", 5);
                                     players_to_remove.Add(pair.Key);
                                 }
 
@@ -5587,25 +5767,28 @@ public interface DataDictionaryInterface
 
                         if (new_players_batch.Count > 0) {
                             bb = new_players_batch.Count;
-                            DebugWrite("Will insert a batch of " + bb + " player" + ((bb > 1) ? "s" : ""), 4);
-                        }
+                            DebugWrite("Will insert a batch of " + bb + " player" + ((bb > 1) ? "s" : ""), 5);
+                        } else bb = 0;
 
 
                         foreach (KeyValuePair<String, PlayerInfo> pair in new_players_batch)
                             if (pair.Value != null && scratch_list.Contains(pair.Key))
                             {
                                 //players.Add(pair.Key, pair.Value);
+                                if (players.ContainsKey(pair.Key)) {
+                                    DebugWrite("--------->>> Why does players dict already have " + pair.Key + " in it????", 5);
+                                }
                                 players[pair.Key] = pair.Value;
                                 inserted.Add(pair.Value);
                             }
 
                         new_players_batch.Clear();
                     }
-
+                    
                     // abort the thread if the plugin was disabled
                     if (!plugin_enabled)
                     {
-                        DebugWrite("detected that plugin was disabled, aborting", 3);
+                        DebugWrite("detected that plugin was disabled, aborting", 4);
                         lock (players_mutex)
                         {
                             new_player_queue.Clear();
@@ -5615,22 +5798,27 @@ public interface DataDictionaryInterface
                     }
 
                     // then for each of the players just inserted, evaluate OnJoin
-                    DebugWrite("For " + bb + " new players, evaluate OnJoin limits", 4);
-                    foreach (PlayerInfo pp in inserted)
-                    {
-                        OnPlayerJoin(pp);
-                        // quit early if plugin was disabled
-                        if (!plugin_enabled)
-                            break;
+                    if (bb > 0) {
+                        DebugWrite("For " + bb + " new players, evaluate OnJoin limits", 5);
+                        foreach (PlayerInfo pp in inserted)
+                        {
+                            OnPlayerJoin(pp); // each call syncs map info
+                            // quit early if plugin was disabled
+                            if (!plugin_enabled)
+                                break;
+                        }
+                    } else {
+                        DebugWrite("No players left in batch, skipping OnJoin limits, synching map info", 5);
+                        getMapInfoSync();
                     }
                     
-                    DebugWrite("^4^bTIME^n took " + DateTime.Now.Subtract(batchSince).TotalSeconds.ToString("F2") + " secs, process player batch", 4);
+                    DebugWrite("^4^bTIME^n took " + DateTime.Now.Subtract(batchSince).TotalSeconds.ToString("F2") + " secs, process player batch", 5);
 
 
                     // abort the thread if the plugin was disabled
                     if (!plugin_enabled)
                     {
-                        DebugWrite("detected that plugin was disabled, aborting", 3);
+                        DebugWrite("detected that plugin was disabled, aborting", 4);
                         lock (players_mutex)
                         {
                             new_player_queue.Clear();
@@ -5638,8 +5826,11 @@ public interface DataDictionaryInterface
                         }
                         return;
                     }
+                    
+                    DebugWrite("Request PB player's list for new players to queue ...", 8);
+                    getPBPlayersList();
 
-                    DebugWrite("^4^bDONE^n inserting " + bb + " new players, took a total of " + DateTime.Now.Subtract(since).TotalSeconds.ToString("F0") + " secs^0", 4);
+                    DebugWrite("^4^bDONE^n inserting " + bb + " new players, " + GetQCount() + " still in queue, took a total of " + DateTime.Now.Subtract(since).TotalSeconds.ToString("F0") + " secs^0", 3);
                 }
             }
             catch (Exception e)
@@ -6133,7 +6324,7 @@ public interface DataDictionaryInterface
                     int delay = limit.SayDelay;
 
                     String message = R(limit.SayMessage);
-                    DebugWrite("say(" + limit.SayAudience.ToString() + "), ^b" + target.Name + "^n, activated " + limit.ShortDisplayName + ": " + message, 1);
+                    DebugWrite("say(" + limit.SayAudience.ToString() + "), ^b" + target.Name + "^n, activated " + limit.ShortDisplayName + ": " + message, 3);
 
                     bool chat = limit.SayProConChat;
                     MessageAudience audience = limit.SayAudience;
@@ -6173,6 +6364,53 @@ public interface DataDictionaryInterface
                 }
 
 
+                if ((action & Limit.LimitAction.Yell) > 0)
+                {
+                    action = action & ~Limit.LimitAction.Yell;
+
+                    int duration = limit.YellDuration;
+
+                    String message = R(limit.YellMessage);
+                    DebugWrite("yell(" + limit.YellAudience.ToString() + "), ^b" + target.Name + "^n, activated " + limit.ShortDisplayName + ": " + message, 3);
+
+                    bool chat = limit.YellProConChat;
+                    MessageAudience audience = limit.YellAudience;
+
+                    switch (audience)
+                    {
+                        case MessageAudience.All:
+                            SendGlobalYell(message, duration);
+                            if (chat)
+                                PRoConChat("Admin > Yell All: " + message);
+                            break;
+                        case MessageAudience.Team:
+                            SendTeamYell(target.TeamId, message, duration);
+                            if (chat)
+                                PRoConChat("Admin > Yell Team(" + target.TeamId + "): " + message);
+                            break;
+                        case MessageAudience.Player:
+                            SendPlayerYell(target.Name, message, duration);
+                            if (chat)
+                                PRoConChat("Admin > Yell " + player.Name + ": " + message);
+                            break;
+                        case MessageAudience.Squad:
+                            /*
+                            SendSquadYell(target.TeamId, target.SquadId, message, duration);
+                            if (chat)
+                                PRoConChat("Admin > Team(" + target.TeamId + ").Squad(" + target.SquadId + "): " + message);
+                            */
+                        default:
+                            ConsoleError("Unknown " + typeof(MessageAudience).Name + " for " + limit.ShortDisplayName);
+                            break;
+                    }
+
+
+
+                    // exit early if action is only yell
+                    if (action.Equals(Limit.LimitAction.Yell))
+                        return !VMode;
+                }
+
                 if ((action & Limit.LimitAction.Log) > 0)
                 {
                     action = action & ~Limit.LimitAction.Log;
@@ -6201,7 +6439,7 @@ public interface DataDictionaryInterface
                     String address = limit.MailAddress;
 
 
-                    DebugWrite("sending mail(" + address + ") player ^b" + target.Name + "^n, (activated " + limit.ShortDisplayName + "), with subject: \"" + subject + "\"", 1);
+                    DebugWrite("sending mail(" + address + ") player ^b" + target.Name + "^n, (activated " + limit.ShortDisplayName + "), with subject: \"" + subject + "\"", 3);
                     SendMail(address, subject, message);
 
                     // exit early if action is only log
@@ -6219,7 +6457,7 @@ public interface DataDictionaryInterface
                     String carrier = limit.SMSCarrier;
 
 
-                    DebugWrite("sending SMS(" + number + ") player ^b" + target.Name + "^n, (activated " + limit.ShortDisplayName + ")", 1);
+                    DebugWrite("sending SMS(" + number + ") player ^b" + target.Name + "^n, (activated " + limit.ShortDisplayName + ")", 3);
                     SendSMS(country, carrier, number, message);
 
                     // exit early if action is only SMS
@@ -6235,7 +6473,7 @@ public interface DataDictionaryInterface
                     String account = getStringVarValue("twitter_screen_name");
 
 
-                    DebugWrite("sending Tweet (@" + account + "): \"" + status + "\"", 1);
+                    DebugWrite("sending Tweet (@" + account + "): \"" + status + "\"", 3);
                     Tweet(status);
 
                     // exit early if action is only Tweet
@@ -6250,7 +6488,7 @@ public interface DataDictionaryInterface
                     String text = R(limit.PRoConChatText);
 
 
-                    DebugWrite("sending procon-chat \"" + text + "\"", 1);
+                    DebugWrite("sending procon-chat \"" + text + "\"", 3);
                     PRoConChat(text);
 
                     // exit early if action is only PRoConChat
@@ -6270,7 +6508,7 @@ public interface DataDictionaryInterface
                     String pname = R(limit.PRoConEventPlayer);
 
 
-                    DebugWrite("sending procon event(type:^b" + type.ToString() + "^n, name: ^b" + name.ToString() + "^n, player:^b" + pname + "^n) \"" + text + "\"", 1);
+                    DebugWrite("sending procon event(type:^b" + type.ToString() + "^n, name: ^b" + name.ToString() + "^n, player:^b" + pname + "^n) \"" + text + "\"", 3);
 
                     PRoConEvent(type, name, text, pname);
 
@@ -6284,7 +6522,7 @@ public interface DataDictionaryInterface
                 {
                     action = action & ~Limit.LimitAction.TaskbarNotify;
 
-                    DebugWrite("sending taskbar notification,  player ^b" + target.Name + "^n, (activated " + limit.ShortDisplayName + ")", 1);
+                    DebugWrite("sending taskbar notification,  player ^b" + target.Name + "^n, (activated " + limit.ShortDisplayName + ")", 3);
                     SendTaskbarNotification(R(limit.TaskbarNotifyTitle), R(limit.TaskbarNotifyMessage));
 
                     // exit early if action is only TaskbarNotify
@@ -6296,7 +6534,7 @@ public interface DataDictionaryInterface
                 {
                     action = action & ~Limit.LimitAction.SoundNotify;
 
-                    DebugWrite("playing soundnotification,  player ^b" + target.Name + "^n, (activated " + limit.ShortDisplayName + ")", 1);
+                    DebugWrite("playing soundnotification,  player ^b" + target.Name + "^n, (activated " + limit.ShortDisplayName + ")", 3);
                     SendSoundNotification(R(limit.SoundNotifyFile), R(limit.SoundNotifyRepeat));
 
                     // exit early if action is only TaskbarNotify
@@ -6347,7 +6585,7 @@ public interface DataDictionaryInterface
 
                     String command_text = R(limit.PBCommandText);
 
-                    DebugWrite("sending pb-command (^b" + target.Name + "^n, activated " + limit.ShortDisplayName + "): " + command_text, 1);
+                    DebugWrite("sending pb-command (^b" + target.Name + "^n, activated " + limit.ShortDisplayName + "): " + command_text, 3);
 
                     if (PBCommand(command_text))
                         result = true;
@@ -6359,7 +6597,7 @@ public interface DataDictionaryInterface
 
                     String command_text = limit.ServerCommandText;
 
-                    DebugWrite("sending server-command (^b" + target.Name + "^n, activated " + limit.ShortDisplayName + "): " + command_text, 1);
+                    DebugWrite("sending server-command (^b" + target.Name + "^n, activated " + limit.ShortDisplayName + "): " + command_text, 3);
 
                     if (SCommand(command_text))
                         result = true;
@@ -6386,7 +6624,7 @@ public interface DataDictionaryInterface
                     if (delay > 0)
                         delay_text = "(delay: ^b" + delay + "^n)";
 
-                    DebugWrite("killing" + delay_text + " player ^b" + target.Name + "^n, (activated " + limit.ShortDisplayName + ")", 1);
+                    DebugWrite("killing" + delay_text + " player ^b" + target.Name + "^n, (activated " + limit.ShortDisplayName + ")", 2);
 
                     if (KillPlayer(target.Name, delay))
                         result = true;
@@ -6531,6 +6769,8 @@ public interface DataDictionaryInterface
 
                 plugin_enabled = false;
                 round_over = false;
+                isRoundReset = false;
+                level_loaded = false;
 
 
                 finalizer = new Thread(new ThreadStart(delegate()
@@ -6542,10 +6782,14 @@ public interface DataDictionaryInterface
                             JoinWith(say_thread);
                             JoinWith(settings_thread);
                             JoinWith(enforcer_thread);
+                            JoinWith(moving_thread);
                             JoinWith(fetching_thread, 45);
 
                             this.blog.CleanUp();
                             this.players.Clear();
+                            lock (this.cacheResponseTable) {
+                                this.cacheResponseTable.Clear();
+                            }
 
                             CleanupLimits();
 
@@ -6728,6 +6972,10 @@ public interface DataDictionaryInterface
                             limit.SMSCarrier = var_value;
 
                             var_type = "enum." + var_name + limit.SMSCountry + "(" + String.Join("|", EnumValues(keys)) + ")";
+                        } else if (field.Equals("yell_audience")) {
+                            var_type = "enum." + var_name + "(" + String.Join("|", Enum.GetNames(typeof(MessageAudience))) + ")";
+                        } else if (field.Equals("yell_procon_chat")) {
+                            var_type = "enum." + var_name + "(" + String.Join("|", Enum.GetNames(typeof(TrueFalse))) + ")";
                         }
                         group_order = "";
                     }
@@ -6927,7 +7175,7 @@ public interface DataDictionaryInterface
             if (hidden_variables.ContainsKey(name) && hidden_variables[name])
                 return hidden_variables[name];
 
-
+            if (name.Equals("use_slow_weapon_stats") && !getBooleanVarValue("use_direct_fetch")) return true;
 
             return false;
         }
@@ -6986,35 +7234,9 @@ public interface DataDictionaryInterface
             }
         }
 
-        /*
         public override void OnPunkbusterPlayerInfo(CPunkbusterInfo cpbiPlayer)
         {
-            try
-            {
-               if (cpbiPlayer == null)
-                    return;
-
-                String name = cpbiPlayer.SoldierName;
-
-                // skip player if not new, or has no info
-                if (players.ContainsKey(name))
-                    return;
-
-                // fetch the stats for player, and add to list
-                players.Add(name, this.blog.fetchStats(new PlayerInfo(this, cpbiPlayer)));
-
-            }
-            catch(Exception e)
-            {
-                DumpException(e);
-            }
-
-
-        }*/
-
-        public override void OnPunkbusterPlayerInfo(CPunkbusterInfo cpbiPlayer)
-        {
-            DebugWrite("Got ^bOnPunkbusterPlayerInfo^n!", 8);
+            DebugWrite("Got ^bOnPunkbusterPlayerInfo^n!", 10); // FIXME 8
             if (!plugin_activated)
                 return;
 
@@ -7035,25 +7257,48 @@ public interface DataDictionaryInterface
         Dictionary<String, CPunkbusterInfo> new_player_queue = new Dictionary<string, CPunkbusterInfo>();
         public void processNewPlayer(CPunkbusterInfo cpbiPlayer)
         {
-            if (this.players.ContainsKey(cpbiPlayer.SoldierName))
-                this.players[cpbiPlayer.SoldierName].pbInfo = cpbiPlayer;
-            else
+            bool notifyFetch = false;
+            
+            int dblevel = 10;
+            
+            /* 
+            For debugging, only do verbose logging fetch sent the pb player list command
+            */
+            if (expectedPBCount > 0) {
+                dblevel = 8;
+                --expectedPBCount;
+            }
+
+            DebugWrite("OnPunkbusterPlayerInfo::processNewPlayer locking " + cpbiPlayer.SoldierName, dblevel);
+            
+            lock (players_mutex)
             {
-                lock (players_mutex)
+                if (this.players.ContainsKey(cpbiPlayer.SoldierName))
+                    this.players[cpbiPlayer.SoldierName].pbInfo = cpbiPlayer;
+                else
                 {
 
                     // add new player to the queue, and wake the stats fetching loop
+                    int other = 10;
+                    if (!new_player_queue.ContainsKey(cpbiPlayer.SoldierName)) {
+                        other = 5;
+                    }
+                    DebugWrite("OnPunkbusterPlayerInfo::processNewPlayer player ^b" + cpbiPlayer.SoldierName + "^n", other);
                     if (!(new_player_queue.ContainsKey(cpbiPlayer.SoldierName) ||
                           players.ContainsKey(cpbiPlayer.SoldierName) ||
                           new_players_batch.ContainsKey(cpbiPlayer.SoldierName)))
                     {
-                        DebugWrite("Queueing ^b" + cpbiPlayer.SoldierName + "^n for stats fetching", 3);
+                        DebugWrite("Queueing ^b" + cpbiPlayer.SoldierName + "^n for stats fetching", 5);
                         new_player_queue.Add(cpbiPlayer.SoldierName, cpbiPlayer);
-                        DebugWrite("signalling ^bfetch^n thread", 7);
-                        fetch_handle.Set();
+                        notifyFetch = true;
                     }
 
                 }
+            }
+            DebugWrite("OnPunkbusterPlayerInfo::processNewPlayer UNLOCKING " + cpbiPlayer.SoldierName, dblevel);
+            if (notifyFetch) {
+                //DebugWrite("signalling ^bfetch^n thread", 7); // FIXME
+                //fetch_handle.Set(); // FIXME: let enforcer wake up fetch
             }
         }
 
@@ -7105,6 +7350,8 @@ public interface DataDictionaryInterface
 
         public void evaluateLimitsForEvent(BaseEvent type, PlayerInfo player, PlayerInfo killer, PlayerInfo victim, Kill info)
         {
+            DebugWrite("+++ Evaluating all ^b" + type + "^n limits ...", 5);
+
             KillInfo kill = new KillInfo(info, type);
 
             // first reset the sprees if needed
@@ -7170,6 +7417,8 @@ public interface DataDictionaryInterface
                     ConsoleError("unknown event " + type.GetType().Name + " ^b" + type.ToString());
                     return;
             }
+            
+            DebugWrite("+++ Evaluated ^b" + all.Count + "^n limits", 5);
         }
 
 
@@ -7274,6 +7523,66 @@ public interface DataDictionaryInterface
             return String.Empty;
         }
 
+        public bool CheckAccount(String name, out bool canKill, out bool canKick, out bool canBan, out bool canMove, out bool canChangeLevel)
+        {
+            bool ret = false;
+            canKill = false;
+            canKick = false;
+            canBan = false;
+            canMove = false;
+            canChangeLevel = false;
+            try {
+                if (!players.ContainsKey(name)) {
+                    DebugWrite("^1WARNING: Unable to CheckAccount for " + name + ": unrecognized name", 4);
+                    return false;
+                }
+                CPrivileges p = this.GetAccountPrivileges(name);
+                if (p == null) return false;
+                ret = true;
+                
+                canKill = p.CanKillPlayers;
+                canKick = p.CanKickPlayers;
+                canBan = (p.CanTemporaryBanPlayers || p.CanPermanentlyBanPlayers);
+                canMove = p.CanMovePlayers;
+                canChangeLevel = p.CanUseMapFunctions;
+            } catch (Exception e) {
+                DebugWrite("EXCEPTION: CheckAccount(" + name + "): " + e.Message, 4);
+                ret = false;
+            }
+            return ret;
+        }
+
+        public double CheckPlayerIdle(String name) // -1 if unknown, otherwise idle time in seconds
+        {
+            double ret = -1;
+            try
+            {
+                if (String.IsNullOrEmpty(name)) return -1;
+
+                PlayerInfo pinfo = null;
+
+                lock (players_mutex) {
+                    if (players.ContainsKey(name)) {
+                        players.TryGetValue(name, out pinfo);
+                    }
+                }
+
+                if (pinfo == null) return -1;
+                
+                if (pinfo._idleTime == 0) {
+                    ServerCommand("player.idleDuration", name); // Update it
+                }
+                ret = pinfo._idleTime;
+                pinfo._idleTime = 0; // reset after every check
+            } 
+            catch (Exception e)
+            {
+                DebugWrite(e.Message, 5);
+            }
+            return ret;
+        }
+
+
         public PlayerInfoInterface GetPlayer(String name)
         {
             return GetPlayer(name, true);
@@ -7313,7 +7622,7 @@ public interface DataDictionaryInterface
 
 
 // IGC begin
-                DebugWrite(@"^bOriginal command^n: " +text, 4);
+                DebugWrite(@"^bOriginal command^n: " +text, 6);
 
                 Match bstatMatch = Regex.Match(command, @"^\s*bstat\s+([^\s]+)\s+([^\s]+)", RegexOptions.IgnoreCase);
                 Match rstatMatch = Regex.Match(command, @"^\s*rstat\s+([^\s]+)\s+([^\s]+)", RegexOptions.IgnoreCase);
@@ -7401,7 +7710,7 @@ public interface DataDictionaryInterface
 
         public void OneStatCmd(String sender, String prefix, String player, String scope, String type)
         {
-            DebugWrite(@"^bParsed command^n: " +((sender==null)?"(null)":sender)+", "+((player==null)?"(null)":player)+", "+((scope==null)?"(null)":scope)+", "+((type==null)?"(null)":type), 4);
+            DebugWrite(@"^bParsed command^n: " +((sender==null)?"(null)":sender)+", "+((player==null)?"(null)":player)+", "+((scope==null)?"(null)":scope)+", "+((type==null)?"(null)":type), 6);
 
             if (sender == null)
                 return;
@@ -7431,7 +7740,7 @@ public interface DataDictionaryInterface
             if ((new_player = bestMatch(player, new List<string>(players.Keys), out edit_distance)) == null)
                 return;
 
-            DebugWrite(@"^bFinal command^n: " +sender+", "+new_player+", "+scope+", "+((type==null)?"(null)":type), 4); // IGC
+            DebugWrite(@"^bFinal command^n: " +sender+", "+new_player+", "+scope+", "+((type==null)?"(null)":type), 6); // IGC
 
             //Only allow partial matches if the commnand prefix is ?
             if (edit_distance > 0 && !prefix.Equals("?"))
@@ -7578,20 +7887,38 @@ public interface DataDictionaryInterface
             DebugWrite("Got ^bOnPlayerSpawned^n!", 8);
             if (!plugin_activated)
                 return;
+            
+            /*
+            Sometimes players can spawn after the OnRoundOver event,
+            so to prevent spurious round start detections, wait
+            until level_loaded is true.
+            */
+            if (round_over && !level_loaded) {
+                DebugWrite("Skipping player spawn, level is not loaded yet!", 8);
+                return;
+            }
+
+            /* 
+            To avoid a situation where OnLevelLoaded executed multiple
+            times in a row causes multiple OnRoundOver evals, delay
+            reset of isRoundReset flag until first spawn or first
+            interval limit evals (see enforcer thread).
+            */
+            if (isRoundReset) {
+                DebugWrite("The round NEEDS resetting!", 8);
+                isRoundReset = false;
+            }
 
             //first player to spawn after round over, we fetch the map info again
             if (round_over == true)
             {
+                DebugWrite("Marking round as in progress", 8);
                 round_over = false;
-                //round over, fetch map info again after a few seconds (avoid false positive)
-                Thread round_start_delayed = new Thread(new ThreadStart(delegate()
-                {
-                    DebugWrite("round start detected", 3);
-                    getMapInfoSync();
-                    evaluateLimitsForEvent(BaseEvent.RoundStart, null, null, null, null);
-                }));
-
-                round_start_delayed.Start();
+                //round over, fetch map info again
+                DebugWrite(":::::::::::: Round start detected ::::::::::::", 4);
+                getMapInfo();
+                DebugWrite("async map info update", 8);
+                evaluateLimitsForEvent(BaseEvent.RoundStart, null, null, null, null);
             }
 
 
@@ -7607,7 +7934,7 @@ public interface DataDictionaryInterface
 
         public override void OnPlayerJoin(string name)
         {
-            DebugWrite("Got ^bOnPlayerJoin^n!", 8);
+            DebugWrite("Got ^bOnPlayerJoin^n! " + name, 8);
             if (!plugin_activated)
                 return;
         }
@@ -7629,6 +7956,9 @@ public interface DataDictionaryInterface
                     return;
                 }
 
+                // refresh the map information once before all limit evals
+                getMapInfoSync();
+
                 for (int i = 0; i < sorted_limits.Count; i++)
                 {
                     if (!plugin_enabled)
@@ -7639,10 +7969,7 @@ public interface DataDictionaryInterface
                     if (limit == null || !limit.Evaluation.Equals(Limit.EvaluationType.OnJoin))
                         continue;
 
-                    // refresh the map information before each limit evaluation
-                    getMapInfoSync();
-
-                    DebugWrite("Evaluating " + limit.ShortDisplayName + " - " + limit.Evaluation.ToString() + ", for " + name, 4);
+                    DebugWrite("Evaluating " + limit.ShortDisplayName + " - " + limit.Evaluation.ToString() + ", for " + name, 5);
                     evaluateLimit(limit, player);
                 }
             }
@@ -7654,7 +7981,7 @@ public interface DataDictionaryInterface
 
         public override void OnPlayerLeft(CPlayerInfo pinfo)
         {
-            DebugWrite("Got ^bOnPlayerLeft^n!", 8);
+            DebugWrite("Got ^bOnPlayerLeft^n! " + pinfo.SoldierName, 8);
             if (!plugin_activated)
                 return;
 
@@ -7671,110 +7998,186 @@ public interface DataDictionaryInterface
             evaluateLimitsForEvent(BaseEvent.Leave, player, null, null, null);
         }
 
-        public class MoveEvent
-        {
-            public DateTime time = DateTime.Now;
-            public int TeamId = 0;
-            public int SquadId = 0;
-            bool ByAdmin = false;
-
-            public MoveEvent(int TeamId, int SquadId, bool ByAdmin)
-            {
-                this.TeamId = TeamId;
-                this.SquadId = SquadId;
-                this.ByAdmin = ByAdmin;
-            }
-        }
-
-        public Dictionary<String, bool> RecentMove = new Dictionary<string, bool>();
-
-
+        public List<String> RecentMove = new List<String>();
+        private Queue<String> moveQ = new Queue<String>();
 
         public override void OnPlayerMovedByAdmin(string name, int TeamId, int SquadId, bool force)
         {
             DebugWrite("Got ^bOnPlayerMovedByAdmin^n!", 8);
-            if (!plugin_activated)
-                return;
+            if (!plugin_activated) return;
 
-            //if player has been moved by admin, remove the recent move flag
+            //if player has been moved by admin, remember
+            DebugWrite("ADMIN MOVE! Suppress limit eval of move for ^b" + name, 5);
             lock (moves_mutex)
             {
-                if (!RecentMove.ContainsKey(name))
-                    return;
-                else
-                    RecentMove.Remove(name);
+                if (!RecentMove.Contains(name)) {
+                    RecentMove.Add(name);
+                }
             }
+            pending_handle.Set(); // signal queue
+            Thread.Sleep(2); // give thread some time
         }
 
+        public void move_thread_loop()
+        {
+            Thread.CurrentThread.Name = "move";
+
+            DebugWrite("starting", 4);
+            
+            DateTime since = DateTime.Now;
+
+            /*
+            As of this writing, move by admin events FOLLOW the team change event.
+            Since we want to suppress move by admin team changes, we need to delay
+            processing of a move event until either the next move event happens,
+            until the admin event happens, or after time runs out.
+
+            It would be better to avoid the time-out and instead trigger on whatever
+            the next event is, but that means putting a signaller into every
+            event handler callback.
+            */
+            while (plugin_enabled) {
+                try {
+                    int n = 0;
+                    
+                    lock (moves_mutex) {
+                        n = moveQ.Count;
+                    }
+
+                    while (n == 0) {
+                        DebugWrite("waiting for move event ...", 8);
+                        move_handle.WaitOne(); // wait for something in the queue
+                        move_handle.Reset();
+                        pending_handle.Reset();
+                        if (!plugin_enabled) {
+                            DebugWrite("detected that plugin was disabled, aborting", 4);
+                            return;
+                        }
+                        lock (moves_mutex) {
+                            n = moveQ.Count;
+                        }
+                        DebugWrite("awake! " + n + " events in queue", 8);
+                    }
+                    since = DateTime.Now;
+                    
+                    String name = null;
+ 
+                    lock (moves_mutex) {
+                        name = moveQ.Dequeue();
+                    }
+
+                    if (name == null) continue;
+                    
+                    lock (players_mutex) {
+                        if (!players.ContainsKey(name)) {
+                            name = null;
+                        }
+                    }
+ 
+                    if (name == null) {
+                        DebugWrite("looks like ^b" + name + "^n, left, skipping.", 8);
+                        continue;
+                    }
+                    
+                    DebugWrite("Waiting to see if move for ^b" + name + "^n was an admin move ...", 8);
+                    
+                    /* Add a delay to see if an admin move event comes to suppress this */
+
+                    while (DateTime.Now.Subtract(since).TotalSeconds < 1.0) {
+                        pending_handle.WaitOne(200); // 1/5th second
+                        lock (moves_mutex) {
+                            if (RecentMove.Contains(name)) {
+                                RecentMove.Remove(name);
+                                name = null;
+                                break;
+                            }
+                        }
+                    }
+                    pending_handle.Reset();
+                    
+                    if (name == null) {
+                        DebugWrite("Move was by admin, skipping ...", 8);
+                        continue;
+                    } else {
+                        DebugWrite("Delay expired, assuming move is legit", 8);
+                    }
+
+                    /* Redo the test, player might have left */
+                    
+                    lock (players_mutex) {
+                        if (!players.ContainsKey(name)) name = null;
+                    }
+ 
+                    if (name == null) {
+                        DebugWrite("looks like ^b" + name + "^n, left, skipping.", 8);
+                        continue;
+                    }
+
+                    PlayerInfo pinfo = null;
+
+                    lock (players_mutex) {
+                        players.TryGetValue(name, out pinfo);
+                    }
+
+                    if (pinfo == null) {
+                        DebugWrite("player ^b" + name + "^n isn't known yet, skipping.", 8);
+                        continue;
+                    }
+
+                    DebugWrite("evaluating TeamChange limits for ^b" + name, 8);
+                    evaluateLimitsForEvent(BaseEvent.TeamChange, pinfo, null, null, null);
+
+                } catch (Exception e) {
+                    if (typeof(ThreadAbortException).Equals(e.GetType()))
+                    {
+                        Thread.ResetAbort();
+                        return;
+                    }
+                    DumpException(e);
+                }
+            }
+            DebugWrite("detected that plugin was disabled, aborting", 4);
+        }
 
         public override void OnPlayerTeamChange(string name, int TeamId, int SquadId)
         {
             DebugWrite("Got ^bOnPlayerTeamChange^n!", 8);
-            if (!plugin_activated)
-                return;
+            if (!plugin_activated) return;
 
             try
             {
+                pending_handle.Set(); // Process any previous moves that are pending
+                Thread.Sleep(2); // Give thread some time
+                
                 if (TeamId <= 0)
-                    return;
-
-                // flag that the player recently moved
-                lock (moves_mutex)
-                {
-                    if (!RecentMove.ContainsKey(name))
-                        RecentMove.Add(name, true);
-                }
-
-                if (!players.ContainsKey(name))
                     return;
 
                 PlayerInfo pinfo = null;
 
-                players.TryGetValue(name, out pinfo);
+                lock (players_mutex) {
+                    if (players.ContainsKey(name)) {
+                        players.TryGetValue(name, out pinfo);
+                    }
+                }
 
-                if (pinfo == null)
-                    return;
+                if (pinfo == null) return;
 
                 /* nothing to do, usually happens during join */
-                if (pinfo.TeamId == 0 || pinfo.TeamId == TeamId)
+                if (pinfo.TeamId == 0 || pinfo.TeamId == TeamId) return;
+                
+                /* if between rounds before first spawn, ignore */
+                if (round_over) {
+                    DebugWrite("Ignoring move between rounds before round start", 8);
                     return;
+                }
 
-                // update the player's TeamId, and SquadId
-                pinfo.TeamId = TeamId;
-                pinfo.SquadId = SquadId;
-
-
-
-
-                /* sleep a few seconds, to account of discrepancy between order of move events */
-
-                Thread delayed_change = new Thread(new ThreadStart(delegate()
-                {
-                    int sleep_time = 5;
-                    Thread.Sleep(sleep_time * 1000);
-
-                    if (!plugin_enabled)
-                        return;
-
-                    lock (moves_mutex)
-                    {
-                        if (RecentMove == null)
-                            return;
-
-                        if (!RecentMove.ContainsKey(name))
-                            return;
-
-                        if (RecentMove[name] == false)
-                            return;
-                    }
-
-                    evaluateLimitsForEvent(BaseEvent.TeamChange, pinfo, null, null, null);
-
-
-                }));
-
-                delayed_change.Start();
-
+                /* Add to queue */
+                DebugWrite("Queing move of ^b" + name, 5);
+                lock (moves_mutex) {
+                    moveQ.Enqueue(name);
+                }
+                
+                move_handle.Set(); // Process this move event
             }
             catch (Exception e)
             {
@@ -7852,7 +8255,7 @@ public interface DataDictionaryInterface
             {
                 StackTrace stack = new StackTrace();
                 String caller = stack.GetFrame(1).GetMethod().Name;
-                ConsoleException("Timeout(" + timeout + " seconds) expired, while waiting for " + name + " within " + caller);
+                ConsoleException("Timeout(" + timeout + " seconds), waiting for " + name + " in " + caller + ". Your net connection to game server may be congested or another plugin may be lagging Procon.");
             } else {
                 DebugWrite("awake! no timeout", 7);
             }
@@ -7921,12 +8324,48 @@ public interface DataDictionaryInterface
         public override void OnMaplistNextLevelIndex(int mapIndex) { getMapInfo(); }
         public override void OnMaplistMapRemoved(int mapIndex) { getMapInfo(); }
         public override void OnMaplistMapInserted(int mapIndex, string mapFileName) { getMapInfo(); }
-        public override void OnEndRound(int winTeamId) { getMapInfo(); }
-        public override void OnRunNextLevel() { getMapInfo(); }
+        public override void OnRestartLevel()
+        {
+            DebugWrite("Got ^bOnRestartLevel^n!", 8);
+        }
+        public override void OnEndRound(int winTeamId)
+        {
+            DebugWrite("Got ^bOnEndRound^n!", 8);
+            getMapInfo();
+        }
+        public override void OnRunNextLevel()
+        {
+            DebugWrite("Got ^bOnRunNextLevel^n!", 8);
+            getMapInfo();
+        }
         public override void OnCurrentLevel(string mapFileName) { getMapInfo(); }
         public override void OnLoadingLevel(string mapFileName, int roundsPlayed, int roundsTotal) { getMapInfo(); }
-        public override void OnLevelStarted() { getMapInfo(); }
-        public override void OnLevelLoaded(string mapFileName, string Gamemode, int roundsPlayed, int roundsTotal) { getMapInfo(); }
+        public override void OnLevelStarted()
+        { 
+            DebugWrite("Got ^bOnLevelStarted^n!", 8);
+            getMapInfo();
+        }
+        public override void OnLevelLoaded(string mapFileName, string Gamemode, int roundsPlayed, int roundsTotal) {
+            DebugWrite("Got ^bOnLevelLoaded^n!", 8);
+            level_loaded = true;
+            getMapInfo();
+            
+            lock (moves_mutex) {
+                RecentMove.Clear();
+            }
+
+            if (!round_over) {
+                DebugWrite("^bRound was aborted, eval OnRoundOver limits", 4);
+                evaluateLimitsForEvent(BaseEvent.RoundOver, null, null, null, null);
+                DebugWrite(":::::::::::: Marking round as over (level loaded) :::::::::::: ", 4);
+                round_over = true;
+                if (!isRoundReset) {
+                    // Do all of the essential stuff that would happen at normal round end
+                    DebugWrite("^bDo reset OnLevelLoaded also", 4);
+                    RoundOverReset(); // sets flag to true
+                }
+            }
+        }
 
         public override void OnMaplistList(List<MaplistEntry> lstMaplist)
         {
@@ -7965,6 +8404,7 @@ public interface DataDictionaryInterface
             serverInfo.updateTickets(teamScores);
             evaluateLimitsForEvent(BaseEvent.RoundOver, null, null, null, null);
             serverInfo.updateTickets(null);
+            DebugWrite("::::::::::::  Marking round as over (round over team scores)! :::::::::::: ", 4);
             round_over = true;
 
             RoundOverReset();
@@ -7975,6 +8415,7 @@ public interface DataDictionaryInterface
             DebugWrite("Got ^bOnRoundOver^n!", 8);
             if (!plugin_activated)
                 return;
+            level_loaded = false;
 
             if (serverInfo != null)
                 serverInfo.WinTeamId = winTeamId;
@@ -7984,6 +8425,7 @@ public interface DataDictionaryInterface
 
         public void RoundOverReset()
         {
+            DebugWrite("RoundOverReset called!", 8);
             // reset the activations, and sprees, and round-data for all limits
             List<String> keys = new List<string>(limits.Keys);
             foreach (String key in keys)
@@ -8019,7 +8461,8 @@ public interface DataDictionaryInterface
 
             this.RoundData.Clear();
 
-
+            DebugWrite("Round HAS BEEN reset!", 8);
+            isRoundReset = true;
         }
 
         public void getMapList()
@@ -8058,6 +8501,12 @@ public interface DataDictionaryInterface
             ServerCommand("mapList.getMapIndices");
         }
 
+        public void getModeCounters()
+        {
+            ServerCommand("vars.gameModeCounter");
+            ServerCommand("vars.ctfRoundTimeModifier");
+        }
+
         public int[] getMapIndicesSync()
         {
             indices_handle.Reset();
@@ -8071,6 +8520,7 @@ public interface DataDictionaryInterface
 
         public void getMapInfoSync()
         {
+            getModeCounters();
             DebugWrite("waiting for map-list before proceeding", 6);
             getMapListSync();
             DebugWrite("waiting for map-indices before proceeding", 6);
@@ -8084,12 +8534,19 @@ public interface DataDictionaryInterface
             if (!plugin_activated)
                 return;
 
+            getModeCounters();
             getMapList();
             getMapIndices();
             getServerInfo();
-
+            getModeCounters();
         }
 
+
+        public override void OnReservedSlotsList(List<String> lstSoldierNames)
+        {
+            DebugWrite("Got ^bOnReservedSlotsList^n!", 8);
+            reserved_slots_list = lstSoldierNames;
+        }
 
 
 
@@ -8567,6 +9024,27 @@ public interface DataDictionaryInterface
             return true;
         }
 
+
+        private void SendPlayerYellV(string name, string message, int duration)
+        {
+            if (name == null)
+                return;
+
+            ServerCommand("admin.yell", StripModifiers(E(message)), duration.ToString(), "player", name);
+        }
+
+        private bool SendGlobalYellV(String message, int duration)
+        {
+            ServerCommand("admin.yell", StripModifiers(E(message)), duration.ToString(), "all");
+            return true;
+        }
+
+        private bool SendTeamYellV(int teamId, String message, int duration)
+        {
+            ServerCommand("admin.yell", StripModifiers(E(message)), duration.ToString(), "team", (teamId).ToString());
+            return true;
+        }
+
         //escape replacements
         public String E(String text)
         {
@@ -8590,6 +9068,11 @@ public interface DataDictionaryInterface
             {
                 ConsoleWarn("not sending global-message, ^bvirtual_mode^n is ^bon^n");
                 return false;
+            }
+
+            if (delay == 0) {
+                SendGlobalMessageV(message);
+                return true;
             }
 
             Thread delayed = new Thread(new ThreadStart(delegate()
@@ -8616,6 +9099,11 @@ public interface DataDictionaryInterface
                 return false;
             }
 
+            if (delay == 0) {
+                SendTeamMessageV(teamId, message);
+                return true;
+            }
+
             Thread delayed = new Thread(new ThreadStart(delegate()
             {
                 Thread.Sleep(delay * 1000);
@@ -8638,6 +9126,11 @@ public interface DataDictionaryInterface
             {
                 ConsoleWarn("not sending squad-message to TeamId(^b" + teamId + "^n,).SquadId(^b" + squadId + "^n), ^bvirtual_mode^n is ^bon^n");
                 return false;
+            }
+
+            if (delay == 0) {
+                SendSquadMessageV(teamId, squadId, message);
+                return true;
             }
 
             Thread delayed = new Thread(new ThreadStart(delegate()
@@ -8664,6 +9157,11 @@ public interface DataDictionaryInterface
                 ConsoleWarn("not sending player-message to ^b" + name + "^n, ^bvirtual_mode^n is ^bon^n");
                 return false;
             }
+            
+            if (delay == 0) {
+                SendPlayerMessageV(name, message);
+                return true;
+            }
 
             Thread delayed = new Thread(new ThreadStart(delegate()
             {
@@ -8675,6 +9173,45 @@ public interface DataDictionaryInterface
 
             return true;
         }
+
+        public bool SendPlayerYell(string name, string message, int duration)
+        {
+            if (name == null) return false;
+
+            if (VMode)
+            {
+                ConsoleWarn("not yelling player-message to ^b" + name + "^n, ^bvirtual_mode^n is ^bon^n");
+                return false;
+            }
+
+            SendPlayerYellV(name, message, duration);
+            return true;
+        }
+
+        public bool SendGlobalYell(String message, int duration)
+        {
+            if (VMode)
+            {
+                ConsoleWarn("not yelling global-message, ^bvirtual_mode^n is ^bon^n");
+                return false;
+            }
+
+            SendGlobalYellV(message, duration);
+            return true;
+        }
+
+        public bool SendTeamYell(int teamId, String message, int duration)
+        {
+            if (VMode)
+            {
+                ConsoleWarn("not yelling team-message, ^bvirtual_mode^n is ^bon^n");
+                return false;
+            }
+
+            SendTeamYellV(teamId, message, duration);
+            return true;
+        }
+
 
         public bool VMode
         {
@@ -8700,6 +9237,7 @@ public interface DataDictionaryInterface
 
         public void updateQueues(List<CPlayerInfo> lstPlayers)
         {
+            DebugWrite("OnListPlayers::updateQueues locking, " + GetQCount() + " in queue", 8);
             lock (players_mutex)
             {
                 scratch_handle.Reset();
@@ -8708,8 +9246,6 @@ public interface DataDictionaryInterface
                 foreach (CPlayerInfo info in lstPlayers)
                     if (!scratch_list.Contains(info.SoldierName))
                         scratch_list.Add(info.SoldierName);
-
-                scratch_handle.Set();
 
                 // make a list of players to drop from the stats queue
                 List<String> players_to_remove = new List<string>();
@@ -8721,7 +9257,7 @@ public interface DataDictionaryInterface
                 foreach (String name in players_to_remove)
                     if (new_player_queue.ContainsKey(name))
                     {
-                        DebugWrite("Looks like ^b" + name + "^n left the server, removing him from stats queue", 3);
+                        DebugWrite("Looks like ^b" + name + "^n left the server, removing him from stats queue", 5);
                         new_player_queue.Remove(name);
                     }
 
@@ -8736,12 +9272,24 @@ public interface DataDictionaryInterface
                     if (new_players_batch.ContainsKey(name))
                         new_players_batch.Remove(name);
             }
+            DebugWrite("OnListPlayers::updateQueues UNLOCKING, " + GetQCount() + " in queue", 8);
+            scratch_handle.Set();
         }
 
+        private int SafePlayerCount()
+        {
+            int num = 0;
+            lock (players_mutex)
+            {
+                num = players.Keys.Count;
+            }
+            return num;
+        }
 
         public void SyncPlayersList(List<CPlayerInfo> lstPlayers)
         {
-
+            DebugWrite("OnListPlayers::SyncPlayersList locking, " + SafePlayerCount() + " players", 8);
+            plist_handle.Reset();
             lock (players_mutex)
             {
                 // first update the information that players that still are in list
@@ -8766,17 +9314,38 @@ public interface DataDictionaryInterface
 
                 // now actually remove them
                 foreach (String pname in players_to_remove)
-                    RemovePlayer(pname);
+                    InnerRemovePlayer(pname);
+            }
+            DebugWrite("OnListPlayers::SyncPlayersList UNLOCKING, " + SafePlayerCount() + " players", 8);
+            plist_handle.Set();
+        }
+
+        public void UpdateIdlePlayers(List<CPlayerInfo> lstPlayers)
+        {
+            foreach (CPlayerInfo cpiPlayer in lstPlayers) {
+                if ((cpiPlayer.Score == 0 || Double.IsNaN(cpiPlayer.Score)) && cpiPlayer.Deaths == 0) {
+                    DebugWrite("Updating idle duration for: " + cpiPlayer.SoldierName, 5);
+                    ServerCommand("player.idleDuration", cpiPlayer.SoldierName); // Update it
+                }
             }
         }
 
 
 
-
         public void RemovePlayer(String name)
         {
-            lock (remove_mutex)
+            DebugWrite("RemovePlayer locking, " + name, 8);
+            lock (players_mutex)
             {
+                InnerRemovePlayer(name);
+            }
+            DebugWrite("RemovePlayer UNLOCKING, " + name, 8);
+        }
+
+
+        private void InnerRemovePlayer(String name)
+        {
+            try {
                 if (!players.ContainsKey(name))
                     return;
 
@@ -8788,13 +9357,11 @@ public interface DataDictionaryInterface
                     {
                         limits[lkey].ResetActivationsTotal(name);
                         limits[lkey].ResetActivations(name);
-                        /*
-                        // Not needed anymore, OnJoin limits are evaluated once only in OnPlayerJoin
-                        limits[lkey].ResetEvaluations(name);
-                         */
                     }
 
                 players.Remove(name);
+            } catch (Exception e) {
+                DumpException(e);
             }
         }
 
@@ -8809,6 +9376,7 @@ public interface DataDictionaryInterface
 
             updateQueues(lstPlayers);
             SyncPlayersList(lstPlayers);
+            UpdateIdlePlayers(lstPlayers);
         }
 
 
@@ -8923,7 +9491,7 @@ public interface DataDictionaryInterface
         public void SendQueuedMessages(int sleep_time)
         {
 
-            DebugWrite("sending " + messageQueue.Count + " queued message" + ((messageQueue.Count > 1) ? "s" : "") + " ...", 5);
+            DebugWrite("sending " + messageQueue.Count + " queued message" + ((messageQueue.Count > 1) ? "s" : "") + " ...", 6);
 
             while (messageQueue.Count > 0)
             {
@@ -8963,7 +9531,7 @@ public interface DataDictionaryInterface
 
                 Thread.CurrentThread.Name = "say";
 
-                plugin.DebugWrite("starting", 3);
+                plugin.DebugWrite("starting", 4);
                 while (true)
                 {
 
@@ -8987,7 +9555,7 @@ public interface DataDictionaryInterface
                 // abort the thread if the plugin was disabled
                 if (!plugin_enabled)
                 {
-                    plugin.DebugWrite("detected that plugin was disabled, aborting", 3);
+                    plugin.DebugWrite("detected that plugin was disabled, aborting", 4);
                     return;
                 }
 
@@ -9011,7 +9579,7 @@ public interface DataDictionaryInterface
 
                 Thread.CurrentThread.Name = "settings";
 
-                plugin.DebugWrite("starting", 3);
+                plugin.DebugWrite("starting", 4);
                 ConsoleWrite(" Version = " + GetPluginVersion());
 
                 while (true)
@@ -9048,7 +9616,7 @@ public interface DataDictionaryInterface
                 // abort the thread if the plugin was disabled
                 if (!plugin_enabled)
                 {
-                    plugin.DebugWrite("detected that plugin was disabled, aborting", 3);
+                    plugin.DebugWrite("detected that plugin was disabled, aborting", 4);
                     return;
                 }
             }
@@ -9069,17 +9637,19 @@ public interface DataDictionaryInterface
                 enforcer_handle.Reset();
 
                 Thread.CurrentThread.Name = "enforcer";
-
-                plugin.DebugWrite("starting", 3);
+                
+                plugin.DebugWrite("starting", 4);
                 while (true)
                 {
 
                     DebugWrite("waiting for signal from ^bfetch^n thread", 7);
                     Thread.Sleep(1000);
-                    DateTime now = DateTime.Now;
 
                     // Wait for fetch thread to let us go through
                     enforcer_handle.WaitOne();
+                    enforcer_handle.Reset();
+                    DateTime now = DateTime.Now;
+                    
                     DebugWrite("awake! processing interval limits ...", 7);
 
                     if (!plugin_enabled)
@@ -9092,12 +9662,31 @@ public interface DataDictionaryInterface
 
                         if (sorted_limits.Count == 0)
                         {
-                            plugin.DebugWrite("No valid ^bOnIntervalPlayers^n or ^bOnIntervalServer^n  limits founds, skipping this iteration", 9);
+                            plugin.DebugWrite("No valid ^bOnIntervalPlayers^n or ^bOnIntervalServer^n  limits founds, skipping this iteration", 8);
                             continue;
                         }
 
                         //Remove all limit for which there is still remaining time
                         sorted_limits.RemoveAll(delegate(Limit limit) { return limit.RemainingSeconds(now) > 0; });
+                        
+                        /*
+                        After OnLevelLoaded, if there is an interval limit to
+                        evaluate and we haven't seen the first spawn yet
+                        and the round was reset;
+                        the first limit to evaluate "dirties" the round,
+                        and therefore it is no longer reset.
+                        */
+                        if (isRoundReset && sorted_limits.Count > 0) {
+                            DebugWrite("Round NEEDS resetting!", 8);
+                            isRoundReset = false;
+                        }
+                        
+                        
+                        if (sorted_limits.Count == 0) {
+                            continue;
+                        } else {
+                            DebugWrite("signal from ^bfetch^n received and " + sorted_limits.Count + " interval limits ready to fire ...", 7);
+                        }
 
 
                         // make sure we are the only ones scanning the player's list
@@ -9133,7 +9722,7 @@ public interface DataDictionaryInterface
 
                             if (type.Equals(Limit.EvaluationType.OnIntervalPlayers) && sorted_players.Count > 0)
                             {
-                                DebugWrite("Evaluating " + limit.ShortDisplayName + " for " + sorted_players.Count + " player" + ((sorted_players.Count > 1) ? "s" : ""), 4);
+                                DebugWrite("Evaluating " + limit.ShortDisplayName + " for " + sorted_players.Count + " player" + ((sorted_players.Count > 1) ? "s" : ""), 5);
 
                                 for (int j = 0; j < sorted_players.Count; j++)
                                 {
@@ -9150,7 +9739,7 @@ public interface DataDictionaryInterface
                                         continue;
 
 
-                                    plugin.DebugWrite("Evaluating " + limit.ShortDisplayName + " for ^b" + name + "^n", 4);
+                                    plugin.DebugWrite("Evaluating " + limit.ShortDisplayName + " for ^b" + name + "^n", 5);
 
                                     if (evaluateLimit(limit, pinfo))
                                     {
@@ -9163,7 +9752,7 @@ public interface DataDictionaryInterface
                             }
                             else if (type.Equals(Limit.EvaluationType.OnIntervalServer))
                             {
-                                DebugWrite("Evaluating " + limit.ShortDisplayName + " - " + limit.Evaluation.ToString(), 4);
+                                DebugWrite("Evaluating " + limit.ShortDisplayName + " - " + limit.Evaluation.ToString(), 5);
                                 evaluateLimit(limit);
                             }
                         }
@@ -9178,10 +9767,12 @@ public interface DataDictionaryInterface
                         DumpException(e);
 
                     }
-
-                    // Notify the fetch thread
-                    DebugWrite("done, will signal ^bfetch^n thread", 7);
-                    fetch_handle.Set();
+                    finally
+                    {
+                        // Notify the fetch thread
+                        DebugWrite("done, will signal ^bfetch^n thread", 7);
+                        fetch_handle.Set();
+                    }
 
                     if (!plugin_enabled)
                         break;
@@ -9192,7 +9783,7 @@ public interface DataDictionaryInterface
                 // abort the thread if the plugin was disabled
                 if (!plugin_enabled)
                 {
-                    plugin.DebugWrite("detected that plugin was disabled, aborting", 3);
+                    plugin.DebugWrite("detected that plugin was disabled, aborting", 4);
                     return;
                 }
 
@@ -9241,10 +9832,19 @@ public interface DataDictionaryInterface
 
         public void getPBPlayersList()
         {
+            if (this.players.Keys.Count > 0) {
+                expectedPBCount = this.players.Keys.Count + 1; // FIXME, not locked on purpose
+            } else {
+                expectedPBCount = 64;
+            }
             ServerCommand("punkBuster.pb_sv_command", "pb_sv_plist");
             getServerInfo();
         }
 
+        public void getReservedSlotsList()
+        {
+            ServerCommand("reservedSlotsList.list");
+        }
 
         public static List<String> getExtraFields()
         {
@@ -9923,7 +10523,7 @@ public interface DataDictionaryInterface
 
                 String id = (String)(data["id_str"].ToString());
 
-                DebugWrite("Tweet Successful, id=^b" + id + "^n, Status: " + status, 3);
+                DebugWrite("Tweet Successful, id=^b" + id + "^n, Status: " + status, 4);
 
                 return true;
             }
@@ -9956,7 +10556,7 @@ public interface DataDictionaryInterface
                     return;
                 }
 
-                DebugWrite("VERIFIER_PIN: " + PIN, 4);
+                DebugWrite("VERIFIER_PIN: " + PIN, 5);
 
                 hidden_variables["twitter_verifier_pin"] = true;
 
@@ -10370,7 +10970,7 @@ public interface DataDictionaryInterface
 
                         if (limit.Enabled)
                         {
-                            DebugWrite("^8^b============= In SaveSettings " + limit.id, 7); // XXX
+                            DebugWrite("^8^b============= In SaveSettings " + limit.id, 9);
                             limit.ResetLastInterval(DateTime.Now);
                         }
 
@@ -10402,7 +11002,7 @@ public interface DataDictionaryInterface
                     int lmcount = limits.Count;
                     int lscount = lists.Count;
 
-                    if (!quiet || getIntegerVarValue("debug_level") >= 4)
+                    if (!quiet || getIntegerVarValue("debug_level") >= 5)
                         ConsoleWrite(lmcount + " limit" + ((lmcount > 1 || lmcount == 0) ? "s" : "") + " and " + lscount + " list" + ((lscount > 1 || lscount == 0) ? "s" : "") + " saved to ^b" + file + "^n");
                 }
 
@@ -10471,7 +11071,7 @@ public interface DataDictionaryInterface
 
                     }
 
-                    if (!quiet || getIntegerVarValue("debug_level") >= 4)
+                    if (!quiet || getIntegerVarValue("debug_level") >= 5)
                         ConsoleWrite(lmcount + " limit" + ((lmcount > 1 || lmcount == 0) ? "s" : "") + " and " + lscount + " list" + ((lscount > 1 || lscount == 0) ? "s" : "") + " loaded from ^b" + file + "^n");
 
                     CompileAll();
@@ -11163,6 +11763,22 @@ public interface DataDictionaryInterface
         }
 
 
+        public String FriendlyMapName(String mapFileName)
+        {
+            if (String.IsNullOrEmpty(mapFileName)) return String.Empty;
+            String ret = mapFileName;
+            if (friendlyMaps.ContainsKey(mapFileName)) ret = friendlyMaps[mapFileName];
+            return ret;
+        }
+
+        public String FriendlyModeName(String modeName)
+        {
+            if (String.IsNullOrEmpty(modeName)) return String.Empty;
+            String ret = modeName;
+            if (friendlyModes.ContainsKey(modeName)) ret = friendlyModes[modeName];
+            return ret;
+        }
+
         public bool Log(String file, String message)
         {
             AppendData(StripModifiers(E(message) + NL), file);
@@ -11653,6 +12269,11 @@ public interface DataDictionaryInterface
             return whitelist.Contains(field);
         }
 
+        public List<String> GetReservedSlotsList()
+        {
+            return reserved_slots_list;
+        }
+
         public static String makeRelativePath(String file)
         {
             String exe_path = Directory.GetParent(Application.ExecutablePath).FullName;
@@ -11835,6 +12456,296 @@ public interface DataDictionaryInterface
 
             return total;
         }
+        
+        public bool IsCacheEnabled(bool verbose)
+        {
+            List<MatchCommand> registered = this.GetRegisteredCommands();
+            foreach (MatchCommand command in registered)
+            {
+                if (command.RegisteredClassname.CompareTo("CBattlelogCache") == 0 && command.RegisteredMethodName.CompareTo("PlayerLookup") == 0)
+                {
+                    if (verbose) DebugWrite("^bBattlelog Cache^n plugin will be used for stats fetching!", 3);
+                    return true;
+                }
+                else
+                {
+                    DebugWrite("Registered P: " + command.RegisteredClassname + ", M: " + command.RegisteredMethodName, 7);
+                }
+            }
+            if (verbose) DebugWrite("^1^bBattlelog Cache^n plugin is disabled; installing/updating and enabling the plugin is recommended for Insane Limits!", 3);
+            return false;
+        }
+        
+        public String SendCacheRequest(String playerName, String requestType)
+        {
+            /* 
+            Called in the fetch_thread_loop thread, but defined in the
+            main class in order to have access to all the wait handles.
+            */
+            Hashtable request = new Hashtable();
+            request["playerName"] = playerName;
+            request["pluginName"] = "InsaneLimits";
+            request["pluginMethod"] = "CacheResponse";
+            request["requestType"] = requestType;
+            
+            // Set up response entry
+            lock (cacheResponseTable) {
+                cacheResponseTable[playerName] = null;
+            }
+
+            // Send request
+            if (!plugin_enabled) return String.Empty;
+            DateTime since = DateTime.Now;
+            this.ExecuteCommand("procon.protected.plugins.call", "CBattlelogCache", "PlayerLookup", JSON.JsonEncode(request));
+
+            // block for reply
+            DebugWrite("^b" + requestType + "(" + playerName + ")^n, waiting for cache to respond", 5);
+            double maxWait = Convert.ToDouble(getIntegerVarValue("wait_timeout"));
+            while (DateTime.Now.Subtract(since).TotalSeconds < maxWait) {
+                if (!plugin_enabled) return String.Empty;
+                // Give some time for the cache to respond
+                reply_handle.WaitOne(500);
+                reply_handle.Reset();
+                if (!plugin_enabled) return String.Empty;
+                lock (cacheResponseTable) {
+                    if (cacheResponseTable.ContainsKey(playerName) && cacheResponseTable[playerName] != null) break;
+                }
+            }
+            
+            bool ok = false;
+            
+            lock (cacheResponseTable) {
+                ok = (cacheResponseTable.ContainsKey(playerName) && cacheResponseTable[playerName] != null);
+            }
+            if (!ok) {
+                DebugWrite(requestType + "(" + playerName + ") timed out, request exceeded " + maxWait.ToString("F1") + " seconds! Network congestion or another plugin lagging Procon?", 4);
+                lock (cacheResponseTable) {
+                    if (cacheResponseTable.ContainsKey(playerName)) {
+                        cacheResponseTable.Remove(playerName);
+                    }
+                }
+                return String.Empty;
+            }
+            
+            String r = String.Empty;
+            
+            lock (cacheResponseTable) {
+                if (cacheResponseTable.ContainsKey(playerName)) {
+                    r = cacheResponseTable[playerName];
+                    cacheResponseTable.Remove(playerName);
+                }
+            }
+            
+            Hashtable header = (Hashtable)JSON.JsonDecode(r);
+            
+            if (header == null) {
+                DebugWrite(requestType + "(" + playerName + "), failed, header is null", 4);
+                return r;
+            }
+            
+            double fetchTime = -1;
+            Double.TryParse((String)header["fetchTime"], out fetchTime);
+            double age = -1;
+            Double.TryParse((String)header["age"], out age);
+            
+            if (fetchTime > 0) {
+                DebugWrite(requestType + "(" + playerName + "), cache refreshed from Battlelog, took ^2" + fetchTime.ToString("F1") + " seconds", 5);
+            } else if (age > 0) {
+                TimeSpan a = TimeSpan.FromSeconds(age);
+                DebugWrite(requestType + "(" + playerName + "), cached stats used, age is " + a.ToString().Substring(0,8), 5);
+            }
+            DebugWrite("^2^bTIME^n took " + DateTime.Now.Subtract(since).TotalSeconds.ToString("F2") + " secs, cache lookup for " + playerName, 5);
+            
+            return r;
+        }
+        
+        public void CacheResponse(params String[] response)
+        {
+            /*
+            Called from the Battlelog Cache plugin Response thread
+            */
+            String val = null;
+            DebugWrite("CacheResponse called with " + response.Length + " parameters", 5);
+            if (getIntegerVarValue("debug_level") >= 5) {
+                for (int i = 0; i < response.Length; ++i) {
+                    DebugWrite("#" + i + ") Length: " + response[i].Length, 5);
+                    val = response[i];
+                    if (val.Length > 100) val = val.Substring(0, 100) + " ... ";
+                    if (val.Contains("{")) val = val.Replace('{','<').Replace('}','>'); // ConsoleWrite doesn't like messages with "{" in it
+                    DebugWrite("#" + i + ") Value: " + val, 5);
+                }
+            }
+            
+            String key = response[0]; // Player's name
+            val = response[1]; // JSON string
+            
+            bool ok = false;
+            lock (cacheResponseTable) {
+                ok = cacheResponseTable.ContainsKey(key);
+            }
+                
+            if (!ok) {
+                DebugWrite("^1WARNING: Unknown cache response for " + key + " (perhaps request timed out?)", 4);
+                return;
+            }
+            
+            lock (cacheResponseTable) {
+                ok = (cacheResponseTable[key] == null);
+                
+            }
+            if (!ok) {
+                DebugWrite("^1WARNING: Cache response collision for " + key, 4);
+                return;
+            }
+            
+            lock (cacheResponseTable) {
+                cacheResponseTable[key] = val;
+            }
+            DebugWrite("CacheResponse reply, signal SendCacheRequest to unblock", 7);
+            reply_handle.Set();
+        }
+
+        /* R38/Procon 1.4.0.7 */
+
+
+        public override void OnPlayerIdleDuration(string soldierName, int idleTime) 
+        {
+            DebugWrite("Got ^bOnPlayerIdleDuration^n: " + soldierName + ", " + idleTime, 8);
+            if (!plugin_activated) return;
+
+            try
+            {
+                if (String.IsNullOrEmpty(soldierName)) return;
+
+                PlayerInfo pinfo = null;
+
+                lock (players_mutex) {
+                    if (players.ContainsKey(soldierName)) {
+                        players.TryGetValue(soldierName, out pinfo);
+                    }
+                }
+
+                if (pinfo == null) return;
+                
+                pinfo._idleTime = Math.Max(0, idleTime);
+            } 
+            catch (Exception e)
+            {
+                DebugWrite(e.Message, 5);
+            }
+        }
+
+        public override void OnPlayerIsAlive(string soldierName, bool isAlive)
+        {
+            DebugWrite("Got ^bOnPlayerIsAlive^n: " + soldierName + ", " + isAlive, 8);
+        }
+        public override void OnPlayerPingedByAdmin(string soldierName, int ping)
+        {
+            DebugWrite("Got ^bOnPlayerPingedByAdmin^n: " + soldierName + ", " + ping, 8);
+            if (!plugin_activated) return;
+
+            try
+            {
+                if (String.IsNullOrEmpty(soldierName)) return;
+
+                PlayerInfo pinfo = null;
+
+                lock (players_mutex) {
+                    if (players.ContainsKey(soldierName)) {
+                        players.TryGetValue(soldierName, out pinfo);
+                    }
+                }
+
+                if (pinfo == null) return;
+                
+                pinfo.Ping = Math.Max(0, Math.Min(ping, 1000));
+            } 
+            catch (Exception e)
+            {
+                DebugWrite(e.Message, 5);
+            }
+        }
+
+        public override void OnSquadLeader(int teamId, int squadId, string soldierName)
+        {
+            DebugWrite("Got ^bOnSquadLeader^n: " + soldierName + ", " + teamId + ", " + squadId, 8);
+        }
+
+        public override void OnSquadListActive(int teamId, int squadClount, List<int> squadList)
+        {
+            DebugWrite("Got ^bOnSquadListActive^n: " + teamId + ", " + squadClount + ", " + squadList.Count, 8);
+        }
+
+        public override void OnSquadListPlayers(int teamId, int squadId, int playerCount, List<string> playersInSquad)
+        {
+            DebugWrite("Got ^bOnSquadListPlayers^n: " + teamId + ", " + squadId + ", " + playerCount + ", " + playersInSquad.Count, 8);
+        }
+        public override void OnSquadIsPrivate(int teamId, int squadId, bool isPrivate)
+        {
+            DebugWrite("Got ^bOnSquadIsPrivate^n: " + teamId + ", " + squadId + ", " + isPrivate, 8);
+        }
+        public override void OnCtfRoundTimeModifier(int limit)
+        {
+            DebugWrite("Got ^bOnCtfRoundTimeModifier^n: " + limit, 8);
+            if (!plugin_activated) return;
+
+            this.ctfRoundTimeModifier = limit;
+        }
+
+        public override void OnGunMasterWeaponsPreset(int preset)
+        {
+            DebugWrite("Got ^bOnGunMasterWeaponsPreset^n: " + preset, 8);
+        }
+        
+        public override void OnVehicleSpawnAllowed(bool isEnabled)
+        {
+            DebugWrite("Got ^bOnVehicleSpawnAllowed^n: " + isEnabled, 8);
+        }
+
+        public override void OnVehicleSpawnDelay(int limit)
+        {
+            DebugWrite("Got ^bOnVehicleSpawnDelay^n: " + limit, 8);
+        }
+
+        public override void OnBulletDamage(int limit)
+        {
+            DebugWrite("Got ^bOnBulletDamage^n: " + limit, 8);
+        }
+
+        public override void OnOnlySquadLeaderSpawn(bool isEnabled)
+        {
+            DebugWrite("Got ^bOnOnlySquadLeaderSpawn^n: " + isEnabled, 8);
+        }
+
+        public override void OnSoldierHealth(int limit)
+        {
+            DebugWrite("Got ^bOnSoldierHealth^n: " + limit, 8);
+        }
+
+        public override void OnPlayerManDownTime(int limit)
+        {
+            DebugWrite("Got ^bOnPlayerManDownTime^n: " + limit, 8);
+        }
+
+        public override void OnPlayerRespawnTime(int limit)
+        {
+            DebugWrite("Got ^bOnPlayerRespawnTime^n: " + limit, 8);
+        }
+
+        public override void OnHud(bool isEnabled)
+        {
+            DebugWrite("Got ^bOnHud^n: " + isEnabled, 8);
+        }
+
+        public override void OnGameModeCounter(int limit)
+        {
+            DebugWrite("Got ^bOOnGameModeCounter^n: " + limit, 8);
+            if (!plugin_activated) return;
+
+            this.gameModeCounter = limit;
+        }
+
+
     }
 
 
@@ -11850,6 +12761,7 @@ public interface DataDictionaryInterface
         public WebException web_exception = null;
         public StatsException(String message) : base(message) { }
         public StatsException(String message, int code) : base(message) { this.code = code; }
+        public StatsException(String message, String url) : base(message + " (" + url + ")") { }
     }
 
     public class TwitterException : Exception
@@ -11917,7 +12829,7 @@ public interface DataDictionaryInterface
                 //html_data = client.DownloadString(testUrl + "404%20Not%20Found");
                 */
                 
-                plugin.DebugWrite("^2^bTIME^n took " + DateTime.Now.Subtract(since).TotalSeconds.ToString("F2") + " secs, fetchWebPage: " + url, 4);
+                plugin.DebugWrite("^2^bTIME^n took " + DateTime.Now.Subtract(since).TotalSeconds.ToString("F2") + " secs, fetchWebPage: " + url, 5);
 
                 if (Regex.Match(html_data, @"that\s+page\s+doesn't\s+exist", RegexOptions.IgnoreCase | RegexOptions.Singleline).Success)
                     throw new StatsException("^b" + url + "^n does not exist", 404);
@@ -11944,80 +12856,196 @@ public interface DataDictionaryInterface
 
             return html_data;
         }
+        
+        private bool CheckSuccess(Hashtable json, out StatsException statsEx)
+        {
+            String m;
+            
+            if (json == null) {
+                m = "JSON response is null!";
+                plugin.DebugWrite(m, 5);
+                statsEx =  new StatsException(m);
+                return false;
+            }
+            
+            if (!json.ContainsKey("type")) {
+                m = "JSON response malformed: does not contain 'type'!";
+                plugin.DebugWrite(m, 5);
+                statsEx =  new StatsException(m);
+                return false;
+            }
+            
+            String type = (String)json["type"];
+
+            if (type == null) {
+                m = "JSON response malformed: 'type' is null!";
+                plugin.DebugWrite(m, 5);
+                statsEx =  new StatsException(m);
+                return false;
+            }
+
+            if (Regex.Match(type, @"success", RegexOptions.IgnoreCase).Success) {
+                statsEx = null;
+                return true;
+            }
+            
+            if (!json.ContainsKey("message")) {
+                m = "JSON response malformed: does not contain 'message'!";
+                plugin.DebugWrite(m, 5);
+                statsEx =  new StatsException(m);
+                return false;
+            }
+
+            String message = (String)json["message"];
+
+            if (message == null) {
+                m = "JSON response malformed: 'message' is null!";
+                plugin.DebugWrite(m, 5);
+                statsEx =  new StatsException(m);
+                return false;
+            }
+
+            m = "Cache fetch failed (type: " + type + ", message: " + message + ")!";
+            plugin.DebugWrite(m, 5);
+            statsEx = new StatsException(m); 
+            return false;
+        }
+        
+        
+        private String fetchJSON(ref String bigText, String url, String playerName, String requestType)
+        {
+            bool directFetchEnabled = plugin.getBooleanVarValue("use_direct_fetch");
+            bool cacheEnabled = plugin.IsCacheEnabled(false);
+            bool ok = false;
+            
+            bigText = String.Empty;
+            
+            if (cacheEnabled) {
+                // block waiting for cache to respond
+                bigText = plugin.SendCacheRequest(playerName, requestType);
+                ok = !String.IsNullOrEmpty(bigText);
+                if (ok) return String.Empty;
+                // if !ok, fall back on direct fetch, if enabled
+            }
+            
+            if (!ok && directFetchEnabled && url != null) {
+                return fetchWebPage(ref bigText, url);
+            }
+            
+            if (url == null && requestType == "clanTag") {
+                return String.Empty; // caller may try direct
+            }
+            
+            // Unable to fetch JSON
+            plugin.DebugWrite("Unable to fetch stats for " + playerName + ", caching is disabled and direct fetch is disabled!", 4);
+            throw new StatsException("stats fetching is disabled");
+            
+            return String.Empty;
+        }
 
 
         public PlayerInfo fetchStats(PlayerInfo pinfo)
         {
             try
             {
+                bool directFetchEnabled = plugin.getBooleanVarValue("use_direct_fetch");
+                bool cacheEnabled = plugin.IsCacheEnabled(false);
+                
                 String player = pinfo.Name;
+                String result = String.Empty;
+                String personaId = String.Empty;
+                Hashtable json = null;
+                String type = null;
+                String message = null;
+                StatsException statsEx = null;
 
-                /* First fetch the player's main page to get the persona id */
-
-                String result = "";
-
-                if (!plugin.plugin_enabled) {
-                    throw new StatsException("fetchStats aborted, disabling plugin ...");
+                if (!cacheEnabled && !directFetchEnabled) {
+                    throw new StatsException("Unable to fetch stats for " + player + ", cache is disabled and direct fetching is disabled!");
                 }
 
-                fetchWebPage(ref result, "http://battlelog.battlefield.com/bf3/user/" + player);
+                /* First fetch the player's main page to get the persona id */
+                
+                bool okClanTag = false;
+                if (cacheEnabled) {
+                    /* Get clan tag from cache */
+                    fetchJSON(ref result, null, player, "clanTag");
+                    
+                    json = (Hashtable)JSON.JsonDecode(result);
+
+                    if (!CheckSuccess(json, out statsEx)) throw statsEx;
+
+                    /* verify there is data structure */
+                    Hashtable d = null;
+                    if (!json.ContainsKey("data") || (d = (Hashtable)json["data"]) == null)
+                        throw new StatsException("JSON clanTag response does not contain a ^bdata^n field, for " + player);
+
+                    if (!d.ContainsKey("clanTag"))
+                        throw new StatsException("JSON clanTag response does not contain a ^bclanTag^n field, for " + player);
+
+                    String t = (String)d["clanTag"];
+                    if (!String.IsNullOrEmpty(t)) pinfo.tag = t;
+                    okClanTag = true;
+                }
+
+                if (!okClanTag && directFetchEnabled)
+                {
+                    if (!plugin.plugin_enabled) {
+                        throw new StatsException("fetchStats aborted, disabling plugin ...");
+                    }
+
+                    fetchWebPage(ref result, "http://battlelog.battlefield.com/bf3/user/" + player);
+
+                    if (!plugin.plugin_enabled) {
+                        throw new StatsException("fetchStats aborted, disabling plugin ...");
+                    }
+
+
+                    /* Extract the persona id */
+                    MatchCollection pid = Regex.Matches(result, @"bf3/soldier/" + player + @"/stats/(\d+)(['""]|/\s*['""]|/[^/'""]+)", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+
+
+                    foreach (Match match in pid)
+                        if (match.Success && !Regex.Match(match.Groups[2].Value.Trim(), @"(ps3|xbox)", RegexOptions.IgnoreCase).Success) {
+                            personaId = match.Groups[1].Value.Trim();
+                            break;
+                        }
+
+
+                    if (String.IsNullOrEmpty(personaId))
+                        throw new StatsException("could not find persona-id for ^b" + player);
+
+                    extractClanTag(result, pinfo);
+                } 
+
+                /* Next, get player's overview stats */
                 
                 if (!plugin.plugin_enabled) {
                     throw new StatsException("fetchStats aborted, disabling plugin ...");
                 }
 
-
-                /* Extract the persona id */
-                MatchCollection pid = Regex.Matches(result, @"bf3/soldier/" + player + @"/stats/(\d+)([^/""]+)?", RegexOptions.IgnoreCase | RegexOptions.Singleline);
-
-
-                String personaId = String.Empty;
-
-                foreach (Match match in pid)
-                    if (match.Success && !Regex.Match(match.Groups[2].Value.Trim(), @"(ps3|xbox)", RegexOptions.IgnoreCase).Success)
-                        personaId = match.Groups[1].Value.Trim();
-
-
-                if (personaId.Length == 0)
-                    throw new StatsException("could not find persona-id for ^b" + player);
-
-                extractClanTag(result, pinfo);
+                String furl = "http://battlelog.battlefield.com/bf3/overviewPopulateStats/" + personaId + "/bf3-us-engineer/1/";
+                fetchJSON(ref result, furl, player, "overview");
 
                 if (!plugin.plugin_enabled) {
                     throw new StatsException("fetchStats aborted, disabling plugin ...");
                 }
 
-                fetchWebPage(ref result, "http://battlelog.battlefield.com/bf3/overviewPopulateStats/" + personaId + "/bf3-us-engineer/1/");
-
-
-                if (!plugin.plugin_enabled) {
-                    throw new StatsException("fetchStats aborted, disabling plugin ...");
-                }
-
-                Hashtable json = (Hashtable)JSON.JsonDecode(result);
+                json = (Hashtable)JSON.JsonDecode(result);
 
                 // check we got a valid response
 
-                if (!(json.ContainsKey("type") && json.ContainsKey("message")))
-                    throw new StatsException("JSON response does not contain \"type\" or \"message\" fields");
-
-                String type = (String)json["type"];
-                String message = (String)json["message"];
-
                 /* verify we got a success message */
-                if (!(type.StartsWith("success") && message.StartsWith("OK")))
-                    throw new StatsException("JSON response was ^btype^n=^b" + type + "^b, ^bmessage^n=^b" + message);
-
+                if (!CheckSuccess(json, out statsEx)) throw statsEx;
 
                 /* verify there is data structure */
                 Hashtable data = null;
                 if (!json.ContainsKey("data") || (data = (Hashtable)json["data"]) == null)
-                    throw new StatsException("JSON response was does not contain a ^bdata^n field");
+                    throw new StatsException("JSON response does not contain a ^bdata^n field, for " + player, furl);
 
                 /* verify there is stats structure */
                 Hashtable stats = null;
                 if (!data.ContainsKey("overviewStats") || (stats = (Hashtable)data["overviewStats"]) == null)
-                    throw new StatsException("JSON response ^bdata^n does not contain ^boverviewStats^n");
+                    throw new StatsException("JSON response ^bdata^n does not contain ^boverviewStats^n, for " + player, furl);
 
                 /* extract the fields from the stats */
                 extractBasicFields(stats, pinfo);
@@ -12025,9 +13053,9 @@ public interface DataDictionaryInterface
                 /* verify there is a kitmap structure */
                 Hashtable kitMap = null;
                 if (!data.ContainsKey("kitMap") || (kitMap = (Hashtable)data["kitMap"]) == null)
-                    throw new StatsException("JSON response ^bdata^n does not contain ^bkitMap^n");
+                    throw new StatsException("JSON response ^bdata^n does not contain ^bkitMap^n, for " + player, furl);
 
-                /* Buuild the id->kit and kit->id maps */
+                /* Build the id->kit and kit->id maps */
                 List<Dictionary<String, String>> maps = buildKitMaps(kitMap);
                 Dictionary<String, String> kit2id = maps[1];
                 Dictionary<String, String> id2kit = maps[1];
@@ -12035,7 +13063,7 @@ public interface DataDictionaryInterface
                 /* verify there is kit times (seconds) structure */
                 Hashtable kitTimes = null;
                 if (!stats.ContainsKey("kitTimes") || (kitTimes = (Hashtable)stats["kitTimes"]) == null)
-                    throw new StatsException("JSON response ^boverviewStats^n does not contain ^bkitTimes^n");
+                    throw new StatsException("JSON response ^boverviewStats^n does not contain ^bkitTimes^n, for " + player, furl);
 
                 /*  extract the kit times (seconds) */
                 extractKitTimes(kitTimes, id2kit, pinfo, "_t");
@@ -12043,7 +13071,7 @@ public interface DataDictionaryInterface
                 /* verify there is kit time (percent) structure */
                 Hashtable kitTimesInPercentage = null;
                 if (!stats.ContainsKey("kitTimesInPercentage") || (kitTimesInPercentage = (Hashtable)stats["kitTimesInPercentage"]) == null)
-                    throw new StatsException("JSON response ^boverviewStats^n does not contain ^bkitTimesInPercentage^n");
+                    throw new StatsException("JSON response ^boverviewStats^n does not contain ^bkitTimesInPercentage^n, for " + player, furl);
 
                 /*  extract the kit times (percentage) */
                 extractKitTimes((Hashtable)stats["kitTimesInPercentage"], id2kit, pinfo, "_p");
@@ -12059,13 +13087,13 @@ public interface DataDictionaryInterface
                     String logName = @"Logs\" + plugin.server_host + "_" + plugin.server_port + @"\" + DateTime.Now.ToString("yyyyMMdd") + "_battle.log";
 
                     /* print the collected stats to log */
-                    if (plugin.getIntegerVarValue("debug_level") >= 3) {
+                    if (plugin.getBooleanVarValue("use_stats_log")) {
                         since = DateTime.Now;
                         
-                        plugin.Log(logName, "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + pinfo.FullName + " Battlelog player stats:");
+                        plugin.Log(logName, "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + pinfo.FullName + ((okClanTag && cacheEnabled) ? " Battlelog CACHED stats: " : " Battlelog player stats:"));
                         pinfo.dumpStatProperties("web", logName);
                         
-                        if (DateTime.Now.Subtract(since).TotalSeconds > 1) plugin.DebugWrite("^2^bTIME^n took " + DateTime.Now.Subtract(since).TotalSeconds.ToString("F2") + " secs, dumpStatProperties", 4);
+                        if (DateTime.Now.Subtract(since).TotalSeconds > 1) plugin.DebugWrite("^2^bTIME^n took " + DateTime.Now.Subtract(since).TotalSeconds.ToString("F2") + " secs, dumpStatProperties", 5);
                     }
 
                     
@@ -12074,7 +13102,7 @@ public interface DataDictionaryInterface
                     if (plugin.getBooleanVarValue("use_slow_weapon_stats")) {
                         wstats = extractWeaponStats(pinfo, personaId);
                     } else {
-                        plugin.DebugWrite("^1^buse_slow_weapon_stats^n is ^bFalse^n, skipping fetch from Battlelog", 4);
+                        plugin.DebugWrite("^1^buse_slow_weapon_stats^n is ^bFalse^n, skipping fetch of weapon stats", 5);
                     }
 
                     pinfo.BWS.setWeaponData(wstats);
@@ -12083,7 +13111,7 @@ public interface DataDictionaryInterface
                         throw new StatsException("fetchStats aborted, disabling plugin ...");
                     }
 
-                    if (wstats != null && plugin.getIntegerVarValue("debug_level") >= 3) {
+                    if (wstats != null && plugin.getBooleanVarValue("use_stats_log")) {
                         since = DateTime.Now;
                         
                         String bwsBlob = "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + pinfo.FullName + " Battlelog weapon stats:\n";
@@ -12093,9 +13121,9 @@ public interface DataDictionaryInterface
                         bwsBlob = bwsBlob + "=====================\n";
                         plugin.AppendData(bwsBlob, logName); // raw version of Log()
                         
-                        if (DateTime.Now.Subtract(since).TotalSeconds > 1) plugin.DebugWrite("^2^bTIME^n took " + DateTime.Now.Subtract(since).TotalSeconds.ToString("F2") + " secs, log weapon stats", 4);
+                        if (DateTime.Now.Subtract(since).TotalSeconds > 1) plugin.DebugWrite("^2^bTIME^n took " + DateTime.Now.Subtract(since).TotalSeconds.ToString("F2") + " secs, log weapon stats", 5);
                     }
-                    plugin.DebugWrite("done logging stats for " + pinfo.Name, 4);
+                    plugin.DebugWrite("done logging stats for " + pinfo.Name, 5);
                 
                 } catch (Exception e) {
                     throw;
@@ -12106,7 +13134,7 @@ public interface DataDictionaryInterface
             catch (StatsException e)
             {
                 if (e.web_exception == null) {
-                    plugin.ConsoleWarn("(StatsException) " + e.Message);
+                    if (plugin.getIntegerVarValue("debug_level") >= 4) plugin.ConsoleWarn("(StatsException) " + e.Message);
                 } else {
                     plugin.DebugWrite("(StatsException) System.Net.WebException: " + e.web_exception.Message, 4);
                     pinfo._web_exception = e.web_exception;
@@ -12126,7 +13154,24 @@ public interface DataDictionaryInterface
             }
             catch (Exception e)
             {
+                pinfo.StatsError = true;
                 plugin.DumpException(e);
+            }
+            finally
+            {
+                // Clean-up the cache response, if any
+                bool didit = false;
+                if (pinfo != null && pinfo.Name != null) {
+                    lock (plugin.cacheResponseTable) {
+                        if (plugin.cacheResponseTable.ContainsKey(pinfo.Name)) {
+                            plugin.cacheResponseTable.Remove(pinfo.Name);
+                            didit = true;
+                        }
+                    }
+                    if (didit) {
+                        plugin.DebugWrite("Finally cleaned up cacheResponseTable for " + pinfo.Name, 4);
+                    }
+                }
             }
 
             return pinfo;
@@ -12136,38 +13181,35 @@ public interface DataDictionaryInterface
         {
             /* extract per-weapon stats */
             String result = String.Empty;
+            String player = pinfo.Name;
+            Hashtable json = null;
+            StatsException statsEx = null;
 
             if (!plugin.plugin_enabled) {
                 throw new StatsException("fetchStats aborted, disabling plugin ...");
             }
 
-            fetchWebPage(ref result, "http://battlelog.battlefield.com/bf3/weaponsPopulateStats/" + personaId + "/1");
+            String furl = "http://battlelog.battlefield.com/bf3/weaponsPopulateStats/" + personaId + "/1";
+            fetchJSON(ref result, furl, player, "weapon");
 
-            Hashtable json = (Hashtable)JSON.JsonDecode(result);
+            json = (Hashtable)JSON.JsonDecode(result);
 
             result = null;
 
             // check we got a valid response
-
-            if (!(json.ContainsKey("type") && json.ContainsKey("message")))
-                throw new StatsException("JSON response does not contain \"type\" or \"message\" fields for weapon stats");
-
-            String type = (String)json["type"];
-            String message = (String)json["message"];
-
+            
             /* verify we got a success message */
-            if (!(type.StartsWith("success") && message.StartsWith("OK")))
-                throw new StatsException("JSON response was ^btype^n=^b" + type + "^b, ^bmessage^n=^b" + message + " for weapon stats");
+            if (!CheckSuccess(json, out statsEx)) throw statsEx;
 
             /* verify there is data structure */
             Hashtable data = null;
             if (!json.ContainsKey("data") || (data = (Hashtable)json["data"]) == null)
-                throw new StatsException("JSON response was does not contain a ^bdata^n field");
+                throw new StatsException("JSON weapon response was does not contain a ^bdata^n field, for " + player, furl);
 
             /* verify there is stats structure */
             ArrayList wstats = null;
             if (!data.ContainsKey("mainWeaponStats") || (wstats = (ArrayList)data["mainWeaponStats"]) == null)
-                throw new StatsException("JSON response ^bdata^n does not contain ^bmainWeaponStats^n");
+                throw new StatsException("JSON weapon response ^bdata^n does not contain ^bmainWeaponStats^n, for " + player, furl);
 
             int count = 0;
             int parsed = 0;
@@ -12185,11 +13227,11 @@ public interface DataDictionaryInterface
                 try
                 {
                     if (item == null || !item.GetType().Equals(typeof(Hashtable)))
-                        throw new Exception();
+                        throw new Exception("weapon item invalid");
 
                     Hashtable wstat = null;
                     if ((wstat = (Hashtable)item) == null)
-                        throw new Exception();
+                        throw new Exception("weapon item null");
 
 
                     BattlelogWeaponStats bwstats = new BattlelogWeaponStats();
@@ -12201,7 +13243,7 @@ public interface DataDictionaryInterface
                     {
                         if (!wstat.ContainsKey(key) || wstat[key] == null)
                         {
-                            plugin.ConsoleError("JSON structure of weapon stat does not contain ^b" + key + "^n");
+                            plugin.DebugWrite("JSON structure of weapon stat does not contain ^b" + key + "^n, for " + player, 4);
                             failed = true;
                             break;
                         }
@@ -12210,7 +13252,7 @@ public interface DataDictionaryInterface
                         PropertyInfo prop = null;
                         if ((prop = dtype.GetProperty(pname)) == null)
                         {
-                            plugin.ConsoleError(dtype.Name + " does not contain ^b" + pname + "^n property");
+                            plugin.DebugWrite(dtype.Name + " does not contain ^b" + pname + "^n property, for " + player, 4);
                             failed = true;
                             break;
                         }
@@ -12241,7 +13283,7 @@ public interface DataDictionaryInterface
             }
 
             if (count > 0)
-                plugin.ConsoleError("could not parse " + count + " weapon" + ((count > 1) ? "s" : "") + " for ^b" + pinfo.Name + "^n");
+                plugin.DebugWrite("could not parse " + count + " weapon" + ((count > 1) ? "s" : "") + " for ^b" + pinfo.Name + "^n", 4);
 
             return all_weapons;
         }
@@ -12404,6 +13446,10 @@ public interface DataDictionaryInterface
         public int MapIndex { get { return indices[0]; } }
         [A("map")]
         public int NextMapIndex { get { return indices[1]; } }
+        [A("map")]
+        public double GameModeCounter { get { return plugin.gameModeCounter; } }
+        [A("map")]
+        public double CTFRoundTimeModifier { get { return plugin.ctfRoundTimeModifier; } }
 
         public List<String> MapFileNameRotation { get { return _mapRotation; } }
         public List<String> GamemodeRotation { get { return _modeRotation; } }
@@ -12778,6 +13824,8 @@ public interface DataDictionaryInterface
         public String _last_chat = "";
         public double _score = 0;
         public WebException _web_exception = null;
+        public int _ping = 0;
+        public double _idleTime = 0;
 
         public WeaponStatsDictionary W = null;
         public BattlelogWeaponStatsDictionary BWS = null;
@@ -12891,6 +13939,7 @@ public interface DataDictionaryInterface
         public String PBGuid { get { return pbInfo.GUID; } }
         public int TeamId { get { return info.TeamID; } set { info.TeamID = value; } }
         public int SquadId { get { return info.SquadID; } set { info.SquadID = value; } }
+        public int Ping { get { return _ping; } set { _ping = value; } }
 
 
         /* Round Statistics */
@@ -13497,7 +14546,7 @@ public interface DataDictionaryInterface
                 return name;
             else if (EventWeapon)
             {
-                plugin.ConsoleWarn("detected that weapon ^b" + name + "^n is not in dictionary, adding it");
+                plugin.DebugWrite("detected that weapon ^b" + name + "^n is not in dictionary, adding it", 4);
                 try { plugin.WeaponsDict.Add(name, true); }
                 catch (Exception e) { }
                 return name;
@@ -13514,7 +14563,7 @@ public interface DataDictionaryInterface
             }
 
             if (verbose)
-                plugin.ConsoleWarn("could not find weapon ^b" + name + "^n, but found ^b" + new_name + "^n, edit distance of ^b" + distance + "^n");
+                plugin.DebugWrite("could not find weapon ^b" + name + "^n, but found ^b" + new_name + "^n, edit distance of ^b" + distance + "^n", 4);
             return new_name;
         }
 
@@ -13721,7 +14770,7 @@ public interface DataDictionaryInterface
             if (plugin.rcon2bw.ContainsKey(shortName)) return plugin.rcon2bw[shortName];
             
             if (data.Keys.Count == 0) {
-                if (verbose) plugin.DebugWrite("^1^bWARNING^0^n: GetBattlelog: use_slow_weapon_stats was False at time of fetch for this player, so no stats to find for " + shortName, 3);
+                if (verbose) plugin.DebugWrite("^1^bWARNING^0^n: GetBattlelog: use_slow_weapon_stats was False at time of fetch for this player, so no stats to find for " + shortName, 4);
                 return shortName;
             }
 
@@ -13744,19 +14793,19 @@ public interface DataDictionaryInterface
             if (new_name == null)
             {
                 if (verbose)
-                    plugin.DebugWrite("^1^bWARNING^0^n: GetBattlelog: could not find weapon ^b" + shortName + "^n in dictionary", 3);
+                    plugin.DebugWrite("^1^bWARNING^0^n: GetBattlelog: could not find weapon ^b" + shortName + "^n in dictionary", 4);
                 return null;
             }
 
             if (verbose)
-                plugin.DebugWrite("^1^bWARNING^0^n: GetBattlelog: could not find weapon ^b" + shortName + "^n, but guessed ^b" + new_name + "^n, with inaccuracy of ^b" + distance.ToString("F3") + "^n (10 or less is a good guess)", 3);
+                plugin.DebugWrite("^1^bWARNING^0^n: GetBattlelog: could not find weapon ^b" + shortName + "^n, but guessed ^b" + new_name + "^n, with inaccuracy of ^b" + distance.ToString("F3") + "^n (10 or less is a good guess)", 4);
             return new_name;
         }
 
         public BattlelogWeaponStats getWeaponData(String name)
         {
             if (data.Keys.Count == 0) {
-                plugin.DebugWrite("^1^bWARNING^0^n: GetBattlelog: use_slow_weapon_stats was False at time of fetch for this player, so no weapon stats available", 3);
+                plugin.DebugWrite("^1^bWARNING^0^n: GetBattlelog: use_slow_weapon_stats was False at time of fetch for this player, so no weapon stats available", 4);
                 return SkippedWeaponStats;
             }
             
@@ -13973,4 +15022,3 @@ public interface DataDictionaryInterface
 
     }
 }
-

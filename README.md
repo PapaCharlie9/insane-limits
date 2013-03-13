@@ -3,9 +3,12 @@ Description
 
 This plugin is a customizable limits/rules enforcer. It allows you to setup and enforce limits based on player statistics, and server state.   
   
-It tracks extensive Battlelog stats, and round stats. If you feel that there is a stat, or aggregate, or information that really needs to be included, post feedback on the PRoCon forums. The plugin supports events like OnKill, OnTeamKill, OnJoin, OnSpawn, etc. You are able to perform actions triggered by those events.  
+It tracks extensive Battlelog stats and round stats. If you feel that there is a stat, or aggregate, or information that really needs to be included, post feedback on the PRoCon forums. The plugin supports events like OnKill, OnTeamKill, OnJoin, OnSpawn, etc. You are able to perform actions triggered by those events.
+
+Version 0.9.4.0 and later is optionally integrated with a MySQL server (using the Battlelog Cache plugin). This enables caching of Battlelog stats fetching, which
+over time should reduce the delay caused by restarting Procon/enabling Insane Limits when your server is full. This should also reduce load on Battlelog, which in turn will reduce the number of Web errors and exceptions. This version is compatible with TrueBalancer and other plugins that use stats fetching.
   
-For a full list of examples, jump to the index in the <a href="http://www.phogue.net/forumvb/showthread.php?3448-Insane-Limits-Examples" >Insane Limits - Examples thread.</a>  
+Several limits have been developed and can be found in the <a href="http://www.phogue.net/forumvb/forumdisplay.php?36-Plugin-Enhancements">Procon Plugin Enhancements forum</a>.  
   
 By default, the plugin ships with **virtual_mode** set to _True_. This allows you to test your limits/rules without any risk of accidentally kicking or banning anyone. Once you feel your limits/rules are ready, you can disable **virtual_mode**.  
    
@@ -162,7 +165,8 @@ These are all the allowed actions:
 * _PRoConChat_ - sends the specified text to PRoCon's Chat-Tab, if the limit evaluates _True_
 * _PRoConEvent_ - adds the specified event to PRoCon's Events-Tab, if the limit evaluates_True_
 * _TaskbarNotify_ - sends a Windows Taskbar notification, if the limit evaluates _True_
-* _SoundNotify_ - plays an audio notification, if the limit evaluates _True_
+* _SoundNotify_ - plays a sound notification with the specified sound file, if the limit evaluates _True_
+* _Yell_ - yells a message to the server (All, Team, or Player), if the limit evaluates _True_
   
 Depending on the selected action, other fields are shown to specify more information about the action.  
   
@@ -517,6 +521,10 @@ public interface PluginInterface
     bool SendTeamMessage(int teamId, String message, int delay);
     bool SendSquadMessage(int teamId, int squadId, String message, int delay);
 
+    bool SendGlobalYell(String message, int duration);
+    bool SendTeamYell(int teamId, String message, int duration);
+    bool SendPlayerYell(String name, String message, int duration);
+
     bool SendMail(String address, String subject, String body);
     bool SendSMS(String country, String carrier, String number, String message);
 
@@ -539,6 +547,8 @@ public interface PluginInterface
 
     /* Method for checking generic lists */
     bool isInList(String item, String list_name);
+
+    List<String> GetReservedSlotsList();
 
     /*
      * Methods getting and setting the Plugin's variables
@@ -581,6 +591,19 @@ public interface PluginInterface
     String ExtractCommand(String text);         //if given text starts with one of these charactets !/@? it removes them
     String ExtractCommandPrefix(String text);   //if given text starts with one of these chracters !/@? it returns the character
 
+    /* This method checks if the currently in-game player with matching name has
+       a Procon account on the Procon instance controlling this game server. Returns
+       False if the name does not match any of the players currently joined to the game server.
+       The canBan value is set to true if the player can temporary ban or permanently ban.
+    */
+    bool CheckAccount(String name, out bool canKill, out bool canKick, out bool canBan, out bool canMove, out bool canChangeLevel);
+
+    /* This method looks in the internal player's list for player with matching name.
+     * If fuzzy argument is set to true, it will find the player name that best matches the given name
+     *
+     /
+    PlayerInfoInterface GetPlayer(String name, bool fuzzy);
+
     /*
      * Creates a file in ProCOn's directory  (InsaneLimits.dump)
      * Detailed information about the exception.
@@ -590,6 +613,11 @@ public interface PluginInterface
     /* Data Repository set/get custom data */
     DataDictionaryInterface Data { get; }
     DataDictionaryInterface RoundData { get; }   //this dictionary is automaticaly cleared OnRoundStart
+
+    /* Friendly names */
+    String FriendlyMapName(String mapFileName);  //example: "MP_001" -> "Grand Bazaar"
+    String FriendlyModeName(String modeName);    //example: "TeamDeathMatch0" -> "TDM"
+
 }
 ~~~
 
@@ -805,12 +833,33 @@ becomes
 Settings  
 -------------
   
+0. **use_direct_fetch**
+
+  _True_ - if the cache is not available, fetch stats directly from Battlelog
+  
+  _False_ - disable direct fetches from Battlelog
+
+  > If the **Battlelog Cache** plugin is installed, up to date and enabled, it will be used for player stats regardless of the setting of this option. If the **Battlelog Cache** plugin is not installed, not up to date or disabled, setting **use_direct_fetch** to True will act as a fallback system, fetching stats directly from Battlelog. Otherwise, stats fetching will fail since the cache is not available and this setting is False.
+
 0. **use_slow_weapon_stats**
+
   _False_ - skip fetching weapon stats for new players
+  
   _True_ - fetch weapon stats for new players
 
-  > Fetching weapon stats from Battlelog takes a long time, 15 seconds or more per player. By default, this slow fetch is disabled (False), so that your Procon restart or initial plugin enable time on a full server won't be delayed or bogged down while fetching weapon stats. However, if you have limits that use the GetBattlelog() function, you **must** set this value to True, or else stats will not be available.
+  > Visible only if **use_direct_fetch** is set to True. Fetching weapon stats from Battlelog takes a long time, 15 seconds or more per player. By default, this slow fetch is disabled (False), so that your Procon restart or initial plugin enable time on a full server won't be delayed or bogged down while fetching weapon stats. However, if you have limits that use the GetBattlelog() function, you **must** set this value to True, or else stats will not be available.
 
+0. **use_stats_log**
+
+  _False_ - do not log Battlelog stats to the battle.log file
+  
+  _True_ - log player stats to the battle.log file
+
+  > If stats fetching is enabled and stats are fetched successfully, all the stats that were fetched will be logged in a file that follows the standard logging file name pattern: procon/Logs/<server-ip>_<server-port>/YYYYMMDD_battle.log (text file). An example of an entry of overview stats only follows:
+````
+[07:22:27] [USMC]Sgt_Chelios Battlelog CACHED stats: 
+    Kdr:1.37, Kpm:1.25, Spm:538, Rank:108, Time:1796850, Wins:733, Kills:37527, Score:16005419, Skill:533.91, Deaths:35299, Losses:765, Repairs:792, Revives:5767, Accuracy:16.68, ReconTime:367054, ResetTime:1195400, ResetWins:420, ScoreTeam:665860, ResetKills:20867, ResetScore:8164860, Ressuplies:7788, AssaultTime:556018, KillAssists:4084, QuitPercent:37.76, ResetDeaths:23163, ResetLosses:543, ScoreCombat:7993319, SupportTime:278559, VehicleTime:NaN, EngineerTime:312698, ReconPercent:24.24, ScoreVehicle:423229, ResetShotsHit:80489, AssaultPercent:36.72, ScoreObjective:481750, SupportPercent:18.39, VehiclePercent:NaN, VehiclesKilled:1607, EngineerPercent:20.65, KillStreakBonus:22, ResetShotsFired:532711
+````
 0. **player_white_list**
 
   _(string, csv)_ - list of players that should never be kicked or banned
@@ -822,6 +871,7 @@ Settings
 0. **virtual_mode**
 
   _True_ - limit **actions** (kick, ban) are simulated, the actual commands are not sent to server
+
   _False_ - limit **actions** (kick, ban) are not simulated
   
 0. **console**
@@ -850,8 +900,9 @@ Settings
   
 0. **smtp_ssl**
 
-  _true_ - mail sent using secure socket (use this only if your SMTP provider requires it)  
-  _false_ - mail sent without using secure socket  
+  _True_ - mail sent using secure socket (use this only if your SMTP provider requires it)
+  
+  _False_ - mail sent without using secure socket  
   
 0. **say_interval**
 
@@ -861,16 +912,17 @@ Settings
   
 0. **auto_hide_sections**
 
-  _true_ - when creating a new section, it will be hidden by default  
-  _false_ - when creating a new section, it will not be hidden  
+  _True_ - when creating a new section, it will be hidden by default
+  
+  _False_ - when creating a new section, it will not be hidden  
   
 0. **twitter_reset_defaults**
 
-  _true_ - resets the Twitter's **access_token**, and **access_token_secret** back to default values  
+  _True_ - resets the Twitter's **access_token**, and **access_token_secret** back to default values  
   
 0. **twitter_setup**
 
-  _true_ - initiates the Twitter configuration, it will show a link that you have to visit to get the verification PIN  
+  _True_ - initiates the Twitter configuration, it will show a link that you have to visit to get the verification PIN  
   
 0. **twitter_verifier_pin**
 
@@ -879,6 +931,7 @@ Settings
   > After entering your PIN, the plugin will try to exchange the PIN for a Twitter **access_token**, and **access_token_secret**. If the verifcation stage fails, you must re-initiate the Twitter setup process.   
 
 0. **wait_timeout**
+
   _(int)_ - interval in seconds to wait for a response from the game server
 
   > If you get several **Timeout(xx seconds) expired, while waiting for ...** exceptions in plugin.log, try increasing the wait_timeout value by 10 seconds. Repeat until the exceptions stop, but you should not exceed 90 seconds.
@@ -1006,14 +1059,14 @@ Wish-List for 0.0.0.9 (in order of priority)
 
 See Issues list at [https://github.com/PapaCharlie9/insane-limits](https://github.com/PapaCharlie9/insane-limits)
 
-Change Log   
+Change Log
 -------------
 
 The change log is no longer updated in this document. Instead, look at the commit history in the GitHub repo: [https://github.com/PapaCharlie9/insane-limits](https://github.com/PapaCharlie9/insane-limits)
 
 As of 0.0.9.0, only the latest version is listed below without any change details. This just marks the version that this document corresponds to.
 
-Latest version: **0.0.9.2 (BF3)**
+Latest version: **0.9.8.0 (BF3)**
 
 ### Historical Change Log (prior to GitHub repo creation)
 
