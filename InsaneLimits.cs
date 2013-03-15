@@ -469,6 +469,10 @@ namespace PRoConEvents
         int TeamId { get; }
         int SquadId { get; }
         int Ping { get; }
+        int MaxPing { get; }
+        int MinPing { get; }
+        int MedianPing { get; }
+        int AveragePing { get; }
 
         /* Current round, Player Stats */
         double KdrRound { get; }
@@ -643,6 +647,8 @@ namespace PRoConEvents
         bool CheckAccount(String name, out bool canKill, out bool canKick, out bool canBan, out bool canMove, out bool canChangeLevel);
         
         double CheckPlayerIdle(String name); // -1 if unknown, otherwise idle time in seconds
+
+        bool IsSquadLocked(int TeamId, int SquadId); // False if unknown or open, True if locked
 
         /* This method looks in the internal player's list for player with matching name.
          * If fuzzy argument is set to true, it will find the player name that best matches the given name
@@ -992,6 +998,7 @@ namespace PRoConEvents
         int nextMapIndex = 0;
         public double ctfRoundTimeModifier = 0;
         public double gameModeCounter = 0;
+        private List<String> lockedSquads = new List<String>();
 
         public Dictionary<String, bool> WeaponsDict = null;
 
@@ -3569,7 +3576,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.9.9.0";
+            return "0.9.10.0";
         }
 
         public string GetPluginAuthor()
@@ -4035,6 +4042,10 @@ public interface PlayerInfoInterface
     int TeamId { get; }
     int SquadId { get; }
     int Ping { get; }
+    int MaxPing { get; }
+    int MinPing { get; }
+    int MedianPing { get; } // of the last five samples
+    int AveragePing { get; } // of two to five samples
 
 
     /* Current round, Player Stats */
@@ -4202,6 +4213,7 @@ public interface PluginInterface
 
     double CheckPlayerIdle(String name); // -1 if unknown, otherwise idle time in seconds
 
+    bool IsSquadLocked(int TeamId, int SquadId); // False if unknown or open, True if locked
 
     /* This method looks in the internal player's list for player with matching name.
      * If fuzzy argument is set to true, it will find the player name that best matches the given name
@@ -7582,6 +7594,12 @@ public interface DataDictionaryInterface
             return ret;
         }
 
+        public bool IsSquadLocked(int TeamId, int SquadId)
+        {
+            String key = TeamId.ToString() + "/" + SquadId;
+            return (lockedSquads.Contains(key));
+        }
+
 
         public PlayerInfoInterface GetPlayer(String name)
         {
@@ -8255,7 +8273,7 @@ public interface DataDictionaryInterface
             {
                 StackTrace stack = new StackTrace();
                 String caller = stack.GetFrame(1).GetMethod().Name;
-                ConsoleException("Timeout(" + timeout + " seconds), waiting for " + name + " in " + caller + ". Your net connection to game server may be congested or another plugin may be lagging Procon.");
+                DebugWrite("^1^bWARNING^n^0: Timeout(" + timeout + " seconds), waiting for " + name + " in " + caller + ". Your net connection to your game server may be congested or another plugin may be lagging Procon.", 4);
             } else {
                 DebugWrite("awake! no timeout", 7);
             }
@@ -8460,6 +8478,7 @@ public interface DataDictionaryInterface
                 }
 
             this.RoundData.Clear();
+            lockedSquads.Clear();
 
             DebugWrite("Round HAS BEEN reset!", 8);
             isRoundReset = true;
@@ -9320,12 +9339,34 @@ public interface DataDictionaryInterface
             plist_handle.Set();
         }
 
-        public void UpdateIdlePlayers(List<CPlayerInfo> lstPlayers)
+        public void UpdateExtraInfo(List<CPlayerInfo> lstPlayers)
         {
+            Dictionary<String,int> squadCounts = new Dictionary<string,int>();
+            String key = null;
+
             foreach (CPlayerInfo cpiPlayer in lstPlayers) {
                 if ((cpiPlayer.Score == 0 || Double.IsNaN(cpiPlayer.Score)) && cpiPlayer.Deaths == 0) {
                     DebugWrite("Updating idle duration for: " + cpiPlayer.SoldierName, 5);
                     ServerCommand("player.idleDuration", cpiPlayer.SoldierName); // Update it
+                }
+
+                if (cpiPlayer.TeamID > 0 && cpiPlayer.SquadID > 0) {
+                    key = cpiPlayer.TeamID.ToString() + "/" + cpiPlayer.SquadID;
+                    if (!squadCounts.ContainsKey(key)) {
+                        squadCounts[key] = 1;
+                    } else {
+                        squadCounts[key] = squadCounts[key] + 1;
+                    }
+                }
+            }
+
+            String[] ids = null;
+            Char[] div = new Char[] {'/'};
+            foreach (String k in squadCounts.Keys) {
+                // Only poll for squads between 1 and 3 players and not already known to be locked
+                if (squadCounts[k] < 4 && !lockedSquads.Contains(k)) {
+                    ids = k.Split(div);
+                    ServerCommand("squad.private", ids[0], ids[1]);
                 }
             }
         }
@@ -9376,7 +9417,7 @@ public interface DataDictionaryInterface
 
             updateQueues(lstPlayers);
             SyncPlayersList(lstPlayers);
-            UpdateIdlePlayers(lstPlayers);
+            UpdateExtraInfo(lstPlayers);
         }
 
 
@@ -12658,7 +12699,38 @@ public interface DataDictionaryInterface
 
                 if (pinfo == null) return;
                 
-                pinfo.Ping = Math.Max(0, Math.Min(ping, 1000));
+                int lastPing = Math.Max(0, Math.Min(ping, 1000));
+                pinfo.Ping = lastPing;
+                if (pinfo.MaxPing < lastPing) pinfo.MaxPing = lastPing;
+                if (pinfo.MinPing > lastPing) pinfo.MinPing = lastPing;
+
+                // Update median and average
+                const int PQLEN = 5;
+                const int PQMED = 2; // median index for PQLEN
+                bool ok = true;
+                if (pinfo._pingQ.Count == PQLEN) {
+                    // If last ping duplicates the median, skip it
+                    ok = (pinfo.MedianPing != lastPing);
+                }
+
+                if (ok) {
+                    pinfo._pingQ.Enqueue(lastPing);
+                    while (pinfo._pingQ.Count > PQLEN) pinfo._pingQ.Dequeue();
+                    List<int> p = new List<int>(pinfo._pingQ);
+                    // Median must be PQLEN exactly
+                    if (p.Count == PQLEN) {
+                        p.Sort();
+                        pinfo.MedianPing = p[PQMED];
+                    }
+                    //  Average just needs more than 1, doesn't matter if it is sorted
+                    if (p.Count > 1) {
+                        int sum = 0;
+                        foreach (int i in p) {
+                            sum = sum + i;
+                        }
+                        pinfo.AveragePing = sum / p.Count;
+                    }
+                }
             } 
             catch (Exception e)
             {
@@ -12683,6 +12755,11 @@ public interface DataDictionaryInterface
         public override void OnSquadIsPrivate(int teamId, int squadId, bool isPrivate)
         {
             DebugWrite("Got ^bOnSquadIsPrivate^n: " + teamId + ", " + squadId + ", " + isPrivate, 8);
+
+            if (teamId == 0 || squadId == 0) return;
+
+            String key = teamId.ToString() + "/" + squadId;
+            if (!lockedSquads.Contains(key)) lockedSquads.Add(key);
         }
         public override void OnCtfRoundTimeModifier(int limit)
         {
@@ -13825,6 +13902,11 @@ public interface DataDictionaryInterface
         public double _score = 0;
         public WebException _web_exception = null;
         public int _ping = 0;
+        public int _maxPing = 0;
+        public int _minPing = 0;
+        public int _medianPing = 0;
+        public int _averagePing = 0;
+        public Queue<int> _pingQ = new Queue<int>();
         public double _idleTime = 0;
 
         public WeaponStatsDictionary W = null;
@@ -13940,7 +14022,10 @@ public interface DataDictionaryInterface
         public int TeamId { get { return info.TeamID; } set { info.TeamID = value; } }
         public int SquadId { get { return info.SquadID; } set { info.SquadID = value; } }
         public int Ping { get { return _ping; } set { _ping = value; } }
-
+        public int MaxPing { get { return _maxPing; } set { _maxPing = value; } }
+        public int MinPing { get { return _minPing; } set { _minPing = value; } }
+        public int MedianPing { get { return _medianPing; } set { _medianPing = value; } }
+        public int AveragePing { get { return _averagePing; } set { _averagePing = value; } }
 
         /* Round Statistics */
         [A("round", "Kdr", @"kd.*")]
