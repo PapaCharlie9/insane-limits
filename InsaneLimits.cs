@@ -384,6 +384,16 @@ namespace PRoConEvents
         String Name { get; }
         String Description { get; }
 
+        /* var.* value that is updated every update_interval seconds */
+        int BulletDamage { get; }
+        bool FriendlyFire { get; }
+        int GunMasterWeaponsPreset { get; }
+        double IdleTimeout { get; } // seconds
+        int SoldierHealth { get; }
+        bool VehicleSpawnAllowed { get; }
+        int VehicleSpawnDelay { get; }
+
+
         /* Team data */
         double Tickets(int TeamId);              // tickets for the specified team
         double RemainTickets(int TeamId);        // tickets remaining on specified team
@@ -648,7 +658,9 @@ namespace PRoConEvents
         
         double CheckPlayerIdle(String name); // -1 if unknown, otherwise idle time in seconds
 
+        /* Updated every update_interval seconds */
         bool IsSquadLocked(int TeamId, int SquadId); // False if unknown or open, True if locked
+        String GetSquadLeaderName(int TeamId, int SquadId); // null if unknown, player name otherwise
 
         /* This method looks in the internal player's list for player with matching name.
          * If fuzzy argument is set to true, it will find the player name that best matches the given name
@@ -999,6 +1011,7 @@ namespace PRoConEvents
         public double ctfRoundTimeModifier = 0;
         public double gameModeCounter = 0;
         private List<String> lockedSquads = new List<String>();
+        private Dictionary<String, String> squadLeaders = new Dictionary<string,string>();
 
         public Dictionary<String, bool> WeaponsDict = null;
 
@@ -1069,6 +1082,7 @@ namespace PRoConEvents
         public Object evaluation_mutex = new Object();
         public Object lists_mutex = new Object();
         public Object limits_mutex = new Object();
+        public Object updates_mutex = new Object();
 
 
         public Dictionary<String, Limit> limits;
@@ -1096,6 +1110,20 @@ namespace PRoConEvents
         private bool level_loaded = false;
         
         public List<String> reserved_slots_list;
+
+        public const float MIN_UPDATE_INTERVAL = 60;
+
+        /* updateable var.* values */
+        public int varBulletDamage = -1;
+        public bool varFriendlyFire = false;
+        public int varGunMasterWeaponsPreset = -1;
+        public double varIdleTimeout = -1;
+        public int varSoldierHealth = -1;
+        public bool varVehicleSpawnAllowed = true;
+        public int varVehicleSpawnDelay = -1;
+
+        DateTime timerSquad = DateTime.Now;
+        DateTime timerVars = DateTime.Now;
         
         public InsaneLimits()
         {
@@ -1187,9 +1215,11 @@ namespace PRoConEvents
                 /* Floats */
                 this.floatVariables = new Dictionary<string, float>();
                 this.floatVariables.Add("say_interval", 0.05f);
+                this.floatVariables.Add("update_interval", MIN_UPDATE_INTERVAL);
 
                 this.floatVarValidators = new Dictionary<string, floatVariableValidator>();
                 this.floatVarValidators.Add("say_interval", floatValidator);
+                this.floatVarValidators.Add("update_interval", floatValidator);
 
                 /* String lists */
                 this.stringListVariables = new Dictionary<string, string>();
@@ -3949,6 +3979,14 @@ public interface ServerInfoInterface
     String Name { get; }
     String Description { get; }
 
+    /* var.* value that is updated every update_interval seconds */
+    int BulletDamage { get; }
+    bool FriendlyFire { get; }
+    int GunMasterWeaponsPreset { get; }
+    double IdleTimeout { get; } // seconds
+    int SoldierHealth { get; }
+    bool VehicleSpawnAllowed { get; }
+    int VehicleSpawnDelay { get; }
 
     /* Team data */
     double Tickets(int TeamId);              //tickets for the specified team
@@ -4213,7 +4251,9 @@ public interface PluginInterface
 
     double CheckPlayerIdle(String name); // -1 if unknown, otherwise idle time in seconds
 
-    bool IsSquadLocked(int TeamId, int SquadId); // False if unknown or open, True if locked
+    /* Updated every update_interval seconds */
+    bool IsSquadLocked(int teamId, int squadId); // False if unknown or open, True if locked
+    String GetSquadLeaderName(int teamId, int squadId); // null if unknown, player name otherwise
 
     /* This method looks in the internal player's list for player with matching name.
      * If fuzzy argument is set to true, it will find the player name that best matches the given name
@@ -4735,25 +4775,21 @@ public interface DataDictionaryInterface
                 "OnLevelLoaded",
                 "OnRestartLevel",
                 "OnReservedSlotsList",
+                "OnGameModeCounter",
                 /* R38/Procon 1.4.0.7 */
                 "OnPlayerIdleDuration",
-                "OnPlayerIsAlive",
                 "OnPlayerPingedByAdmin",
                 "OnSquadLeader",
-                "OnSquadListActive",
-                "OnSquadListPlayers",
                 "OnSquadIsPrivate",
                 "OnCtfRoundTimeModifier",
-                "OnGunMasterWeaponsPreset",
-                "OnVehicleSpawnAllowed",
-                "OnVehicleSpawnDelay",
+                /* on update_interval get: */
                 "OnBulletDamage",
-                "OnOnlySquadLeaderSpawn",
+                "OnFriendlyFire",
+                "OnGunMasterWeaponsPreset",
+                "OnIdleTimeout",
                 "OnSoldierHealth",
-                "OnPlayerManDownTime",
-                "OnPlayerRespawnTime",
-                "OnHud",
-                "OnGameModeCounter"
+                "OnVehicleSpawnAllowed",
+                "OnVehicleSpawnDelay"
                 );
 
             //initialize the dictionary with countries, carriers, gateways
@@ -5276,6 +5312,8 @@ public interface DataDictionaryInterface
 
                     //if (prop.PropertyType.Equals(typeof(bool)))
                     //    continue;
+                    
+                    object result = (object)("?");
 
                     try
                     {
@@ -5284,7 +5322,7 @@ public interface DataDictionaryInterface
 
 
 
-                        object result = prop.GetValue(data, null);
+                        result = prop.GetValue(data, null);
 
                         if (result == null)
                             continue;
@@ -5296,6 +5334,7 @@ public interface DataDictionaryInterface
                     }
                     catch (Exception e)
                     {
+                        DebugWrite("Advanced replacement failed for " + key + " with result " + result + " and error: " + e, 6);
                         ConsoleWarn("could not determine value for ^b" + key + "^n in replacement");
                         continue;
                     }
@@ -7594,10 +7633,17 @@ public interface DataDictionaryInterface
             return ret;
         }
 
-        public bool IsSquadLocked(int TeamId, int SquadId)
+        public bool IsSquadLocked(int teamId, int squadId)
         {
-            String key = TeamId.ToString() + "/" + SquadId;
+            String key = teamId.ToString() + "/" + squadId;
             return (lockedSquads.Contains(key));
+        }
+
+        public String GetSquadLeaderName(int teamId,  int squadId)
+        {
+            String key = teamId.ToString() + "/" + squadId;
+            if  (squadLeaders.ContainsKey(key)) return squadLeaders[key];
+            return null;
         }
 
 
@@ -8479,6 +8525,7 @@ public interface DataDictionaryInterface
 
             this.RoundData.Clear();
             lockedSquads.Clear();
+            squadLeaders.Clear();
 
             DebugWrite("Round HAS BEEN reset!", 8);
             isRoundReset = true;
@@ -8560,6 +8607,20 @@ public interface DataDictionaryInterface
             getModeCounters();
         }
 
+        public void updateVars()
+        {
+            if (!plugin_activated) return;
+
+            ServerCommand("vars.bulletDamage");
+            ServerCommand("vars.friendlyFire");
+            ServerCommand("vars.gunMasterWeaponsPreset");
+            ServerCommand("vars.idleTimeout");
+            ServerCommand("vars.soldierHealth");
+            ServerCommand("vars.vehicleSpawnAllowed");
+            ServerCommand("vars.vehicleSpawnDelay");
+
+            resetUpdateTimer(WhichTimer.Vars);
+        }
 
         public override void OnReservedSlotsList(List<String> lstSoldierNames)
         {
@@ -9341,6 +9402,12 @@ public interface DataDictionaryInterface
 
         public void UpdateExtraInfo(List<CPlayerInfo> lstPlayers)
         {
+            DateTime ts = DateTime.Now;
+            lock (updates_mutex)
+            {
+                ts = timerSquad;
+            }
+            bool itIsTime = (DateTime.Now.Subtract(ts).TotalSeconds > getFloatVarValue("update_interval"));
             Dictionary<String,int> squadCounts = new Dictionary<string,int>();
             String key = null;
 
@@ -9350,7 +9417,7 @@ public interface DataDictionaryInterface
                     ServerCommand("player.idleDuration", cpiPlayer.SoldierName); // Update it
                 }
 
-                if (cpiPlayer.TeamID > 0 && cpiPlayer.SquadID > 0) {
+                if (itIsTime && cpiPlayer.TeamID > 0 && cpiPlayer.SquadID > 0) {
                     key = cpiPlayer.TeamID.ToString() + "/" + cpiPlayer.SquadID;
                     if (!squadCounts.ContainsKey(key)) {
                         squadCounts[key] = 1;
@@ -9360,14 +9427,20 @@ public interface DataDictionaryInterface
                 }
             }
 
-            String[] ids = null;
-            Char[] div = new Char[] {'/'};
-            foreach (String k in squadCounts.Keys) {
-                // Only poll for squads between 1 and 3 players and not already known to be locked
-                if (squadCounts[k] < 4 && !lockedSquads.Contains(k)) {
+            if (itIsTime)
+            {
+                String[] ids = null;
+                Char[] div = new Char[] {'/'};
+                foreach (String k in squadCounts.Keys) {
                     ids = k.Split(div);
                     ServerCommand("squad.private", ids[0], ids[1]);
+                    // Request leader only for squads with more than one player
+                    if (squadCounts[k] > 1) 
+                    {
+                        ServerCommand("squad.leader", ids[0], ids[1]);
+                    }
                 }
+                resetUpdateTimer(WhichTimer.Squad);
             }
         }
 
@@ -9667,7 +9740,23 @@ public interface DataDictionaryInterface
             }
         }
 
+        enum WhichTimer { Squad, Vars };
 
+        private void resetUpdateTimer(WhichTimer t)
+        {
+            switch (t) {
+                case WhichTimer.Squad:
+                    lock (updates_mutex) {
+                        timerSquad = DateTime.Now;
+                    }
+                    break;
+                case WhichTimer.Vars:
+                    lock (updates_mutex) {
+                        timerVars = DateTime.Now;
+                    }
+                    break;
+            }
+        }
 
         public void enforcer_thread_loop()
         {
@@ -9680,6 +9769,9 @@ public interface DataDictionaryInterface
                 Thread.CurrentThread.Name = "enforcer";
                 
                 plugin.DebugWrite("starting", 4);
+
+                resetUpdateTimer(WhichTimer.Vars);
+
                 while (true)
                 {
 
@@ -9690,8 +9782,21 @@ public interface DataDictionaryInterface
                     enforcer_handle.WaitOne();
                     enforcer_handle.Reset();
                     DateTime now = DateTime.Now;
+
+                    DebugWrite("awake! Checking update timers  ...", 7);
+
+                    DateTime tv = DateTime.Now;
                     
-                    DebugWrite("awake! processing interval limits ...", 7);
+                    lock (plugin.updates_mutex) {
+                        tv = plugin.timerVars;
+                    }
+
+                    if (DateTime.Now.Subtract(tv).TotalSeconds > getFloatVarValue("update_interval"))
+                    {
+                        plugin.updateVars();
+                    }
+
+                    DebugWrite("Processing interval limits ...", 7);
 
                     if (!plugin_enabled)
                         break;
@@ -10355,6 +10460,11 @@ public interface DataDictionaryInterface
             if (var.Equals("say_interval"))
             {
                 if (!floatAssertGT(var, value, 0))
+                    return false;
+            }
+            else if (var.Equals("update_interval"))
+            {
+                if (!floatAssertGTE(var, value, MIN_UPDATE_INTERVAL))
                     return false;
             }
 
@@ -12676,10 +12786,6 @@ public interface DataDictionaryInterface
             }
         }
 
-        public override void OnPlayerIsAlive(string soldierName, bool isAlive)
-        {
-            DebugWrite("Got ^bOnPlayerIsAlive^n: " + soldierName + ", " + isAlive, 8);
-        }
         public override void OnPlayerPingedByAdmin(string soldierName, int ping)
         {
             DebugWrite("Got ^bOnPlayerPingedByAdmin^n: " + soldierName + ", " + ping, 8);
@@ -12707,21 +12813,16 @@ public interface DataDictionaryInterface
                 // Update median and average
                 const int PQLEN = 5;
                 const int PQMED = 2; // median index for PQLEN
-                bool ok = true;
+                bool changeInPing = true;
                 if (pinfo._pingQ.Count == PQLEN) {
                     // If last ping duplicates the median, skip it
-                    ok = (pinfo.MedianPing != lastPing);
+                    changeInPing = (pinfo.MedianPing != lastPing);
                 }
 
-                if (ok) {
+                if (changeInPing) {
                     pinfo._pingQ.Enqueue(lastPing);
                     while (pinfo._pingQ.Count > PQLEN) pinfo._pingQ.Dequeue();
                     List<int> p = new List<int>(pinfo._pingQ);
-                    // Median must be PQLEN exactly
-                    if (p.Count == PQLEN) {
-                        p.Sort();
-                        pinfo.MedianPing = p[PQMED];
-                    }
                     //  Average just needs more than 1, doesn't matter if it is sorted
                     if (p.Count > 1) {
                         int sum = 0;
@@ -12729,6 +12830,16 @@ public interface DataDictionaryInterface
                             sum = sum + i;
                         }
                         pinfo.AveragePing = sum / p.Count;
+                    } else {
+                        pinfo.AveragePing = lastPing;
+                    }
+                    // Median must be PQLEN exactly
+                    if (p.Count == PQLEN) {
+                        p.Sort();
+                        pinfo.MedianPing = p[PQMED];
+                    } else {
+                        // Otherwise it is the same as average
+                        pinfo.MedianPing = pinfo.AveragePing;
                     }
                 }
             } 
@@ -12741,17 +12852,16 @@ public interface DataDictionaryInterface
         public override void OnSquadLeader(int teamId, int squadId, string soldierName)
         {
             DebugWrite("Got ^bOnSquadLeader^n: " + soldierName + ", " + teamId + ", " + squadId, 8);
+
+            if (teamId == 0 || squadId == 0)
+                return;
+
+            String key = teamId.ToString() + "/" + squadId;
+            squadLeaders[key] = soldierName;
+
+            resetUpdateTimer(WhichTimer.Squad);
         }
 
-        public override void OnSquadListActive(int teamId, int squadClount, List<int> squadList)
-        {
-            DebugWrite("Got ^bOnSquadListActive^n: " + teamId + ", " + squadClount + ", " + squadList.Count, 8);
-        }
-
-        public override void OnSquadListPlayers(int teamId, int squadId, int playerCount, List<string> playersInSquad)
-        {
-            DebugWrite("Got ^bOnSquadListPlayers^n: " + teamId + ", " + squadId + ", " + playerCount + ", " + playersInSquad.Count, 8);
-        }
         public override void OnSquadIsPrivate(int teamId, int squadId, bool isPrivate)
         {
             DebugWrite("Got ^bOnSquadIsPrivate^n: " + teamId + ", " + squadId + ", " + isPrivate, 8);
@@ -12759,8 +12869,12 @@ public interface DataDictionaryInterface
             if (teamId == 0 || squadId == 0) return;
 
             String key = teamId.ToString() + "/" + squadId;
-            if (!lockedSquads.Contains(key)) lockedSquads.Add(key);
+            if (isPrivate && !lockedSquads.Contains(key)) lockedSquads.Add(key);
+            else if (!isPrivate && lockedSquads.Contains(key)) lockedSquads.Remove(key);
+
+            resetUpdateTimer(WhichTimer.Squad);
         }
+
         public override void OnCtfRoundTimeModifier(int limit)
         {
             DebugWrite("Got ^bOnCtfRoundTimeModifier^n: " + limit, 8);
@@ -12772,57 +12886,75 @@ public interface DataDictionaryInterface
         public override void OnGunMasterWeaponsPreset(int preset)
         {
             DebugWrite("Got ^bOnGunMasterWeaponsPreset^n: " + preset, 8);
+
+            this.varGunMasterWeaponsPreset = preset;
+
+            resetUpdateTimer(WhichTimer.Vars);
         }
         
         public override void OnVehicleSpawnAllowed(bool isEnabled)
         {
             DebugWrite("Got ^bOnVehicleSpawnAllowed^n: " + isEnabled, 8);
+
+            this.varVehicleSpawnAllowed = isEnabled;
+
+            resetUpdateTimer(WhichTimer.Vars);
         }
 
         public override void OnVehicleSpawnDelay(int limit)
         {
             DebugWrite("Got ^bOnVehicleSpawnDelay^n: " + limit, 8);
+
+            this.varVehicleSpawnDelay = limit;
+
+            resetUpdateTimer(WhichTimer.Vars);
         }
 
         public override void OnBulletDamage(int limit)
         {
             DebugWrite("Got ^bOnBulletDamage^n: " + limit, 8);
-        }
 
-        public override void OnOnlySquadLeaderSpawn(bool isEnabled)
-        {
-            DebugWrite("Got ^bOnOnlySquadLeaderSpawn^n: " + isEnabled, 8);
+            this.varBulletDamage = limit;
+
+            resetUpdateTimer(WhichTimer.Vars);
         }
 
         public override void OnSoldierHealth(int limit)
         {
             DebugWrite("Got ^bOnSoldierHealth^n: " + limit, 8);
-        }
 
-        public override void OnPlayerManDownTime(int limit)
-        {
-            DebugWrite("Got ^bOnPlayerManDownTime^n: " + limit, 8);
-        }
+            this.varSoldierHealth = limit;
 
-        public override void OnPlayerRespawnTime(int limit)
-        {
-            DebugWrite("Got ^bOnPlayerRespawnTime^n: " + limit, 8);
-        }
-
-        public override void OnHud(bool isEnabled)
-        {
-            DebugWrite("Got ^bOnHud^n: " + isEnabled, 8);
+            resetUpdateTimer(WhichTimer.Vars);
         }
 
         public override void OnGameModeCounter(int limit)
         {
-            DebugWrite("Got ^bOOnGameModeCounter^n: " + limit, 8);
+            DebugWrite("Got ^bOnGameModeCounter^n: " + limit, 8);
             if (!plugin_activated) return;
 
             this.gameModeCounter = limit;
+
+            resetUpdateTimer(WhichTimer.Vars);
         }
 
+        public override void OnFriendlyFire(bool isEnabled)
+        {
+            DebugWrite("Got ^bOnFriendlyFire^n: " + isEnabled, 8);
 
+            this.varFriendlyFire = isEnabled;
+
+            resetUpdateTimer(WhichTimer.Vars);
+        }
+
+        public override void OnIdleTimeout(int limit)
+        {
+            DebugWrite("Got ^bOnIdleTimeout^n: " + limit, 8);
+
+            this.varIdleTimeout = limit;
+
+            resetUpdateTimer(WhichTimer.Vars);
+        }
     }
 
 
@@ -13668,6 +13800,14 @@ public interface DataDictionaryInterface
         public String Name { get { return plugin.server_name; } }
         public String Description { get { return plugin.server_desc; } }
 
+        /* var.* value that is updated every update_interval seconds */
+        public int BulletDamage { get { return plugin.varBulletDamage; } }
+        public bool FriendlyFire { get { return plugin.varFriendlyFire; } }
+        public int GunMasterWeaponsPreset { get { return plugin.varGunMasterWeaponsPreset; } }
+        public double IdleTimeout { get { return plugin.varIdleTimeout; } } // seconds
+        public int SoldierHealth { get { return plugin.varSoldierHealth; } }
+        public bool VehicleSpawnAllowed { get { return plugin.varVehicleSpawnAllowed; } }
+        public int VehicleSpawnDelay { get { return plugin.varVehicleSpawnDelay; } }
 
 
         public ServerInfo(InsaneLimits plugin, CServerInfo data, List<MaplistEntry> mlist, int[] indices)
