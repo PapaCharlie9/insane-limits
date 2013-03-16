@@ -355,6 +355,16 @@ public interface ServerInfoInterface
     String Name { get; }
     String Description { get; }
 
+    /* var.* value that is updated every update_interval seconds */
+    int BulletDamage { get; }
+    bool FriendlyFire { get; }
+    int GunMasterWeaponsPreset { get; }
+    double IdleTimeout { get; } // seconds
+    int SoldierHealth { get; }
+    bool VehicleSpawnAllowed { get; }
+    int VehicleSpawnDelay { get; }
+
+
     /* Team data */
     double Tickets(int TeamId);              //tickets for the specified team
     double RemainTickets(int TeamId);        //tickets remaining on specified team
@@ -450,6 +460,11 @@ public interface PlayerInfoInterface
     String EAGuid { get; }
     int TeamId { get; }
     int SquadId { get; }
+    int Ping { get; }
+    int MaxPing { get; }
+    int MinPing { get; }
+    int MedianPing { get; } // of the last five samples
+    int AveragePing { get; } // of two to five samples
 
     
     /* Current round, Player Stats */
@@ -597,6 +612,13 @@ public interface PluginInterface
        The canBan value is set to true if the player can temporary ban or permanently ban.
     */
     bool CheckAccount(String name, out bool canKill, out bool canKick, out bool canBan, out bool canMove, out bool canChangeLevel);
+
+    double CheckPlayerIdle(String name); // -1 if unknown, otherwise idle time in seconds
+
+    /* Updated every update_interval seconds */
+    bool IsSquadLocked(int teamId, int squadId); // False if unknown or open, True if locked
+    String GetSquadLeaderName(int teamId, int squadId); // null if unknown, player name otherwise
+
 
     /* This method looks in the internal player's list for player with matching name.
      * If fuzzy argument is set to true, it will find the player name that best matches the given name
@@ -909,6 +931,12 @@ Settings
   _(float)_ - interval in seconds between say messages. Default value is 0.05, which is 50 milli-seconds  
   
   > The point of this setting is to avoid spam, but you should not set this value too large. Ideally it should be between 0 and 1 second.  
+  
+0. **update_interval**
+
+  _(float)_ - interval in seconds between updates to certain player and server properties  
+  
+  > In order to avoid lagging your Procon client or layer, certain values like plugin.IsSquadLocked and server.FriendlyFire are only updated every update_interval seconds, which must be 60 or more.  
   
 0. **auto_hide_sections**
 
