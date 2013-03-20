@@ -3613,7 +3613,7 @@ namespace PRoConEvents
             String procon_path = Directory.GetParent(Application.ExecutablePath).FullName;
             String plugins_path = Path.Combine(procon_path, Path.Combine("Plugins", "BF3"));
 
-            // 
+            // fixes compilation issues on Linux under mono
             if(IsRunningOnLinux()) {
                 plugins_path = Directory.GetParent(Assembly.GetExecutingAssembly().Location).FullName;
             }
