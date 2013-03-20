@@ -12459,10 +12459,6 @@ public interface DataDictionaryInterface
             String exe_path = Directory.GetParent(Application.ExecutablePath).FullName;
             String dll_path = Directory.GetParent(Assembly.GetExecutingAssembly().Location).FullName;
 
-            if(IsRunningOnLinux()) {
-                return String.Format("{0}/{1}", dll_path, file);
-            }
-
             String rel_path = dll_path.Replace(exe_path, "");
             rel_path = Path.Combine(rel_path.Trim(new char[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }), file);
             return rel_path;
