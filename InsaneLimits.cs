@@ -1499,8 +1499,8 @@ namespace PRoConEvents
         /// on Linux
         /// </summary>
         public static String LinuxPathSupportHack(string file) {
-            if(IsRunningOnLinux() && !file.StartsWith("/")) {
-                return ("/" + file);
+            if(IsRunningOnLinux() && !file.StartsWith("./")) {
+                return ("./" + file);
             }
 
             return file;
