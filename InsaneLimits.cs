@@ -3606,7 +3606,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.9.10.0";
+            return "0.9.11.0";
         }
 
         public string GetPluginAuthor()
@@ -9411,8 +9411,10 @@ public interface DataDictionaryInterface
             Dictionary<String,int> squadCounts = new Dictionary<string,int>();
             String key = null;
 
+            DebugWrite("UpdateExtraInfo seconds since last update: " + DateTime.Now.Subtract(ts).TotalSeconds.ToString("F0"), 7);
+
             foreach (CPlayerInfo cpiPlayer in lstPlayers) {
-                if ((cpiPlayer.Score == 0 || Double.IsNaN(cpiPlayer.Score)) && cpiPlayer.Deaths == 0) {
+                if (itIsTime && (cpiPlayer.Score == 0 || Double.IsNaN(cpiPlayer.Score)) && cpiPlayer.Deaths == 0) {
                     DebugWrite("Updating idle duration for: " + cpiPlayer.SoldierName, 5);
                     ServerCommand("player.idleDuration", cpiPlayer.SoldierName); // Update it
                 }
@@ -9432,6 +9434,7 @@ public interface DataDictionaryInterface
                 String[] ids = null;
                 Char[] div = new Char[] {'/'};
                 foreach (String k in squadCounts.Keys) {
+                    DebugWrite("Updating squad privacy and leader for: " + k, 5);
                     ids = k.Split(div);
                     ServerCommand("squad.private", ids[0], ids[1]);
                     // Request leader only for squads with more than one player
@@ -13421,7 +13424,6 @@ public interface DataDictionaryInterface
                 throw new StatsException("JSON weapon response ^bdata^n does not contain ^bmainWeaponStats^n, for " + player, furl);
 
             int count = 0;
-            int parsed = 0;
             Type dtype = typeof(BattlelogWeaponStats);
             List<PropertyInfo> props = new List<PropertyInfo>(dtype.GetProperties());
 
@@ -13504,20 +13506,38 @@ public interface DataDictionaryInterface
 
         public void extractBasicFields(Hashtable stats, PlayerInfo pinfo)
         {
+            if (stats == null) {
+                plugin.DebugWrite("extractBasicFields, overviewStats Hashtable is null", 5);
+                return;
+            }
             List<String> keys = InsaneLimits.getBasicJSONFieldKeys();
             foreach (DictionaryEntry entry in stats)
             {
                 String entry_key = (String)(entry.Key.ToString());
 
-                /* skip entries we are not interested in */
-                if (!keys.Contains(entry_key))
-                    continue;
+                try {
 
-                String entry_value = (String)(entry.Value.ToString());
+                    /* skip entries we are not interested in */
+                    if (!keys.Contains(entry_key))
+                        continue;
 
-                double dValue = double.NaN;
-                if (Double.TryParse(entry_value, out dValue))
-                    pinfo.ovalue[InsaneLimits.JSON2Key(entry_key)] = dValue;
+                    String entry_value = (String)(entry.Value.ToString());
+
+                    double dValue = double.NaN;
+                    if (Double.TryParse(entry_value, out dValue))
+                        pinfo.ovalue[InsaneLimits.JSON2Key(entry_key)] = dValue;
+                } catch (Exception e) {
+                    plugin.DebugWrite("^1^bNOTE^n^0: overviewStats problem with key ^b" + entry_key + "^n: " + e.Message, 5);
+                }
+            }
+            // After June 2013 Battlelog stats update, need to fix up kdRatio
+            double kills = 0;
+            double deaths = 0;
+            if (Double.IsNaN(pinfo.ovalue[InsaneLimits.JSON2Key("kdRatio")])
+            && !Double.IsNaN(kills = pinfo.ovalue[InsaneLimits.JSON2Key("kills")])
+            && !Double.IsNaN(deaths = pinfo.ovalue[InsaneLimits.JSON2Key("deaths")])) {
+                deaths = (deaths == 0) ? 1 : deaths;
+                pinfo.ovalue[InsaneLimits.JSON2Key("kdRatio")] = (kills / deaths);
             }
         }
 
