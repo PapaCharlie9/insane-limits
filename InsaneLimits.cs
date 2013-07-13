@@ -3606,7 +3606,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.9.11.0";
+            return "0.9.12.0";
         }
 
         public string GetPluginAuthor()
@@ -10948,7 +10948,7 @@ public interface DataDictionaryInterface
                 status = status.Substring(0, MAX_STATUS_LENGTH - suffix.Length) + suffix;
 
 
-            OAuthRequest orequest = new OAuthRequest(this, "http://api.twitter.com/1/statuses/update.json");
+            OAuthRequest orequest = new OAuthRequest(this, "http://api.twitter.com/1.1/statuses/update.json");
             orequest.Method = HTTPMethod.POST;
             orequest.request.ContentType = "application/x-www-form-urlencoded";
 
