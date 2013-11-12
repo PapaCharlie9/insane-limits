@@ -7619,12 +7619,16 @@ public interface DataDictionaryInterface
                 }
 
                 if (pinfo == null) return -1;
-                
+                /* old 9.12 version
                 if (pinfo._idleTime == 0) {
                     ServerCommand("player.idleDuration", name); // Update it
                 }
                 ret = pinfo._idleTime;
                 pinfo._idleTime = 0; // reset after every check
+                */
+                ret = pinfo._idleTime;
+                pinfo._idleTime = 0; // reset on each check
+                ServerCommand("player.idleDuration", name); // Update it
             } 
             catch (Exception e)
             {
