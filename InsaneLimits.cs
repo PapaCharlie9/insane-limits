@@ -10084,8 +10084,8 @@ public interface DataDictionaryInterface
 
         public static List<String> getBasicFieldKeys(String game_version)
         {
-            if (game_version == "BF3")
-                return new List<string>(json2key.Values);
+            return new List<string>(json2key.Values);
+            /*
             else {
                 List<String> tmp = new List<string>(json2keyBF4.Values);
                 // Not defined in BF4 JSON so far
@@ -10106,6 +10106,7 @@ public interface DataDictionaryInterface
                 tmp.Add("rsTimePlayed");
                 return tmp;
             }
+            */
         }
 
         public static List<String> getBasicWeaponFieldProps()
@@ -13347,21 +13348,17 @@ public interface DataDictionaryInterface
                     // verify there is viewedPersonaInfo structure, okay if null!
                     Hashtable info = null;
                     if (!data.ContainsKey("viewedPersonaInfo") || (info = (Hashtable)data["viewedPersonaInfo"]) == null) {
-                        plugin.DebugWrite("Request BF4 clan tag (^b" + player + "^n): JSON response data does not contain viewedPersonaInfo (^4" + furl + "^0)", 4);
+                        //plugin.DebugWrite("Request BF4 clan tag (^b" + player + "^n): JSON response data does not contain viewedPersonaInfo (^4" + furl + "^0)", 5);
                         // No tag
                         pinfo.tag = String.Empty;
-                        //player.TagVerified = true;
-                        //status.State = FetchState.Succeeded;
-                        //DebugFetch("^4Battlelog says ^b" + player.Name + "^n has no BF4 tag (no viewedPersonaInfo)");
+                        plugin.DebugWrite("Battlelog says ^b" + player + "^n has no BF4 tag (no viewedPersonaInfo)", 5);
                     } else {
                         // Extract the player tag
                         String bf4Tag = String.Empty;
                         if (!info.ContainsKey("tag") || String.IsNullOrEmpty(bf4Tag = (String)info["tag"])) {
                             // No tag
                             pinfo.tag = String.Empty;
-                            //player.TagVerified = true;
-                            //status.State = FetchState.Succeeded;
-                            //DebugFetch("^4Battlelog says ^b" + player.Name + "^n has no BF4 tag");
+                            plugin.DebugWrite("^4Battlelog says ^b" + player + "^n has no BF4 tag", 5);
                         } else {
                             pinfo.tag = bf4Tag;
                         }
@@ -14506,7 +14503,24 @@ public interface DataDictionaryInterface
             fields.AddRange(InsaneLimits.getExtraFields());
             foreach (String field_name in fields)
                 ovalue.Add(field_name, Double.NaN);
-
+            if (plugin.game_version == "BF4") {
+                // Not defined in BF4 JSON so far
+                ovalue["repairs"] = 0;
+                ovalue["revives"] = 0;
+                ovalue["ressuplies"] = 0; // typo is REQUIRED!
+                ovalue["quit_p"] = 0;
+                ovalue["vehicles_killed"] = 0;
+                ovalue["killStreakBonus"] = 0;
+                ovalue["killAssists"] = 0;
+                ovalue["rsDeaths"] = 0;
+                ovalue["rsKills"] = 0;
+                ovalue["rsNumLosses"] = 0;
+                ovalue["rsNumWins"] = 0;
+                ovalue["rsScore"] = 0;
+                ovalue["rsShotsFired"] = 0;
+                ovalue["rsShotsHit"] = 0;
+                ovalue["rsTimePlayed"] = 0;
+            }
 
             // fields for game stats
             List<String> gfields = InsaneLimits.getGameFieldKeys();
