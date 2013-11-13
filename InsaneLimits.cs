@@ -20,6 +20,7 @@ using System.Net;
 using System.Net.Mail;
 using System.Web;
 using System.Data;
+using System.Linq;
 
 using System.Windows.Forms;
 using System.Threading;
@@ -420,6 +421,13 @@ namespace PRoConEvents
         bool Headshot { get; }
     }
 
+    public interface KillReasonInterface
+    {
+        String Name { get; } // weapon name or reason, like "Suicide"
+        String Detail { get; } // BF4: ammo or attachment
+        String AttachedTo { get; } // BF4: main weapon when Name is a secondary attachment, like M320
+    }
+
     public interface PlayerInfoInterface
     {
         /* Online statistics (battlelog.battlefield.com) */
@@ -682,6 +690,9 @@ namespace PRoConEvents
         /* Friendly names */
         String FriendlyMapName(String mapFileName);  //example: "MP_001" -> "Grand Bazaar"
         String FriendlyModeName(String modeName);    //example: "TeamDeathMatch0" -> "TDM"
+        KillReasonInterface FriendlyWeaponName(String killWeapon); 
+            // BF3 example: "Weapons/XP2_L86/L86" => KillReason("L86", null, null)
+            // BF4 example: "U_AK12_M320_HE" => KillReason("M320", "HE", "AK12")
     }
 
 
@@ -3620,7 +3631,11 @@ namespace PRoConEvents
             parameters.ReferencedAssemblies.Add("System.Data.dll");
             parameters.ReferencedAssemblies.Add("System.Windows.Forms.dll");
             parameters.ReferencedAssemblies.Add("System.Xml.dll");
-            parameters.ReferencedAssemblies.Add("Plugins/BF3/InsaneLimits.dll");
+            //parameters.ReferencedAssemblies.Add("System.Linq.dll");
+            if (game_version == "BF4")
+                parameters.ReferencedAssemblies.Add("Plugins/BF4/InsaneLimits.dll");
+            else
+                parameters.ReferencedAssemblies.Add("Plugins/BF3/InsaneLimits.dll");
 
             parameters.GenerateInMemory = true;
             parameters.IncludeDebugInformation = false;
@@ -3691,6 +3706,7 @@ namespace PRoConEvents
         <blockquote>
           &lt;ProCon&gt;/<br />
           &lt;ProCon&gt;/Plugins/BF3<br />
+          &lt;ProCon&gt;/Plugins/BF4<br />
         </blockquote>
         <br />
         <h2>Supported Limit Evaluations</h2>
@@ -4311,6 +4327,9 @@ public interface PluginInterface
     /* Friendly names */
     String FriendlyMapName(String mapFileName);  //example: ""MP_001"" -> ""Grand Bazaar""
     String FriendlyModeName(String modeName);    //example: ""TeamDeathMatch0"" -> ""TDM""
+    KillReasonInterface FriendlyWeaponName(String killWeapon); 
+        // BF3 example: ""Weapons/XP2_L86/L86"" => KillReasonInterface(""L86"", null, null)
+        // BF4 example: ""U_AK12_M320_HE"" => KillReasonInterface(""M320"", ""HE"", ""AK12"")
 }
 </pre>
 
@@ -5199,7 +5218,11 @@ public interface DataDictionaryInterface
 
                         // Weapon Replacements (Evaluations: OnKill, OnDeath, OnTeamKill, OnTeamDeath, and OnSuicide)
                         case "%w_n%":
-                            dict[key] = kill.Weapon;
+                            //dict[key] = kill.Weapon;
+                            {
+                                KillReasonInterface kr = FriendlyWeaponName(kill.Weapon);
+                                dict[key] = kr.Name;
+                            }
                             break;
                         case "%w_p_x%":
                             dict[key] = killer[kill.Weapon].KillsRound.ToString();
@@ -5972,6 +5995,10 @@ public interface DataDictionaryInterface
     using System.Web;
     using System.Data;
     using System.Threading;
+    // .net 3.5 additions: procon 1.4.1.1 and later
+    //using System.Linq;
+    using System.Xml;
+
 
 
     class %class_name%
@@ -11999,6 +12026,37 @@ public interface DataDictionaryInterface
             return ret;
         }
 
+        public KillReasonInterface FriendlyWeaponName(String killWeapon)
+        {
+            KillReason r = new KillReason();
+            r._name = killWeapon;
+
+            if (game_version == "BF3")
+            {
+                Match m = Regex.Match(killWeapon, @"/([^/]+)$");
+                r._name = killWeapon;
+                if (m.Success) r._name = m.Groups[1].Value;
+            }
+            else if (killWeapon.StartsWith("U_"))
+            {
+                String[] tParts = killWeapon.Split(new[]{'_'});
+
+                if (tParts.Length == 2) { // U_Name
+                    r._name = tParts[1];
+                }  else if (tParts.Length == 3) { // U_Name_Detail
+                    r._name = tParts[1];
+                    r._detail = tParts[2];
+                }  else if (tParts.Length == 4) { // U_AttachedTo_Name_Detail
+                    r._name = tParts[2];
+                    r._detail = tParts[3];
+                    r._attachedTo = tParts[1];
+                } else {
+                    DebugWrite("Warning: unrecognized weapon code: " + killWeapon, 5);
+                }
+            }
+            return r;
+        }
+
         public bool Log(String file, String message)
         {
             AppendData(StripModifiers(E(message) + NL), file);
@@ -13805,6 +13863,26 @@ public interface DataDictionaryInterface
             this.type = type;
         }
 
+    }
+
+
+    public class KillReason : KillReasonInterface
+    {
+        public String _name = String.Empty;
+        public String _detail = null;
+        public String _attachedTo = null;
+
+        public String Name { get { return _name;} } // weapon name or reason, like "Suicide"
+        public String Detail { get { return _detail;} } // BF4: ammo or attachment
+        public String AttachedTo { get { return _attachedTo; } } // BF4: main weapon when Name is a secondary attachment, like M320
+        
+        public KillReason() {}
+        public KillReason(String name, String detail, String attachedTo)
+        {
+            _name = name;
+            _detail = detail;
+            _attachedTo = attachedTo;
+        }
     }
 
 
