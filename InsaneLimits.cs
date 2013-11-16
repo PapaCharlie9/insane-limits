@@ -13710,6 +13710,8 @@ public interface DataDictionaryInterface
                     throw new StatsException("fetchStats aborted, disabling plugin ...");
                 }
 
+                String itemName = "(item " + all_weapons.Count.ToString() + ")";
+
                 try
                 {
                     if (item == null || !item.GetType().Equals(typeof(Hashtable)))
@@ -13722,7 +13724,6 @@ public interface DataDictionaryInterface
 
                     BattlelogWeaponStats bwstats = new BattlelogWeaponStats();
 
-                    String itemName = "(item " + all_weapons.Count.ToString() + ")";
                     String ttmp = null;
                     if (!wstat.ContainsKey("name") || (ttmp = (String)wstat["name"]) != null)
                         itemName = ttmp;
@@ -13773,6 +13774,7 @@ public interface DataDictionaryInterface
                 catch (Exception)
                 {
                     count++;
+                    plugin.DebugWrite("Battlelog weapon stats parse of ^b" + itemName + "^n failed, skipping ...", 5);
                     continue;
                 }
             }
