@@ -384,6 +384,7 @@ namespace PRoConEvents
         String Host { get; }                     // Layer/Server Host
         String Name { get; }
         String Description { get; }
+        String GameVersion { get; } // BF3 or BF4
 
         /* var.* value that is updated every update_interval seconds */
         int BulletDamage { get; }
@@ -393,6 +394,10 @@ namespace PRoConEvents
         int SoldierHealth { get; }
         bool VehicleSpawnAllowed { get; }
         int VehicleSpawnDelay { get; }
+        // BF4
+        bool Commander { get; }
+        int MaxSpectators { get; }
+        String ServerType { get; }
 
 
         /* Team data */
@@ -1136,6 +1141,10 @@ namespace PRoConEvents
         public int varSoldierHealth = -1;
         public bool varVehicleSpawnAllowed = true;
         public int varVehicleSpawnDelay = -1;
+        /* BF4 */
+        public bool varCommander = false;
+        public int varMaxSpectators = -1;
+        public String varServerType = String.Empty;
 
         DateTime timerSquad = DateTime.Now;
         DateTime timerVars = DateTime.Now;
@@ -4100,6 +4109,7 @@ public interface ServerInfoInterface
     String Host { get; }                     // Layer/Server Host
     String Name { get; }
     String Description { get; }
+    String GameVersion { get; } // BF3 or BF4
 
     /* var.* value that is updated every update_interval seconds */
     int BulletDamage { get; }
@@ -4109,6 +4119,10 @@ public interface ServerInfoInterface
     int SoldierHealth { get; }
     bool VehicleSpawnAllowed { get; }
     int VehicleSpawnDelay { get; }
+    // BF4
+    bool Commander { get; }
+    int MaxSpectators { get; }
+    String ServerType { get; }
 
     /* Team data */
     double Tickets(int TeamId);              //tickets for the specified team
@@ -4924,7 +4938,11 @@ public interface DataDictionaryInterface
                 "OnIdleTimeout",
                 "OnSoldierHealth",
                 "OnVehicleSpawnAllowed",
-                "OnVehicleSpawnDelay"
+                "OnVehicleSpawnDelay",
+                /* BF4 additions */
+                "OnCommander",
+                "OnMaxSpectators",
+                "OnServerType"
                 );
 
             //initialize the dictionary with countries, carriers, gateways
@@ -8762,7 +8780,8 @@ public interface DataDictionaryInterface
         public void getModeCounters()
         {
             ServerCommand("vars.gameModeCounter");
-            ServerCommand("vars.ctfRoundTimeModifier");
+            if (game_version == "BF3")
+                ServerCommand("vars.ctfRoundTimeModifier");
         }
 
         public int[] getMapIndicesSync()
@@ -8803,13 +8822,28 @@ public interface DataDictionaryInterface
         {
             if (!plugin_activated) return;
 
-            ServerCommand("vars.bulletDamage");
-            ServerCommand("vars.friendlyFire");
-            ServerCommand("vars.gunMasterWeaponsPreset");
-            ServerCommand("vars.idleTimeout");
-            ServerCommand("vars.soldierHealth");
-            ServerCommand("vars.vehicleSpawnAllowed");
-            ServerCommand("vars.vehicleSpawnDelay");
+            if (game_version == "BF4")
+            {
+                ServerCommand("vars.bulletDamage");
+                ServerCommand("vars.friendlyFire");
+                ServerCommand("vars.idleTimeout");
+                ServerCommand("vars.soldierHealth");
+                ServerCommand("vars.vehicleSpawnAllowed");
+                ServerCommand("vars.vehicleSpawnDelay");
+                ServerCommand("vars.commander");
+                ServerCommand("vars.serverType");
+                ServerCommand("vars.maxSpectators");
+            }
+            else
+            {
+                ServerCommand("vars.bulletDamage");
+                ServerCommand("vars.friendlyFire");
+                ServerCommand("vars.gunMasterWeaponsPreset");
+                ServerCommand("vars.idleTimeout");
+                ServerCommand("vars.soldierHealth");
+                ServerCommand("vars.vehicleSpawnAllowed");
+                ServerCommand("vars.vehicleSpawnDelay");
+            }
 
             resetUpdateTimer(WhichTimer.Vars);
         }
@@ -9604,14 +9638,18 @@ public interface DataDictionaryInterface
             String key = null;
 
             DebugWrite("UpdateExtraInfo seconds since last update: " + DateTime.Now.Subtract(ts).TotalSeconds.ToString("F0"), 7);
+            if (!itIsTime) return;
+
+            int updatedPing = 0;
+            int badPing = 0;
 
             foreach (CPlayerInfo cpiPlayer in lstPlayers) {
-                if (itIsTime && (cpiPlayer.Score == 0 || Double.IsNaN(cpiPlayer.Score)) && cpiPlayer.Deaths == 0) {
+                if ((cpiPlayer.Score == 0 || Double.IsNaN(cpiPlayer.Score)) && cpiPlayer.Deaths == 0) {
                     DebugWrite("Updating idle duration for: " + cpiPlayer.SoldierName, 5);
                     ServerCommand("player.idleDuration", cpiPlayer.SoldierName); // Update it
                 }
 
-                if (itIsTime && cpiPlayer.TeamID > 0 && cpiPlayer.SquadID > 0) {
+                if (cpiPlayer.TeamID > 0 && cpiPlayer.SquadID > 0) {
                     key = cpiPlayer.TeamID.ToString() + "/" + cpiPlayer.SquadID;
                     if (!squadCounts.ContainsKey(key)) {
                         squadCounts[key] = 1;
@@ -9619,24 +9657,31 @@ public interface DataDictionaryInterface
                         squadCounts[key] = squadCounts[key] + 1;
                     }
                 }
+
+                if (cpiPlayer.Ping > 0 && cpiPlayer.Ping < 65535) {
+                    OnPlayerPingedByAdmin(cpiPlayer.SoldierName, cpiPlayer.Ping);
+                    ++updatedPing;
+                } else {
+                    ++badPing;
+                }
             }
 
-            if (itIsTime)
-            {
-                String[] ids = null;
-                Char[] div = new Char[] {'/'};
-                foreach (String k in squadCounts.Keys) {
-                    DebugWrite("Updating squad privacy and leader for: " + k, 5);
-                    ids = k.Split(div);
-                    ServerCommand("squad.private", ids[0], ids[1]);
-                    // Request leader only for squads with more than one player
-                    if (squadCounts[k] > 1) 
-                    {
-                        ServerCommand("squad.leader", ids[0], ids[1]);
-                    }
+            if (updatedPing > 0 || badPing > 0)
+                DebugWrite("Updated pings: " + updatedPing + " good, " + badPing + " bad, " + lstPlayers.Count + " total", 5);
+
+            String[] ids = null;
+            Char[] div = new Char[] {'/'};
+            foreach (String k in squadCounts.Keys) {
+                DebugWrite("Updating squad privacy and leader for: " + k, 5);
+                ids = k.Split(div);
+                ServerCommand("squad.private", ids[0], ids[1]);
+                // Request leader only for squads with more than one player
+                if (squadCounts[k] > 1) 
+                {
+                    ServerCommand("squad.leader", ids[0], ids[1]);
                 }
-                resetUpdateTimer(WhichTimer.Squad);
             }
+            resetUpdateTimer(WhichTimer.Squad);
         }
 
 
@@ -13236,6 +13281,35 @@ public interface DataDictionaryInterface
             game_version = lstPluginEnv[1];
             ConsoleWrite("^1Game Version = " + lstPluginEnv[1]);
         }
+
+        // BF4
+
+        public void OnCommander(bool isEnabled)
+        {
+            DebugWrite("Got ^bOnCommander^n: " + isEnabled, 8);
+
+            this.varCommander = isEnabled;
+
+            resetUpdateTimer(WhichTimer.Vars);
+        }
+
+        public void OnMaxSpectators(int limit)
+        {
+            DebugWrite("Got ^bOnMaxSpectators^n: " + limit, 8);
+
+            this.varMaxSpectators = limit;
+
+            resetUpdateTimer(WhichTimer.Vars);
+        }
+
+        public void OnServerType(string value)
+        {
+            DebugWrite("Got ^bOnServerType^n: " + value, 8);
+
+            this.varServerType = value;
+
+            resetUpdateTimer(WhichTimer.Vars);
+        }
     }
 
 
@@ -14210,6 +14284,7 @@ public interface DataDictionaryInterface
         public String Host { get { return plugin.server_host; } }
         public String Name { get { return plugin.server_name; } }
         public String Description { get { return plugin.server_desc; } }
+        public String GameVersion { get { return plugin.game_version; } }
 
         /* var.* value that is updated every update_interval seconds */
         public int BulletDamage { get { return plugin.varBulletDamage; } }
@@ -14219,6 +14294,10 @@ public interface DataDictionaryInterface
         public int SoldierHealth { get { return plugin.varSoldierHealth; } }
         public bool VehicleSpawnAllowed { get { return plugin.varVehicleSpawnAllowed; } }
         public int VehicleSpawnDelay { get { return plugin.varVehicleSpawnDelay; } }
+        // BF4
+        public bool Commander { get { return plugin.varCommander; } }
+        public int MaxSpectators { get { return plugin.varMaxSpectators; } }
+        public String ServerType { get { return plugin.varServerType; } }
 
 
         public ServerInfo(InsaneLimits plugin, CServerInfo data, List<MaplistEntry> mlist, int[] indices)
