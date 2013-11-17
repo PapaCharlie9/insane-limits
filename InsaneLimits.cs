@@ -1532,7 +1532,7 @@ namespace PRoConEvents
                 rcon2bwbf4["SAIGA"] = "WARSAW_ID_P_WNAME_SAIGA12";
                 rcon2bwbf4["SCAR-H"] = "WARSAW_ID_P_WNAME_SCARH";
                 rcon2bwbf4["SCAR-HSV"] = "WARSAW_ID_P_WNAME_SCARHSV";
-                rcon2bwbf4["SCORPIAN"] = "WARSAW_ID_P_WNAME_SCORP";
+                rcon2bwbf4["SCORPION"] = "WARSAW_ID_P_WNAME_SCORP";
                 rcon2bwbf4["SCOUT"] = "WARSAW_ID_P_WNAME_SCOUTELIT";
                 rcon2bwbf4["SERBUSHORTY"] = "WARSAW_ID_P_WNAME_SHORTY";
                 rcon2bwbf4["SG553LB"] = "WARSAW_ID_P_WNAME_SG553";
@@ -1540,7 +1540,7 @@ namespace PRoConEvents
                 rcon2bwbf4["ULTIMAX"] = "WARSAW_ID_P_WNAME_ULTIM";
                 rcon2bwbf4["USAS-12"] = "WARSAW_ID_P_WNAME_USAS12";
                 rcon2bwbf4["MAGPULPDR"] = "WARSAW_ID_P_WNAME_PDR";
-                rcon2bwbf4["GRENADE"] = "WARSAW_ID_P_INAME_M67";
+                rcon2bwbf4["GRENADE"] = "WARSAW_ID_P_INAME_IMPACT";
                 rcon2bwbf4["CLAYMORE"] = "WARSAW_ID_P_INAME_CLAYMORE";
                 rcon2bwbf4["C4"] = "WARSAW_ID_P_INAME_C4";
                 rcon2bwbf4["FGM148"] = "WARSAW_ID_P_INAME_FGM148";
@@ -1555,6 +1555,10 @@ namespace PRoConEvents
                 rcon2bwbf4["SRAW"] = "WARSAW_ID_P_INAME_SRAW";
                 rcon2bwbf4["STARSTREAK"] = "WARSAW_ID_P_INAME_STARSTREAK";
                 rcon2bwbf4["XM25"] = "WARSAW_ID_P_INAME_XM25";
+                rcon2bwbf4["MP412REX"] = "WARSAW_ID_P_WNAME_M412REX";
+                rcon2bwbf4["SLAM"] = "WARSAW_ID_P_INAME_M2";
+                rcon2bwbf4["TOMAHAWK"] = "WARSAW_ID_P_INAME_MACHETE";
+                rcon2bwbf4["NLAW"] = "WARSAW_ID_P_INAME_MBTLAW";
 
 
                 rcon2bwbf4["DAMAGEAREA"] = null;
@@ -15379,11 +15383,12 @@ public interface DataDictionaryInterface
             // Exactly one key contains shortName as a substring?
             if (subKeys.Count == 1) return subKeys[0];
             
+            // If no substrings match exactly, use the entire list of keys
             if (subKeys.Count == 0) subKeys = keys;
             
             // Last resort, do fuzzy match
             int distance = 0;
-            String new_name = plugin.bestMatch(shortName, subKeys, out distance, true);
+            String new_name = plugin.bestMatch((plugin.game_version == "BF4") ? bf4Normalized : shortName, subKeys, out distance, true);
             if (new_name == null)
             {
                 if (verbose)
