@@ -1111,6 +1111,8 @@ namespace PRoConEvents
 
         public Dictionary<String,String> rcon2bw;
         public Dictionary<String,String> rcon2bwbf4;
+        public List<String> rcon2bw_user_var; // user define mappings
+        public Dictionary<String,String> rcon2bw_user;
         public Dictionary<String,String> cacheResponseTable;
         
         private bool isRoundReset = false;
@@ -1571,6 +1573,9 @@ namespace PRoConEvents
                 rcon2bwbf4["ROADKILL"] = null;
                 rcon2bwbf4["SOLDIERCOLLISION"] = null;
                 rcon2bwbf4["SUICIDE"] = null;
+
+                rcon2bw_user_var = new List<String>();
+                rcon2bw_user = new Dictionary<String,String>();
 
                 cacheResponseTable = new Dictionary<String,String>();
                 
@@ -4626,6 +4631,7 @@ public interface DataDictionaryInterface
                 won't be delayed or bogged down while fetching weapon stats. However,
                 if you have limits that use the GetBattlelog() function, you <b>must</b>
                 set this value to True, or else stats will not be available.
+                Also, see <b>rcon_to_battlelog_codes</b>.
                 </blockquote>
           </li>
           <li><blockquote><b>use_stats_log</b><br />
@@ -4665,6 +4671,15 @@ public interface DataDictionaryInterface
                 Note that plugin commands, are currently supported only inside ProCon, and not In-Game.
                 </blockquote>
            </li>
+          <li><blockquote><b>rcon_to_battlelog_codes</b><br />
+                <i>String[] Array</i> - Syntax: RCON=Battlelog, e.g., U_XBOW=WARSAW_ID_P_WNAME_CROSSBOW<br />
+                <br />
+                Visible only if <b>use_slow_weapon_stats</b> is True.
+                Lets you define mappings from RCON weapon codes to Battelog weapon stats codes. Useful when new unlocks or DLC
+                are released and in-use before the next update of this plugin is available. You can also override
+                incorrect mappings built-in to the plugin, if any.
+                </blockquote>
+          </li>
           <li><blockquote><b>smtp_port</b><br />
                 <i>(string)</i> - Address of the SMTP Mail server used for <i>Mail</i> action<br />
                 </blockquote>
@@ -7168,13 +7183,24 @@ public interface DataDictionaryInterface
                         var_type = "enum." + var_name + "(...|" + String.Join("|", Enum.GetNames(typeof(AcceptDeny))) + ")";
                     }
 
-                    if (limit_group_title.Length > 0)
+                    if (var_name == "rcon_to_battlelog_codes")
+                    {
+                        if (!getBooleanVarValue("use_slow_weapon_stats")) continue; // hide if use_slow_weapon_stats is False
+                        rcon2bw_user_var.Clear();
+                        foreach (String k in rcon2bw_user.Keys)
+                        {
+                            rcon2bw_user_var.Add(k + "=" + rcon2bw_user[k]);
+                        }
+                        lstReturn.Add(new CPluginVariable(group_order + group_name + "|" + var_name, typeof(string[]), rcon2bw_user_var.ToArray()));
+
+                    }
+                    else if (limit_group_title.Length > 0)
                         lstReturn.Add(new CPluginVariable(group_order + group_name + "|" + limit_group_title, "enum.SH(...|" + String.Join("|", Enum.GetNames(typeof(ShowHide))) + ")", "..."));
                     else if (limit_group_visible)
                         lstReturn.Add(new CPluginVariable(group_order + group_name + "|" + var_name, var_type, Uri.EscapeDataString(var_value)));
 
-
                 }
+
 
 
             }
@@ -7387,7 +7413,21 @@ public interface DataDictionaryInterface
 
             List<string> vars = getPluginVars(false, false, false, false);
             foreach (string var in vars)
-                lstReturn.Add(new CPluginVariable(var, typeof(string), "BASE64:" + Encode(getPluginVarValue(var))));
+            {
+                if (var == "rcon_to_battlelog_codes")
+                {
+                    rcon2bw_user_var.Clear();
+                    foreach (String k in rcon2bw_user.Keys)
+                    {
+                        rcon2bw_user_var.Add(k + "=" + rcon2bw_user[k]);
+                    }
+                    lstReturn.Add(new CPluginVariable(var, typeof(string[]), this.rcon2bw_user_var.ToArray()));
+                }
+                else
+                {
+                    lstReturn.Add(new CPluginVariable(var, typeof(string), "BASE64:" + Encode(getPluginVarValue(var))));
+                }
+            }
 
             return lstReturn;
         }
@@ -7396,6 +7436,26 @@ public interface DataDictionaryInterface
         {
             try
             {
+                if (var == "rcon_to_battlelog_codes")
+                {
+                    rcon2bw_user_var = new List<string>(CPluginVariable.DecodeStringArray(val));
+                    rcon2bw_user.Clear();
+                    foreach (String item in rcon2bw_user_var)
+                    {
+                        if (String.IsNullOrEmpty(item)) continue;
+                        String[] entry = item.Split(new Char[]{'='});
+                        if (entry.Length != 2)
+                        {
+                            DebugWrite("^1^bWARNING:^n^0 rcon_to_battlelog_codes item '" + item + "' is malformed, ignoring", 3);
+                            continue;
+                        }
+                        String key = entry[0].Trim();
+                        String code = entry[1].Trim();
+                        DebugWrite("Added weapon code[^b" + key + "^n] = ^b" + code + "^n", 3);
+                        rcon2bw_user[key] = code;
+                    }
+                    return;
+                }
                 String decoded = val;
                 bool ui = true;
                 if (decoded.StartsWith("BASE64:"))
@@ -10231,7 +10291,7 @@ public interface DataDictionaryInterface
         {
             try
             {
-                if (var == null || val == null)
+                if (var == null || val == null || var == "rcon_to_battlelog_codes")
                     return false;
 
                 if (!isPluginVar(var))
@@ -11579,6 +11639,24 @@ public interface DataDictionaryInterface
 
         public string getPluginVarValue(string sender, string var)
         {
+
+            if (var == "rcon_to_battlelog_codes")
+            {
+                String condensed = String.Empty;
+                foreach (String k in rcon2bw_user.Keys)
+                {
+                    if (String.IsNullOrEmpty(condensed))
+                    {
+                        condensed = k + "=" + rcon2bw_user[k];
+                    }
+                    else
+                    {
+                        condensed = condensed + ", " + k + "=" + rcon2bw_user[k];
+                    }
+                }
+                return condensed;
+            }
+
             if (!isPluginVar(var))
             {
                 SendConsoleError(sender, "unknown variable ^b" + var);
@@ -11627,6 +11705,7 @@ public interface DataDictionaryInterface
             vars.AddRange(getIntegerPluginVars());
             vars.AddRange(getStringListPluginVars());
             vars.AddRange(getStringPluginVars());
+            vars.Add("rcon_to_battlelog_codes");
 
             if (include_lists)
             {
@@ -15341,6 +15420,9 @@ public interface DataDictionaryInterface
             Match m = Regex.Match(name, @"/([^/]+)$");
             if (m.Success) shortName = m.Groups[1].Value;
             String bf4Normalized = name;
+
+            // User mapping
+            if (plugin.rcon2bw_user.ContainsKey(name)) return plugin.rcon2bw_user[shortName];
 
             if (plugin.game_version == "BF4") {
                 KillReasonInterface kr = plugin.FriendlyWeaponName(bf4Normalized);
