@@ -13736,7 +13736,7 @@ public interface DataDictionaryInterface
                         {
                             // For BF4, knife and similar weapons don't have the "headshots" property, so add a dummy
                             if (plugin.game_version == "BF4" || key == "headshots") {
-                                wstat[key] = (Object)0;
+                                wstat[key] = 0.0;
                             } else {
                                 plugin.DebugWrite("JSON structure of weapon stat for ^b" + itemName + "^n does not contain ^b" + key + "^n, for " + player, 5);
                                 failed = true;
