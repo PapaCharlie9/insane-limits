@@ -1434,6 +1434,7 @@ namespace PRoConEvents
                 json2keyBF4.Add("vehiclesDestroyed", "vehicles_killed");
                 json2keyBF4.Add("killStreakBonus", "killStreakBonus");
 
+                json2keyBF4.Add("killAssists", "killAssists");
                 json2keyBF4.Add("rsDeaths", "rsDeaths");
                 json2keyBF4.Add("rsKills", "rsKills");
                 json2keyBF4.Add("rsNumLosses", "rsNumLosses");
@@ -3736,7 +3737,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.9.14.0";
+            return "0.9.14.1";
         }
 
         public string GetPluginAuthor()
@@ -7607,7 +7608,7 @@ public interface DataDictionaryInterface
 
         public void evaluateLimitsForEvent(BaseEvent type, PlayerInfo player, PlayerInfo killer, PlayerInfo victim, Kill info)
         {
-            DebugWrite("+++ Evaluating all ^b" + type + "^n limits ...", 5);
+            DebugWrite("+++ Evaluating all ^b" + type + "^n limits ...", 6);
 
             KillInfo kill = new KillInfo(info, type);
 
@@ -7675,7 +7676,7 @@ public interface DataDictionaryInterface
                     return;
             }
             
-            DebugWrite("+++ Evaluated ^b" + all.Count + "^n limits", 5);
+            DebugWrite("+++ Evaluated ^b" + all.Count + "^n limits", 6);
         }
 
 
@@ -8243,7 +8244,7 @@ public interface DataDictionaryInterface
                     if (limit == null || !limit.Evaluation.Equals(Limit.EvaluationType.OnJoin))
                         continue;
 
-                    DebugWrite("Evaluating " + limit.ShortDisplayName + " - " + limit.Evaluation.ToString() + ", for " + name, 5);
+                    DebugWrite("Evaluating " + limit.ShortDisplayName + " - " + limit.Evaluation.ToString() + ", for " + name, 6); 
                     evaluateLimit(limit, player);
                 }
             }
@@ -8798,11 +8799,11 @@ public interface DataDictionaryInterface
         public void getMapInfoSync()
         {
             getModeCounters();
-            DebugWrite("waiting for map-list before proceeding", 6);
+            DebugWrite("waiting for map-list before proceeding", 8);
             getMapListSync();
-            DebugWrite("waiting for map-indices before proceeding", 6);
+            DebugWrite("waiting for map-indices before proceeding", 8);
             getMapIndicesSync();
-            DebugWrite("waiting for server-info before proceeding", 6);
+            DebugWrite("waiting for server-info before proceeding", 8);
             getServerInfoSync();
         }
 
@@ -9645,7 +9646,7 @@ public interface DataDictionaryInterface
 
             foreach (CPlayerInfo cpiPlayer in lstPlayers) {
                 if ((cpiPlayer.Score == 0 || Double.IsNaN(cpiPlayer.Score)) && cpiPlayer.Deaths == 0) {
-                    DebugWrite("Updating idle duration for: " + cpiPlayer.SoldierName, 5);
+                    DebugWrite("Updating idle duration for: " + cpiPlayer.SoldierName, 6);
                     ServerCommand("player.idleDuration", cpiPlayer.SoldierName); // Update it
                 }
 
@@ -9672,7 +9673,7 @@ public interface DataDictionaryInterface
             String[] ids = null;
             Char[] div = new Char[] {'/'};
             foreach (String k in squadCounts.Keys) {
-                DebugWrite("Updating squad privacy and leader for: " + k, 5);
+                DebugWrite("Updating squad privacy and leader for: " + k, 6);
                 ids = k.Split(div);
                 ServerCommand("squad.private", ids[0], ids[1]);
                 // Request leader only for squads with more than one player
@@ -9845,7 +9846,7 @@ public interface DataDictionaryInterface
         public void SendQueuedMessages(int sleep_time)
         {
 
-            DebugWrite("sending " + messageQueue.Count + " queued message" + ((messageQueue.Count > 1) ? "s" : "") + " ...", 6);
+            DebugWrite("sending " + messageQueue.Count + " queued message" + ((messageQueue.Count > 1) ? "s" : "") + " ...", 7);
 
             while (messageQueue.Count > 0)
             {
@@ -9941,11 +9942,11 @@ public interface DataDictionaryInterface
                     try
                     {
                         int sleep_t = getIntegerVarValue("auto_load_interval");
-                        plugin.DebugWrite("sleeping for ^b" + sleep_t + "^n second" + ((sleep_t > 1) ? "s" : "") + ", before next iteration", 6);
+                        plugin.DebugWrite("sleeping for ^b" + sleep_t + "^n second" + ((sleep_t > 1) ? "s" : "") + ", before next iteration", 7);
 
                         settings_handle.Reset();
                         settings_handle.WaitOne(sleep_t * 1000);
-                        plugin.DebugWrite("awake! loading settings", 6);
+                        plugin.DebugWrite("awake! loading settings", 7);
 
 
                         if (!plugin_enabled)
@@ -10108,7 +10109,7 @@ public interface DataDictionaryInterface
 
                             if (type.Equals(Limit.EvaluationType.OnIntervalPlayers) && sorted_players.Count > 0)
                             {
-                                DebugWrite("Evaluating " + limit.ShortDisplayName + " for " + sorted_players.Count + " player" + ((sorted_players.Count > 1) ? "s" : ""), 5);
+                                DebugWrite("Evaluating " + limit.ShortDisplayName + " for " + sorted_players.Count + " player" + ((sorted_players.Count > 1) ? "s" : ""), 6);
 
                                 for (int j = 0; j < sorted_players.Count; j++)
                                 {
@@ -10125,12 +10126,12 @@ public interface DataDictionaryInterface
                                         continue;
 
 
-                                    plugin.DebugWrite("Evaluating " + limit.ShortDisplayName + " for ^b" + name + "^n", 5);
+                                    plugin.DebugWrite("Evaluating " + limit.ShortDisplayName + " for ^b" + name + "^n", 6);
 
                                     if (evaluateLimit(limit, pinfo))
                                     {
                                         // refresh server information if evaluation was successful
-                                        plugin.DebugWrite("Waiting for server information before proceeding", 6);
+                                        plugin.DebugWrite("Waiting for server information before proceeding", 7);
                                         getServerInfoSync();
                                     }
                                 }
@@ -10281,29 +10282,10 @@ public interface DataDictionaryInterface
 
         public static List<String> getBasicFieldKeys(String game_version)
         {
-            return new List<string>(json2key.Values);
-            /*
-            else {
-                List<String> tmp = new List<string>(json2keyBF4.Values);
-                // Not defined in BF4 JSON so far
-                tmp.Add("repairs");
-                tmp.Add("revives");
-                tmp.Add("ressuplies"); // typo is REQUIRED!
-                tmp.Add("quit_p");
-                tmp.Add("vehicles_killed");
-                tmp.Add("killStreakBonus");
-                tmp.Add("killAssists");
-                tmp.Add("rsDeaths");
-                tmp.Add("rsKills");
-                tmp.Add("rsNumLosses");
-                tmp.Add("rsNumWins");
-                tmp.Add("rsScore");
-                tmp.Add("rsShotsFired");
-                tmp.Add("rsShotsHit");
-                tmp.Add("rsTimePlayed");
-                return tmp;
-            }
-            */
+            if (game_version == "BF4")
+                return new List<string>(json2keyBF4.Values); 
+            else
+                return new List<string>(json2key.Values);
         }
 
         public static List<String> getBasicWeaponFieldProps()
@@ -14801,24 +14783,6 @@ public interface DataDictionaryInterface
             fields.AddRange(InsaneLimits.getExtraFields());
             foreach (String field_name in fields)
                 ovalue.Add(field_name, Double.NaN);
-            if (plugin.game_version == "BF4") {
-                // Not defined in BF4 JSON so far
-                ovalue["repairs"] = 0;
-                ovalue["revives"] = 0;
-                ovalue["ressuplies"] = 0; // typo is REQUIRED!
-                ovalue["quit_p"] = 0;
-                ovalue["vehicles_killed"] = 0;
-                ovalue["killStreakBonus"] = 0;
-                ovalue["killAssists"] = 0;
-                ovalue["rsDeaths"] = 0;
-                ovalue["rsKills"] = 0;
-                ovalue["rsNumLosses"] = 0;
-                ovalue["rsNumWins"] = 0;
-                ovalue["rsScore"] = 0;
-                ovalue["rsShotsFired"] = 0;
-                ovalue["rsShotsHit"] = 0;
-                ovalue["rsTimePlayed"] = 0;
-            }
 
             // fields for game stats
             List<String> gfields = InsaneLimits.getGameFieldKeys();
