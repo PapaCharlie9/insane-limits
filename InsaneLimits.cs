@@ -13266,7 +13266,7 @@ public interface DataDictionaryInterface
 
         // BF4
 
-        public void OnCommander(bool isEnabled)
+        public override void OnCommander(bool isEnabled)
         {
             DebugWrite("Got ^bOnCommander^n: " + isEnabled, 8);
 
@@ -13275,7 +13275,7 @@ public interface DataDictionaryInterface
             resetUpdateTimer(WhichTimer.Vars);
         }
 
-        public void OnMaxSpectators(int limit)
+        public override void OnMaxSpectators(int limit)
         {
             DebugWrite("Got ^bOnMaxSpectators^n: " + limit, 8);
 
@@ -13284,7 +13284,7 @@ public interface DataDictionaryInterface
             resetUpdateTimer(WhichTimer.Vars);
         }
 
-        public void OnServerType(string value)
+        public override void OnServerType(string value)
         {
             DebugWrite("Got ^bOnServerType^n: " + value, 8);
 
