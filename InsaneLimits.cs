@@ -15236,6 +15236,8 @@ public interface DataDictionaryInterface
             bool EventWeapon = false;
             if (name.StartsWith(":") && (name = name.Substring(1)).Length > 0)
                 EventWeapon = true;
+            else if (name.StartsWith("U_")) // BF4
+                EventWeapon = true;
 
 
             if (plugin.WeaponsDict.ContainsKey(name))
