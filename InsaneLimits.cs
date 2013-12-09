@@ -4996,7 +4996,7 @@ public interface DataDictionaryInterface
                     plugin_activated = false;
                     try
                     {
-                        Thread.CurrentThread.Name = "activator";
+                        //Thread.CurrentThread.Name = "activator";
                         LoadSettings(true, false, true);
                         ConsoleWrite("Waiting for ^bprivacy_policy_agreement^n value");
                         int timeout = 30;
@@ -5044,6 +5044,8 @@ public interface DataDictionaryInterface
 
                 }));
 
+                Activator.IsBackground = true;
+                Activator.Name = "activator";
                 Activator.Start();
 
             }
@@ -5661,6 +5663,8 @@ public interface DataDictionaryInterface
 
             }));
 
+            delayed_compilation.IsBackground = true;
+            delayed_compilation.Name = "delayed_comp";
             delayed_compilation.Start();
         }
 
@@ -7015,6 +7019,8 @@ public interface DataDictionaryInterface
                         }
                     }));
 
+                finalizer.IsBackground = true;
+                finalizer.Name = "finalizer";
                 finalizer.Start();
 
             }
@@ -9388,6 +9394,8 @@ public interface DataDictionaryInterface
                 QueueSayMessage(new SayMessage(0, 0, String.Empty, MessageAudience.All, message));
             }));
 
+            delayed.IsBackground = true;
+            delayed.Name = "msg_delay";
             delayed.Start();
 
             return true;
@@ -9416,7 +9424,9 @@ public interface DataDictionaryInterface
                 Thread.Sleep(delay * 1000);
                 QueueSayMessage(new SayMessage(teamId, 0, String.Empty, MessageAudience.Team, message));
             }));
-
+            
+            delayed.IsBackground = true;
+            delayed.Name = "team_msg_delay";
             delayed.Start();
 
             return true;
@@ -9445,7 +9455,9 @@ public interface DataDictionaryInterface
                 Thread.Sleep(delay * 1000);
                 QueueSayMessage(new SayMessage(teamId, squadId, String.Empty, MessageAudience.Squad, message));
             }));
-
+            
+            delayed.IsBackground = true;
+            delayed.Name = "squad_msg_delay";
             delayed.Start();
 
 
@@ -9475,7 +9487,9 @@ public interface DataDictionaryInterface
                 Thread.Sleep(delay * 1000);
                 QueueSayMessage(new SayMessage(0, 0, name, MessageAudience.Player, message));
             }));
-
+            
+            delayed.IsBackground = true;
+            delayed.Name = "player_msg_delay";
             delayed.Start();
 
             return true;
@@ -11866,6 +11880,8 @@ public interface DataDictionaryInterface
 
         public void DumpException(Exception e, String prefix)
         {
+            int debug_level = getIntegerVarValue("debug_level");
+
             try
             {
                 string class_name = this.GetType().Name;
@@ -11885,28 +11901,28 @@ public interface DataDictionaryInterface
                 }
                 else if (e.GetType().Equals(typeof(TargetInvocationException)) && e.InnerException != null)
                 {
-                    ConsoleException(prefix + e.InnerException.GetType() + ": " + e.InnerException.Message);
-                    ConsoleWrite("^1Extra information dumped in file " + path);
+                    if (debug_level >= 4) ConsoleException(prefix + e.InnerException.GetType() + ": " + e.InnerException.Message);
+                    DebugWrite("^1Extra information dumped in file " + path, 4);
                     DumpExceptionFile(e, path);
                     DumpExceptionFile(e.InnerException, path);
                 }
                 else
                 {
-                    ConsoleException(prefix + e.GetType() + ": " + e.Message);
+                    if (debug_level >= 4) ConsoleException(prefix + e.GetType() + ": " + e.Message);
 
                     foreach (DictionaryEntry de in e.Data)
                     {
-                        ConsoleWrite("    " + de.Key.ToString() + ": " + de.Value.ToString());
+                        DebugWrite("    " + de.Key.ToString() + ": " + de.Value.ToString(), 4);
                     }
 
-                    ConsoleWrite("^1Extra information dumped in file " + path);
+                    DebugWrite("^1Extra information dumped in file " + path, 4);
                     DumpExceptionFile(e, path);
                 }
             }
             catch (Exception ex)
             {
-                ConsoleWarn("unable to dump extra exception information.");
-                ConsoleException(ex.GetType() + ": " + ex.Message);
+                if (debug_level >= 4) ConsoleWarn("unable to dump extra exception information.");
+                if (debug_level >= 4) ConsoleException(ex.GetType() + ": " + ex.Message);
             }
         }
 
@@ -12092,6 +12108,8 @@ public interface DataDictionaryInterface
                 }
             }));
 
+            mail_thread.IsBackground = true;
+            mail_thread.Name = "mailer";
             mail_thread.Start();
 
             return true;
@@ -12249,7 +12267,9 @@ public interface DataDictionaryInterface
                 Thread.Sleep(delay * 1000);
                 KillPlayer(name);
             }));
-
+            
+            delayed_kill.IsBackground = true;
+            delayed_kill.Name = "delayed_kill";
             delayed_kill.Start();
 
             return !cVmode;
