@@ -3746,7 +3746,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.9.14.1";
+            return "0.9.14.2";
         }
 
         public string GetPluginAuthor()
@@ -12967,8 +12967,10 @@ public interface DataDictionaryInterface
             try
             {
                 String json = JSON.JsonEncode(parms);
-                DebugWrite("Calling ^b" + className + "." + methodName + "^n(" + json.Substring(0, 512) + "...)", 5);
-                this.ExecuteCommand("procon.protected.plugins.call", className, methodName, json);
+                String filtered = json.Replace('{','(').Replace('}',')');
+                filtered = filtered.Substring(0, Math.Min(filtered.Length, 512));
+                DebugWrite("Calling ^b" + className + "." + methodName + "^n(" + filtered + "...)", 5);
+                this.ExecuteCommand("procon.protected.plugins.call", className, methodName, this.GetType().Name, json);
             }
             catch (Exception e)
             {
@@ -12981,13 +12983,67 @@ public interface DataDictionaryInterface
             return last_data_change;
         }
 
-        public void UpdatePluginData(String calledFrom, Type type, String key, Object value)
+        public void UpdatePluginData(params String[] parms)
         {
+            if (parms.Length != 4)
+            {
+                ConsoleWarn("UpdatePluginData called with incorrect parameter count: " + parms.Length);
+                return;
+            }
+            /*
+            parms[0]: Name of caller (plugin class)
+            parms[1]: Name of the dictionary type: "bool", "double", "int", "string" (not possible to pass object type)
+            parms[2]: Key
+            parms[3]: Stringification of value
+            */
+            if (String.IsNullOrEmpty(parms[0])) {
+                ConsoleWarn("UpdatePluginData parms[0]: caller name is invalid!");
+                return;
+            }
+            if (String.IsNullOrEmpty(parms[1])) {
+                ConsoleWarn("UpdatePluginData parms[1]: type is invalid!");
+                return;
+            }
+            if (String.IsNullOrEmpty(parms[2])) {
+                ConsoleWarn("UpdatePluginData parms[2]: key is invalid!");
+                return;
+            }
             try
             {
+                String calledFrom = parms[0];
+                Type type = typeof(String);
+                switch (parms[1]) 
+                {
+                    case "bool": type = typeof(bool); break;
+                    case "double": type = typeof(double); break;
+                    case "int": type = typeof(int); break;
+                    default: break;
+                }
+                String key = parms[2];
+                Object value = parms[3];
+
+                if (type == typeof(bool))
+                {
+                    bool v = false;
+                    Boolean.TryParse(parms[3], out v);
+                    value = (Boolean)v;
+                }
+                else if (type == typeof(double))
+                {
+                    double v = 0;
+                    Double.TryParse(parms[3], out v);
+                    value = (Double)v;
+                }
+                else if (type == typeof(int))
+                {
+                    int v = 0;
+                    Int32.TryParse(parms[3], out v);
+                    value = (Int32)v;
+                }
+
                 DataDict.set(type, key, value);
                 last_data_change = DateTime.Now;
-                DebugWrite("Plugin ^b" + calledFrom + "^n updated plugin.Data[" + key + "]", 5);
+                DebugWrite("Plugin ^b" + calledFrom + "^n, updated (" + parms[1] + ") plugin.Data[" + key + "]", 5);
             }
             catch (Exception) {}
         }
