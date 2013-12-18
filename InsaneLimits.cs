@@ -1072,6 +1072,7 @@ namespace PRoConEvents
         public DataDictionary DataDict;
         public DataDictionary RoundDataDict;
         private DateTime last_data_change;
+        private MatchCommand match_command_update_plugin_data;
 
 
         EventWaitHandle fetch_handle;
@@ -1477,6 +1478,7 @@ namespace PRoConEvents
                 DataDict = new DataDictionary(this);
                 RoundDataDict = new DataDictionary(this);
                 last_data_change = DateTime.Now;
+                match_command_update_plugin_data = new MatchCommand("InsaneLimits", "UpdatePluginData", new List<string>(), "InsaneLimits_UpdatePluginData", new List<MatchArgumentFormat>(), new ExecutionRequirements(ExecutionScope.None), "External plugin support, do not use this command in-game");
 
                 rcon2bw = new Dictionary<String,String>();
 
@@ -5001,6 +5003,9 @@ public interface DataDictionaryInterface
                 }
                 DebugWrite("Friendly names loaded", 6);
 
+                // register a command to indicate availibility to other plugins
+                this.RegisterCommand(match_command_update_plugin_data);
+
                 //start a thread that waits for the settings to be read from file
 
                 Thread Activator = new Thread(new ThreadStart(delegate()
@@ -5059,6 +5064,7 @@ public interface DataDictionaryInterface
                 Activator.IsBackground = true;
                 Activator.Name = "activator";
                 Activator.Start();
+                Thread.Sleep(1000);
 
             }
             catch (Exception e)
@@ -7022,6 +7028,8 @@ public interface DataDictionaryInterface
 
                             CleanupLimits();
 
+                            // unregister the command again to remove availibility-indicator
+                            this.UnregisterCommand(match_command_update_plugin_data);
 
                             ConsoleWrite("^1^bDisabled =(^0");
                         }
@@ -7034,7 +7042,7 @@ public interface DataDictionaryInterface
                 finalizer.IsBackground = true;
                 finalizer.Name = "finalizer";
                 finalizer.Start();
-
+                Thread.Sleep(1);
             }
             catch (Exception e)
             {
