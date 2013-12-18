@@ -698,6 +698,11 @@ namespace PRoConEvents
         KillReasonInterface FriendlyWeaponName(String killWeapon); 
             // BF3 example: "Weapons/XP2_L86/L86" => KillReason("L86", null, null)
             // BF4 example: "U_AK12_M320_HE" => KillReason("M320", "HE", "AK12")
+
+        /* External plugin support */
+        bool IsOtherPluginEnabled(String className, String methodName);
+        void CallOtherPlugin(String className, String methodName, Hashtable parms);
+        DateTime GetLastPluginDataUpdate(); // return timestamp for the last time InsaneLimits.UpdatePluginData() was called
     }
 
 
@@ -1066,6 +1071,7 @@ namespace PRoConEvents
 
         public DataDictionary DataDict;
         public DataDictionary RoundDataDict;
+        private DateTime last_data_change;
 
 
         EventWaitHandle fetch_handle;
@@ -1470,6 +1476,7 @@ namespace PRoConEvents
 
                 DataDict = new DataDictionary(this);
                 RoundDataDict = new DataDictionary(this);
+                last_data_change = DateTime.Now;
 
                 rcon2bw = new Dictionary<String,String>();
 
@@ -4415,6 +4422,11 @@ public interface PluginInterface
     KillReasonInterface FriendlyWeaponName(String killWeapon); 
         // BF3 example: ""Weapons/XP2_L86/L86"" => KillReasonInterface(""L86"", null, null)
         // BF4 example: ""U_AK12_M320_HE"" => KillReasonInterface(""M320"", ""HE"", ""AK12"")
+
+    /* External plugin support */
+    bool IsOtherPluginEnabled(String className, String methodName);
+    void CallOtherPlugin(String className, String methodName, Hashtable parms);
+    DateTime GetLastPluginDataUpdate(); // return timestamp for the last time InsaneLimits.UpdatePluginData() was called
 }
 </pre>
 
@@ -12925,13 +12937,61 @@ public interface DataDictionaryInterface
 
             return total;
         }
+
+
+        /* External plugin support */
+
+        public bool IsOtherPluginEnabled(String className, String methodName)
+        {
+            List<MatchCommand> registered = this.GetRegisteredCommands();
+            foreach (MatchCommand command in registered)
+            {
+                if (command.RegisteredClassname.Equals(className) && command.RegisteredMethodName.Equals(methodName))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public void CallOtherPlugin(String className, String methodName, Hashtable parms)
+        {
+            try
+            {
+                String json = JSON.JsonEncode(parms);
+                DebugWrite("Calling ^b" + className + "." + methodName + "^n(" + json.Substring(0, 512) + "...)", 5);
+                this.ExecuteCommand("procon.protected.plugins.call", className, methodName, json);
+            }
+            catch (Exception e)
+            {
+                DumpException(e);
+            }
+        }
+
+        public DateTime GetLastPluginDataUpdate() // return timestamp for the last time InsaneLimits.UpdatePluginData() was called
+        {
+            return last_data_change;
+        }
+
+        public void UpdatePluginData(String calledFrom, Type type, String key, Object value)
+        {
+            try
+            {
+                DataDict.set(type, key, value);
+                last_data_change = DateTime.Now;
+                DebugWrite("Plugin ^b" + calledFrom + "^n updated plugin.Data[" + key + "]", 5);
+            }
+            catch (Exception) {}
+        }
         
+        /* Stats fetching support */
+
         public bool IsCacheEnabled(bool verbose)
         {
             List<MatchCommand> registered = this.GetRegisteredCommands();
             foreach (MatchCommand command in registered)
             {
-                if (command.RegisteredClassname.CompareTo("CBattlelogCache") == 0 && command.RegisteredMethodName.CompareTo("PlayerLookup") == 0)
+                if (command.RegisteredClassname.Equals("CBattlelogCache") && command.RegisteredMethodName.Equals("PlayerLookup"))
                 {
                     if (verbose) DebugWrite("^bBattlelog Cache^n plugin will be used for stats fetching!", 3);
                     return true;
@@ -14905,88 +14965,111 @@ public interface DataDictionaryInterface
 
         public Object set(Type type, String key, Object value)
         {
-            if (!data.ContainsKey(type))
+            lock (data)
             {
-                plugin.ConsoleError(this.GetType().Name + " has no data of ^b" + type.Name + "^n type");
-                return (Object)Activator.CreateInstance(type);
+                if (data.ContainsKey(type))
+                {
+                    if (!data[type].ContainsKey(key))
+                        data[type].Add(key, value);
+                    else
+                        data[type][key] = value;
+
+                    return data[type][key];
+                }
             }
-
-            if (!data[type].ContainsKey(key))
-                data[type].Add(key, value);
-            else
-                data[type][key] = value;
-
-            return data[type][key];
+            plugin.ConsoleError(this.GetType().Name + " has no data of ^b" + type.Name + "^n type");
+            return (Object)Activator.CreateInstance(type);
         }
 
         public Object get(Type type, String key)
         {
-
-            if (!data.ContainsKey(type))
+            bool unknownKey = false;
+            lock (data)
             {
-                plugin.ConsoleError(this.GetType().Name + " has no data of ^b" + type.Name + "^n type");
-                return (Object)Activator.CreateInstance(type);
+                if (data.ContainsKey(type))
+                {
+                    if (!data[type].ContainsKey(key))
+                    {
+                        unknownKey = true;
+                    }
+                    else
+                    {
+                        return data[type][key];
+                    }
+                }
             }
-
-            if (!data[type].ContainsKey(key))
+            if (unknownKey)
             {
                 plugin.ConsoleError(this.GetType().Name + " has no ^b" + type.Name + "^n(" + key + ") key");
                 return (Object)Activator.CreateInstance(type);
             }
-
-            return data[type][key];
+            plugin.ConsoleError(this.GetType().Name + " has no data of ^b" + type.Name + "^n type");
+            return (Object)Activator.CreateInstance(type);
         }
 
         public Object unset(Type type, String key)
         {
-
-            if (!data.ContainsKey(type))
+            bool unknownKey = false;
+            lock (data)
             {
-                plugin.ConsoleError(this.GetType().Name + " has no data of ^b" + type.Name + "^n type");
-                return (Object)Activator.CreateInstance(type);
-            }
+                if (data.ContainsKey(type))
+                {
+                    if (!data[type].ContainsKey(key))
+                    {
+                        unknownKey = true;
+                    }
+                    else
+                    {
+                        Object value = data[type][key];
+                        data[type].Remove(key);
 
-            if (!data[type].ContainsKey(key))
+                        return value;
+                    }
+                }
+            }
+            if (unknownKey)
             {
                 plugin.ConsoleWarn(this.GetType().Name + " has no ^b" + type.Name + "^n(" + key + ") key");
                 return (Object)Activator.CreateInstance(type);
             }
-
-            Object value = data[type][key];
-            data[type].Remove(key);
-
-            return value;
+            plugin.ConsoleError(this.GetType().Name + " has no data of ^b" + type.Name + "^n type");
+            return (Object)Activator.CreateInstance(type);
         }
 
         public List<string> getKeys(Type type)
         {
-            if (!data.ContainsKey(type))
+            lock (data)
             {
-                plugin.ConsoleError(this.GetType().Name + " has no data of ^b" + type.Name + "^n type");
-                return new List<string>();
+                if (data.ContainsKey(type))
+                {
+                    return new List<string>(data[type].Keys);
+                }
             }
-
-            return new List<string>(data[type].Keys);
+            plugin.ConsoleError(this.GetType().Name + " has no data of ^b" + type.Name + "^n type");
+            return new List<string>();
         }
 
         public void Clear()
         {
-            data.Clear();
-            Init();
+            lock (data)
+            {
+                data.Clear();
+                Init();
+            }
         }
 
 
         public bool isset(Type type, String key)
         {
-
-            if (!data.ContainsKey(type))
+            lock (data)
             {
-                plugin.ConsoleError(this.GetType().Name + " has no data of ^b" + type.Name + "^n type");
-                return false;
+                if (data.ContainsKey(type))
+                {
+                    return data[type].ContainsKey(key);
+                }
             }
-
-            return data[type].ContainsKey(key);
-
+            plugin.ConsoleError(this.GetType().Name + " has no data of ^b" + type.Name + "^n type");
+            return false;
         }
 
         /* String Data */
