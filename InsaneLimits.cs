@@ -12255,7 +12255,7 @@ public interface DataDictionaryInterface
                 }  else if (tParts.Length == 3) { // U_Name_Detail
                     r._name = tParts[1];
                     r._detail = tParts[2];
-                }  else if (tParts.Length == 4) { // U_AttachedTo_Name_Detail
+                }  else if (tParts.Length >= 4) { // U_AttachedTo_Name_Detail
                     r._name = tParts[2];
                     r._detail = tParts[3];
                     r._attachedTo = tParts[1];
