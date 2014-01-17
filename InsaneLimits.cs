@@ -13405,7 +13405,7 @@ public interface DataDictionaryInterface
                 DebugWrite("Got ^bOnPluginLoadingEnv: " + env, 8);
             }
             game_version = lstPluginEnv[1];
-            ConsoleWrite("^1Game Version = " + lstPluginEnv[1]);
+            ConsoleWrite("^2Game Version = " + lstPluginEnv[1]);
         }
 
         // BF4
