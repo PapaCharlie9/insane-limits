@@ -3751,7 +3751,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.9.14.3";
+            return "0.9.15.0";
         }
 
         public string GetPluginAuthor()
@@ -8227,8 +8227,10 @@ public interface DataDictionaryInterface
                 round_over = false;
                 //round over, fetch map info again
                 DebugWrite(":::::::::::: Round start detected ::::::::::::", 4);
-                getMapInfo();
                 DebugWrite("async map info update", 8);
+                getMapInfo();
+                DebugWrite("update vars", 8);
+                updateVars();
                 evaluateLimitsForEvent(BaseEvent.RoundStart, null, null, null, null);
             }
 
@@ -8870,6 +8872,7 @@ public interface DataDictionaryInterface
                 ServerCommand("vars.commander");
                 ServerCommand("vars.serverType");
                 ServerCommand("vars.maxSpectators");
+                ServerCommand("vars.teamFactionOverride");
             }
             else
             {
