@@ -229,6 +229,9 @@ namespace PRoConEvents
         double RemainTickets { get; }
         double RemainTicketsPercent { get; }
         double StartTickets { get; }
+
+        // BF4
+        int Faction { get; }
     }
 
     public interface LimitInfoInterface
@@ -398,6 +401,7 @@ namespace PRoConEvents
         bool Commander { get; }
         int MaxSpectators { get; }
         String ServerType { get; }
+        int GetFaction(int TeamId);
 
 
         /* Team data */
@@ -496,6 +500,7 @@ namespace PRoConEvents
         int MinPing { get; }
         int MedianPing { get; }
         int AveragePing { get; }
+        int Role { get; } // BF4: 0 = PLAYER, 1 = SPECTATOR, 2 = COMMANDER, 3 = MOBILE COMMANDER
 
         /* Current round, Player Stats */
         double KdrRound { get; }
@@ -3746,7 +3751,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.9.14.2";
+            return "0.9.14.3";
         }
 
         public string GetPluginAuthor()
@@ -4056,6 +4061,8 @@ public interface TeamInfoInterface
     double RemainTicketsPercent { get; }
     double StartTickets { get; }
 
+    // BF4
+    int Faction { get; } // US = 0, RU = 1, CN = 2
 }
     </pre>
 
@@ -4133,6 +4140,7 @@ public interface ServerInfoInterface
     bool Commander { get; }
     int MaxSpectators { get; }
     String ServerType { get; }
+    int GetFaction(int TeamId); // US = 0, RU = 1, CN = 2
 
     /* Team data */
     double Tickets(int TeamId);              //tickets for the specified team
@@ -4230,6 +4238,7 @@ public interface PlayerInfoInterface
     int MinPing { get; }
     int MedianPing { get; } // of the last five samples
     int AveragePing { get; } // of two to five samples
+    int Role { get; } // BF4: 0 = PLAYER, 1 = SPECTATOR, 2 = COMMANDER, 3 = MOBILE COMMANDER
 
 
     /* Current round, Player Stats */
@@ -4957,7 +4966,8 @@ public interface DataDictionaryInterface
                 /* BF4 additions */
                 "OnCommander",
                 "OnMaxSpectators",
-                "OnServerType"
+                "OnServerType",
+                "OnTeamFactionOverride"
                 );
 
             //initialize the dictionary with countries, carriers, gateways
@@ -13436,6 +13446,16 @@ public interface DataDictionaryInterface
 
             resetUpdateTimer(WhichTimer.Vars);
         }
+
+        public override void OnTeamFactionOverride(int teamId, int faction)
+        {
+            DebugWrite("Got ^bOnTeamFactionOverride^n: " + teamId + " " + faction, 8);
+
+            if (this.serverInfo._Faction != null && teamId >= 0 && teamId < this.serverInfo._Faction.Length)
+            {
+                this.serverInfo._Faction[teamId] = faction;
+            }
+        }
     }
 
 
@@ -14234,6 +14254,7 @@ public interface DataDictionaryInterface
         List<MaplistEntry> mlist = null;
         List<TeamScore> _TeamTickets = null;
         Dictionary<int, double> _StartTickets = null;
+        public int[] _Faction = null;
         
         List<String> _mapRotation = new List<String>();
         List<String> _modeRotation = new List<String>();
@@ -14424,6 +14445,12 @@ public interface DataDictionaryInterface
         public bool Commander { get { return plugin.varCommander; } }
         public int MaxSpectators { get { return plugin.varMaxSpectators; } }
         public String ServerType { get { return plugin.varServerType; } }
+        public int GetFaction(int TeamId)
+        {
+            if (TeamId < 0 || TeamId >= _Faction.Length)
+                return -1;
+            return _Faction[TeamId];
+        }
 
 
         public ServerInfo(InsaneLimits plugin, CServerInfo data, List<MaplistEntry> mlist, int[] indices)
@@ -14450,6 +14477,8 @@ public interface DataDictionaryInterface
             DataDict = new DataDictionary(plugin);
             RoundDataDict = new DataDictionary(plugin);
             ResetTickets();
+
+            _Faction = new int[5]{-1,-1,-1,-1,-1};
         }
 
         private void ResetTickets()
@@ -14599,6 +14628,8 @@ public interface DataDictionaryInterface
         public double RemainTickets { get { return server.RemainTickets(TeamId); } }
         public double RemainTicketsPercent { get { return server.RemainTicketsPercent(TeamId); } }
         public double StartTickets { get { return server.StartTickets(TeamId); } }
+        // BF4
+        public int Faction { get { return server.GetFaction(TeamId); } }
 
         //use a converter to return the list of players as PlayerInfoInterface
         public List<PlayerInfoInterface> players
@@ -14782,6 +14813,7 @@ public interface DataDictionaryInterface
         public int MinPing { get { return _minPing; } set { _minPing = value; } }
         public int MedianPing { get { return _medianPing; } set { _medianPing = value; } }
         public int AveragePing { get { return _averagePing; } set { _averagePing = value; } }
+        public int Role { get { return info.Type; } }
 
         /* Round Statistics */
         [A("round", "Kdr", @"kd.*")]
