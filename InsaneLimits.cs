@@ -12012,7 +12012,7 @@ public interface DataDictionaryInterface
             else if (type.Equals(MessageType.Exception))
                 prefix += "^1^bEXCEPTION^0^n: ";
 
-            return prefix + msg;
+            return prefix + msg.Replace('{','(').Replace('}',')');
         }
 
 
