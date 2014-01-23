@@ -229,6 +229,9 @@ namespace PRoConEvents
         double RemainTickets { get; }
         double RemainTicketsPercent { get; }
         double StartTickets { get; }
+
+        // BF4
+        int Faction { get; }
     }
 
     public interface LimitInfoInterface
@@ -398,6 +401,7 @@ namespace PRoConEvents
         bool Commander { get; }
         int MaxSpectators { get; }
         String ServerType { get; }
+        int GetFaction(int TeamId);
 
 
         /* Team data */
@@ -496,6 +500,7 @@ namespace PRoConEvents
         int MinPing { get; }
         int MedianPing { get; }
         int AveragePing { get; }
+        int Role { get; } // BF4: 0 = PLAYER, 1 = SPECTATOR, 2 = COMMANDER, 3 = MOBILE COMMANDER
 
         /* Current round, Player Stats */
         double KdrRound { get; }
@@ -698,6 +703,11 @@ namespace PRoConEvents
         KillReasonInterface FriendlyWeaponName(String killWeapon); 
             // BF3 example: "Weapons/XP2_L86/L86" => KillReason("L86", null, null)
             // BF4 example: "U_AK12_M320_HE" => KillReason("M320", "HE", "AK12")
+
+        /* External plugin support */
+        bool IsOtherPluginEnabled(String className, String methodName);
+        void CallOtherPlugin(String className, String methodName, Hashtable parms);
+        DateTime GetLastPluginDataUpdate(); // return timestamp for the last time InsaneLimits.UpdatePluginData() was called
     }
 
 
@@ -1066,6 +1076,8 @@ namespace PRoConEvents
 
         public DataDictionary DataDict;
         public DataDictionary RoundDataDict;
+        private DateTime last_data_change;
+        private MatchCommand match_command_update_plugin_data;
 
 
         EventWaitHandle fetch_handle;
@@ -1434,6 +1446,7 @@ namespace PRoConEvents
                 json2keyBF4.Add("vehiclesDestroyed", "vehicles_killed");
                 json2keyBF4.Add("killStreakBonus", "killStreakBonus");
 
+                json2keyBF4.Add("killAssists", "killAssists");
                 json2keyBF4.Add("rsDeaths", "rsDeaths");
                 json2keyBF4.Add("rsKills", "rsKills");
                 json2keyBF4.Add("rsNumLosses", "rsNumLosses");
@@ -1469,6 +1482,8 @@ namespace PRoConEvents
 
                 DataDict = new DataDictionary(this);
                 RoundDataDict = new DataDictionary(this);
+                last_data_change = DateTime.Now;
+                match_command_update_plugin_data = new MatchCommand("InsaneLimits", "UpdatePluginData", new List<string>(), "InsaneLimits_UpdatePluginData", new List<MatchArgumentFormat>(), new ExecutionRequirements(ExecutionScope.None), "External plugin support, do not use this command in-game");
 
                 rcon2bw = new Dictionary<String,String>();
 
@@ -3736,7 +3751,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.9.14.0";
+            return "0.9.15.0";
         }
 
         public string GetPluginAuthor()
@@ -4046,6 +4061,8 @@ public interface TeamInfoInterface
     double RemainTicketsPercent { get; }
     double StartTickets { get; }
 
+    // BF4
+    int Faction { get; } // US = 0, RU = 1, CN = 2
 }
     </pre>
 
@@ -4123,6 +4140,7 @@ public interface ServerInfoInterface
     bool Commander { get; }
     int MaxSpectators { get; }
     String ServerType { get; }
+    int GetFaction(int TeamId); // US = 0, RU = 1, CN = 2
 
     /* Team data */
     double Tickets(int TeamId);              //tickets for the specified team
@@ -4220,6 +4238,7 @@ public interface PlayerInfoInterface
     int MinPing { get; }
     int MedianPing { get; } // of the last five samples
     int AveragePing { get; } // of two to five samples
+    int Role { get; } // BF4: 0 = PLAYER, 1 = SPECTATOR, 2 = COMMANDER, 3 = MOBILE COMMANDER
 
 
     /* Current round, Player Stats */
@@ -4414,6 +4433,11 @@ public interface PluginInterface
     KillReasonInterface FriendlyWeaponName(String killWeapon); 
         // BF3 example: ""Weapons/XP2_L86/L86"" => KillReasonInterface(""L86"", null, null)
         // BF4 example: ""U_AK12_M320_HE"" => KillReasonInterface(""M320"", ""HE"", ""AK12"")
+
+    /* External plugin support */
+    bool IsOtherPluginEnabled(String className, String methodName);
+    void CallOtherPlugin(String className, String methodName, Hashtable parms);
+    DateTime GetLastPluginDataUpdate(); // return timestamp for the last time InsaneLimits.UpdatePluginData() was called
 }
 </pre>
 
@@ -4942,7 +4966,8 @@ public interface DataDictionaryInterface
                 /* BF4 additions */
                 "OnCommander",
                 "OnMaxSpectators",
-                "OnServerType"
+                "OnServerType",
+                "OnTeamFactionOverride"
                 );
 
             //initialize the dictionary with countries, carriers, gateways
@@ -4988,6 +5013,9 @@ public interface DataDictionaryInterface
                 }
                 DebugWrite("Friendly names loaded", 6);
 
+                // register a command to indicate availibility to other plugins
+                this.RegisterCommand(match_command_update_plugin_data);
+
                 //start a thread that waits for the settings to be read from file
 
                 Thread Activator = new Thread(new ThreadStart(delegate()
@@ -4995,7 +5023,7 @@ public interface DataDictionaryInterface
                     plugin_activated = false;
                     try
                     {
-                        Thread.CurrentThread.Name = "activator";
+                        //Thread.CurrentThread.Name = "activator";
                         LoadSettings(true, false, true);
                         ConsoleWrite("Waiting for ^bprivacy_policy_agreement^n value");
                         int timeout = 30;
@@ -5043,7 +5071,10 @@ public interface DataDictionaryInterface
 
                 }));
 
+                Activator.IsBackground = true;
+                Activator.Name = "activator";
                 Activator.Start();
+                Thread.Sleep(1000);
 
             }
             catch (Exception e)
@@ -5660,6 +5691,8 @@ public interface DataDictionaryInterface
 
             }));
 
+            delayed_compilation.IsBackground = true;
+            delayed_compilation.Name = "delayed_comp";
             delayed_compilation.Start();
         }
 
@@ -7005,6 +7038,8 @@ public interface DataDictionaryInterface
 
                             CleanupLimits();
 
+                            // unregister the command again to remove availibility-indicator
+                            this.UnregisterCommand(match_command_update_plugin_data);
 
                             ConsoleWrite("^1^bDisabled =(^0");
                         }
@@ -7014,8 +7049,10 @@ public interface DataDictionaryInterface
                         }
                     }));
 
+                finalizer.IsBackground = true;
+                finalizer.Name = "finalizer";
                 finalizer.Start();
-
+                Thread.Sleep(1);
             }
             catch (Exception e)
             {
@@ -7607,7 +7644,7 @@ public interface DataDictionaryInterface
 
         public void evaluateLimitsForEvent(BaseEvent type, PlayerInfo player, PlayerInfo killer, PlayerInfo victim, Kill info)
         {
-            DebugWrite("+++ Evaluating all ^b" + type + "^n limits ...", 5);
+            DebugWrite("+++ Evaluating all ^b" + type + "^n limits ...", 6);
 
             KillInfo kill = new KillInfo(info, type);
 
@@ -7675,7 +7712,7 @@ public interface DataDictionaryInterface
                     return;
             }
             
-            DebugWrite("+++ Evaluated ^b" + all.Count + "^n limits", 5);
+            DebugWrite("+++ Evaluated ^b" + all.Count + "^n limits", 6);
         }
 
 
@@ -8190,8 +8227,10 @@ public interface DataDictionaryInterface
                 round_over = false;
                 //round over, fetch map info again
                 DebugWrite(":::::::::::: Round start detected ::::::::::::", 4);
-                getMapInfo();
                 DebugWrite("async map info update", 8);
+                getMapInfo();
+                DebugWrite("update vars", 8);
+                updateVars();
                 evaluateLimitsForEvent(BaseEvent.RoundStart, null, null, null, null);
             }
 
@@ -8243,7 +8282,7 @@ public interface DataDictionaryInterface
                     if (limit == null || !limit.Evaluation.Equals(Limit.EvaluationType.OnJoin))
                         continue;
 
-                    DebugWrite("Evaluating " + limit.ShortDisplayName + " - " + limit.Evaluation.ToString() + ", for " + name, 5);
+                    DebugWrite("Evaluating " + limit.ShortDisplayName + " - " + limit.Evaluation.ToString() + ", for " + name, 6); 
                     evaluateLimit(limit, player);
                 }
             }
@@ -8798,11 +8837,11 @@ public interface DataDictionaryInterface
         public void getMapInfoSync()
         {
             getModeCounters();
-            DebugWrite("waiting for map-list before proceeding", 6);
+            DebugWrite("waiting for map-list before proceeding", 8);
             getMapListSync();
-            DebugWrite("waiting for map-indices before proceeding", 6);
+            DebugWrite("waiting for map-indices before proceeding", 8);
             getMapIndicesSync();
-            DebugWrite("waiting for server-info before proceeding", 6);
+            DebugWrite("waiting for server-info before proceeding", 8);
             getServerInfoSync();
         }
 
@@ -8833,6 +8872,7 @@ public interface DataDictionaryInterface
                 ServerCommand("vars.commander");
                 ServerCommand("vars.serverType");
                 ServerCommand("vars.maxSpectators");
+                ServerCommand("vars.teamFactionOverride");
             }
             else
             {
@@ -9387,6 +9427,8 @@ public interface DataDictionaryInterface
                 QueueSayMessage(new SayMessage(0, 0, String.Empty, MessageAudience.All, message));
             }));
 
+            delayed.IsBackground = true;
+            delayed.Name = "msg_delay";
             delayed.Start();
 
             return true;
@@ -9415,7 +9457,9 @@ public interface DataDictionaryInterface
                 Thread.Sleep(delay * 1000);
                 QueueSayMessage(new SayMessage(teamId, 0, String.Empty, MessageAudience.Team, message));
             }));
-
+            
+            delayed.IsBackground = true;
+            delayed.Name = "team_msg_delay";
             delayed.Start();
 
             return true;
@@ -9444,7 +9488,9 @@ public interface DataDictionaryInterface
                 Thread.Sleep(delay * 1000);
                 QueueSayMessage(new SayMessage(teamId, squadId, String.Empty, MessageAudience.Squad, message));
             }));
-
+            
+            delayed.IsBackground = true;
+            delayed.Name = "squad_msg_delay";
             delayed.Start();
 
 
@@ -9474,7 +9520,9 @@ public interface DataDictionaryInterface
                 Thread.Sleep(delay * 1000);
                 QueueSayMessage(new SayMessage(0, 0, name, MessageAudience.Player, message));
             }));
-
+            
+            delayed.IsBackground = true;
+            delayed.Name = "player_msg_delay";
             delayed.Start();
 
             return true;
@@ -9645,7 +9693,7 @@ public interface DataDictionaryInterface
 
             foreach (CPlayerInfo cpiPlayer in lstPlayers) {
                 if ((cpiPlayer.Score == 0 || Double.IsNaN(cpiPlayer.Score)) && cpiPlayer.Deaths == 0) {
-                    DebugWrite("Updating idle duration for: " + cpiPlayer.SoldierName, 5);
+                    DebugWrite("Updating idle duration for: " + cpiPlayer.SoldierName, 6);
                     ServerCommand("player.idleDuration", cpiPlayer.SoldierName); // Update it
                 }
 
@@ -9672,7 +9720,7 @@ public interface DataDictionaryInterface
             String[] ids = null;
             Char[] div = new Char[] {'/'};
             foreach (String k in squadCounts.Keys) {
-                DebugWrite("Updating squad privacy and leader for: " + k, 5);
+                DebugWrite("Updating squad privacy and leader for: " + k, 6);
                 ids = k.Split(div);
                 ServerCommand("squad.private", ids[0], ids[1]);
                 // Request leader only for squads with more than one player
@@ -9845,7 +9893,7 @@ public interface DataDictionaryInterface
         public void SendQueuedMessages(int sleep_time)
         {
 
-            DebugWrite("sending " + messageQueue.Count + " queued message" + ((messageQueue.Count > 1) ? "s" : "") + " ...", 6);
+            DebugWrite("sending " + messageQueue.Count + " queued message" + ((messageQueue.Count > 1) ? "s" : "") + " ...", 7);
 
             while (messageQueue.Count > 0)
             {
@@ -9941,11 +9989,11 @@ public interface DataDictionaryInterface
                     try
                     {
                         int sleep_t = getIntegerVarValue("auto_load_interval");
-                        plugin.DebugWrite("sleeping for ^b" + sleep_t + "^n second" + ((sleep_t > 1) ? "s" : "") + ", before next iteration", 6);
+                        plugin.DebugWrite("sleeping for ^b" + sleep_t + "^n second" + ((sleep_t > 1) ? "s" : "") + ", before next iteration", 7);
 
                         settings_handle.Reset();
                         settings_handle.WaitOne(sleep_t * 1000);
-                        plugin.DebugWrite("awake! loading settings", 6);
+                        plugin.DebugWrite("awake! loading settings", 7);
 
 
                         if (!plugin_enabled)
@@ -10108,7 +10156,7 @@ public interface DataDictionaryInterface
 
                             if (type.Equals(Limit.EvaluationType.OnIntervalPlayers) && sorted_players.Count > 0)
                             {
-                                DebugWrite("Evaluating " + limit.ShortDisplayName + " for " + sorted_players.Count + " player" + ((sorted_players.Count > 1) ? "s" : ""), 5);
+                                DebugWrite("Evaluating " + limit.ShortDisplayName + " for " + sorted_players.Count + " player" + ((sorted_players.Count > 1) ? "s" : ""), 6);
 
                                 for (int j = 0; j < sorted_players.Count; j++)
                                 {
@@ -10125,12 +10173,12 @@ public interface DataDictionaryInterface
                                         continue;
 
 
-                                    plugin.DebugWrite("Evaluating " + limit.ShortDisplayName + " for ^b" + name + "^n", 5);
+                                    plugin.DebugWrite("Evaluating " + limit.ShortDisplayName + " for ^b" + name + "^n", 6);
 
                                     if (evaluateLimit(limit, pinfo))
                                     {
                                         // refresh server information if evaluation was successful
-                                        plugin.DebugWrite("Waiting for server information before proceeding", 6);
+                                        plugin.DebugWrite("Waiting for server information before proceeding", 7);
                                         getServerInfoSync();
                                     }
                                 }
@@ -10281,29 +10329,10 @@ public interface DataDictionaryInterface
 
         public static List<String> getBasicFieldKeys(String game_version)
         {
-            return new List<string>(json2key.Values);
-            /*
-            else {
-                List<String> tmp = new List<string>(json2keyBF4.Values);
-                // Not defined in BF4 JSON so far
-                tmp.Add("repairs");
-                tmp.Add("revives");
-                tmp.Add("ressuplies"); // typo is REQUIRED!
-                tmp.Add("quit_p");
-                tmp.Add("vehicles_killed");
-                tmp.Add("killStreakBonus");
-                tmp.Add("killAssists");
-                tmp.Add("rsDeaths");
-                tmp.Add("rsKills");
-                tmp.Add("rsNumLosses");
-                tmp.Add("rsNumWins");
-                tmp.Add("rsScore");
-                tmp.Add("rsShotsFired");
-                tmp.Add("rsShotsHit");
-                tmp.Add("rsTimePlayed");
-                return tmp;
-            }
-            */
+            if (game_version == "BF4")
+                return new List<string>(json2keyBF4.Values); 
+            else
+                return new List<string>(json2key.Values);
         }
 
         public static List<String> getBasicWeaponFieldProps()
@@ -11884,6 +11913,8 @@ public interface DataDictionaryInterface
 
         public void DumpException(Exception e, String prefix)
         {
+            int debug_level = getIntegerVarValue("debug_level");
+
             try
             {
                 string class_name = this.GetType().Name;
@@ -11903,28 +11934,28 @@ public interface DataDictionaryInterface
                 }
                 else if (e.GetType().Equals(typeof(TargetInvocationException)) && e.InnerException != null)
                 {
-                    ConsoleException(prefix + e.InnerException.GetType() + ": " + e.InnerException.Message);
-                    ConsoleWrite("^1Extra information dumped in file " + path);
+                    if (debug_level >= 4) ConsoleException(prefix + e.InnerException.GetType() + ": " + e.InnerException.Message);
+                    DebugWrite("^1Extra information dumped in file " + path, 4);
                     DumpExceptionFile(e, path);
                     DumpExceptionFile(e.InnerException, path);
                 }
                 else
                 {
-                    ConsoleException(prefix + e.GetType() + ": " + e.Message);
+                    if (debug_level >= 4) ConsoleException(prefix + e.GetType() + ": " + e.Message);
 
                     foreach (DictionaryEntry de in e.Data)
                     {
-                        ConsoleWrite("    " + de.Key.ToString() + ": " + de.Value.ToString());
+                        DebugWrite("    " + de.Key.ToString() + ": " + de.Value.ToString(), 4);
                     }
 
-                    ConsoleWrite("^1Extra information dumped in file " + path);
+                    DebugWrite("^1Extra information dumped in file " + path, 4);
                     DumpExceptionFile(e, path);
                 }
             }
             catch (Exception ex)
             {
-                ConsoleWarn("unable to dump extra exception information.");
-                ConsoleException(ex.GetType() + ": " + ex.Message);
+                if (debug_level >= 4) ConsoleWarn("unable to dump extra exception information.");
+                if (debug_level >= 4) ConsoleException(ex.GetType() + ": " + ex.Message);
             }
         }
 
@@ -11981,7 +12012,7 @@ public interface DataDictionaryInterface
             else if (type.Equals(MessageType.Exception))
                 prefix += "^1^bEXCEPTION^0^n: ";
 
-            return prefix + msg;
+            return prefix + msg.Replace('{','(').Replace('}',')');
         }
 
 
@@ -12110,6 +12141,8 @@ public interface DataDictionaryInterface
                 }
             }));
 
+            mail_thread.IsBackground = true;
+            mail_thread.Name = "mailer";
             mail_thread.Start();
 
             return true;
@@ -12235,7 +12268,7 @@ public interface DataDictionaryInterface
                 }  else if (tParts.Length == 3) { // U_Name_Detail
                     r._name = tParts[1];
                     r._detail = tParts[2];
-                }  else if (tParts.Length == 4) { // U_AttachedTo_Name_Detail
+                }  else if (tParts.Length >= 4) { // U_AttachedTo_Name_Detail
                     r._name = tParts[2];
                     r._detail = tParts[3];
                     r._attachedTo = tParts[1];
@@ -12267,7 +12300,9 @@ public interface DataDictionaryInterface
                 Thread.Sleep(delay * 1000);
                 KillPlayer(name);
             }));
-
+            
+            delayed_kill.IsBackground = true;
+            delayed_kill.Name = "delayed_kill";
             delayed_kill.Start();
 
             return !cVmode;
@@ -12923,13 +12958,117 @@ public interface DataDictionaryInterface
 
             return total;
         }
+
+
+        /* External plugin support */
+
+        public bool IsOtherPluginEnabled(String className, String methodName)
+        {
+            List<MatchCommand> registered = this.GetRegisteredCommands();
+            foreach (MatchCommand command in registered)
+            {
+                if (command.RegisteredClassname.Equals(className) && command.RegisteredMethodName.Equals(methodName))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public void CallOtherPlugin(String className, String methodName, Hashtable parms)
+        {
+            try
+            {
+                String json = JSON.JsonEncode(parms);
+                String filtered = json.Replace('{','(').Replace('}',')');
+                filtered = filtered.Substring(0, Math.Min(filtered.Length, 512));
+                DebugWrite("Calling ^b" + className + "." + methodName + "^n(" + filtered + "...)", 5);
+                this.ExecuteCommand("procon.protected.plugins.call", className, methodName, this.GetType().Name, json);
+            }
+            catch (Exception e)
+            {
+                DumpException(e);
+            }
+        }
+
+        public DateTime GetLastPluginDataUpdate() // return timestamp for the last time InsaneLimits.UpdatePluginData() was called
+        {
+            return last_data_change;
+        }
+
+        public void UpdatePluginData(params String[] parms)
+        {
+            if (parms.Length != 4)
+            {
+                ConsoleWarn("UpdatePluginData called with incorrect parameter count: " + parms.Length);
+                return;
+            }
+            /*
+            parms[0]: Name of caller (plugin class)
+            parms[1]: Name of the dictionary type: "bool", "double", "int", "string" (not possible to pass object type)
+            parms[2]: Key
+            parms[3]: Stringification of value
+            */
+            if (String.IsNullOrEmpty(parms[0])) {
+                ConsoleWarn("UpdatePluginData parms[0]: caller name is invalid!");
+                return;
+            }
+            if (String.IsNullOrEmpty(parms[1])) {
+                ConsoleWarn("UpdatePluginData parms[1]: type is invalid!");
+                return;
+            }
+            if (String.IsNullOrEmpty(parms[2])) {
+                ConsoleWarn("UpdatePluginData parms[2]: key is invalid!");
+                return;
+            }
+            try
+            {
+                String calledFrom = parms[0];
+                Type type = typeof(String);
+                switch (parms[1]) 
+                {
+                    case "bool": type = typeof(bool); break;
+                    case "double": type = typeof(double); break;
+                    case "int": type = typeof(int); break;
+                    default: break;
+                }
+                String key = parms[2];
+                Object value = parms[3];
+
+                if (type == typeof(bool))
+                {
+                    bool v = false;
+                    Boolean.TryParse(parms[3], out v);
+                    value = (Boolean)v;
+                }
+                else if (type == typeof(double))
+                {
+                    double v = 0;
+                    Double.TryParse(parms[3], out v);
+                    value = (Double)v;
+                }
+                else if (type == typeof(int))
+                {
+                    int v = 0;
+                    Int32.TryParse(parms[3], out v);
+                    value = (Int32)v;
+                }
+
+                DataDict.set(type, key, value);
+                last_data_change = DateTime.Now;
+                DebugWrite("Plugin ^b" + calledFrom + "^n, updated (" + parms[1] + ") plugin.Data[" + key + "]", 5);
+            }
+            catch (Exception) {}
+        }
         
+        /* Stats fetching support */
+
         public bool IsCacheEnabled(bool verbose)
         {
             List<MatchCommand> registered = this.GetRegisteredCommands();
             foreach (MatchCommand command in registered)
             {
-                if (command.RegisteredClassname.CompareTo("CBattlelogCache") == 0 && command.RegisteredMethodName.CompareTo("PlayerLookup") == 0)
+                if (command.RegisteredClassname.Equals("CBattlelogCache") && command.RegisteredMethodName.Equals("PlayerLookup"))
                 {
                     if (verbose) DebugWrite("^bBattlelog Cache^n plugin will be used for stats fetching!", 3);
                     return true;
@@ -13279,12 +13418,12 @@ public interface DataDictionaryInterface
                 DebugWrite("Got ^bOnPluginLoadingEnv: " + env, 8);
             }
             game_version = lstPluginEnv[1];
-            ConsoleWrite("^1Game Version = " + lstPluginEnv[1]);
+            ConsoleWrite("^2Game Version = " + lstPluginEnv[1]);
         }
 
         // BF4
 
-        public void OnCommander(bool isEnabled)
+        public override void OnCommander(bool isEnabled)
         {
             DebugWrite("Got ^bOnCommander^n: " + isEnabled, 8);
 
@@ -13293,7 +13432,7 @@ public interface DataDictionaryInterface
             resetUpdateTimer(WhichTimer.Vars);
         }
 
-        public void OnMaxSpectators(int limit)
+        public override void OnMaxSpectators(int limit)
         {
             DebugWrite("Got ^bOnMaxSpectators^n: " + limit, 8);
 
@@ -13302,7 +13441,7 @@ public interface DataDictionaryInterface
             resetUpdateTimer(WhichTimer.Vars);
         }
 
-        public void OnServerType(string value)
+        public override void OnServerType(string value)
         {
             DebugWrite("Got ^bOnServerType^n: " + value, 8);
 
@@ -13310,6 +13449,17 @@ public interface DataDictionaryInterface
 
             resetUpdateTimer(WhichTimer.Vars);
         }
+
+        public override void OnTeamFactionOverride(int teamId, int faction)
+        {
+            DebugWrite("Got ^bOnTeamFactionOverride^n: " + teamId + " " + faction, 8);
+
+            if (this.serverInfo._Faction != null && teamId >= 0 && teamId < this.serverInfo._Faction.Length)
+            {
+                this.serverInfo._Faction[teamId] = faction;
+            }
+        }
+
     }
 
 
@@ -14108,6 +14258,7 @@ public interface DataDictionaryInterface
         List<MaplistEntry> mlist = null;
         List<TeamScore> _TeamTickets = null;
         Dictionary<int, double> _StartTickets = null;
+        public int[] _Faction = null;
         
         List<String> _mapRotation = new List<String>();
         List<String> _modeRotation = new List<String>();
@@ -14298,6 +14449,12 @@ public interface DataDictionaryInterface
         public bool Commander { get { return plugin.varCommander; } }
         public int MaxSpectators { get { return plugin.varMaxSpectators; } }
         public String ServerType { get { return plugin.varServerType; } }
+        public int GetFaction(int TeamId)
+        {
+            if (TeamId < 0 || TeamId >= _Faction.Length)
+                return -1;
+            return _Faction[TeamId];
+        }
 
 
         public ServerInfo(InsaneLimits plugin, CServerInfo data, List<MaplistEntry> mlist, int[] indices)
@@ -14324,6 +14481,8 @@ public interface DataDictionaryInterface
             DataDict = new DataDictionary(plugin);
             RoundDataDict = new DataDictionary(plugin);
             ResetTickets();
+
+            _Faction = new int[5]{-1,-1,-1,-1,-1};
         }
 
         private void ResetTickets()
@@ -14473,6 +14632,8 @@ public interface DataDictionaryInterface
         public double RemainTickets { get { return server.RemainTickets(TeamId); } }
         public double RemainTicketsPercent { get { return server.RemainTicketsPercent(TeamId); } }
         public double StartTickets { get { return server.StartTickets(TeamId); } }
+        // BF4
+        public int Faction { get { return server.GetFaction(TeamId); } }
 
         //use a converter to return the list of players as PlayerInfoInterface
         public List<PlayerInfoInterface> players
@@ -14656,6 +14817,7 @@ public interface DataDictionaryInterface
         public int MinPing { get { return _minPing; } set { _minPing = value; } }
         public int MedianPing { get { return _medianPing; } set { _medianPing = value; } }
         public int AveragePing { get { return _averagePing; } set { _averagePing = value; } }
+        public int Role { get { return info.Type; } }
 
         /* Round Statistics */
         [A("round", "Kdr", @"kd.*")]
@@ -14801,24 +14963,6 @@ public interface DataDictionaryInterface
             fields.AddRange(InsaneLimits.getExtraFields());
             foreach (String field_name in fields)
                 ovalue.Add(field_name, Double.NaN);
-            if (plugin.game_version == "BF4") {
-                // Not defined in BF4 JSON so far
-                ovalue["repairs"] = 0;
-                ovalue["revives"] = 0;
-                ovalue["ressuplies"] = 0; // typo is REQUIRED!
-                ovalue["quit_p"] = 0;
-                ovalue["vehicles_killed"] = 0;
-                ovalue["killStreakBonus"] = 0;
-                ovalue["killAssists"] = 0;
-                ovalue["rsDeaths"] = 0;
-                ovalue["rsKills"] = 0;
-                ovalue["rsNumLosses"] = 0;
-                ovalue["rsNumWins"] = 0;
-                ovalue["rsScore"] = 0;
-                ovalue["rsShotsFired"] = 0;
-                ovalue["rsShotsHit"] = 0;
-                ovalue["rsTimePlayed"] = 0;
-            }
 
             // fields for game stats
             List<String> gfields = InsaneLimits.getGameFieldKeys();
@@ -14921,88 +15065,111 @@ public interface DataDictionaryInterface
 
         public Object set(Type type, String key, Object value)
         {
-            if (!data.ContainsKey(type))
+            lock (data)
             {
-                plugin.ConsoleError(this.GetType().Name + " has no data of ^b" + type.Name + "^n type");
-                return (Object)Activator.CreateInstance(type);
+                if (data.ContainsKey(type))
+                {
+                    if (!data[type].ContainsKey(key))
+                        data[type].Add(key, value);
+                    else
+                        data[type][key] = value;
+
+                    return data[type][key];
+                }
             }
-
-            if (!data[type].ContainsKey(key))
-                data[type].Add(key, value);
-            else
-                data[type][key] = value;
-
-            return data[type][key];
+            plugin.ConsoleError(this.GetType().Name + " has no data of ^b" + type.Name + "^n type");
+            return (Object)Activator.CreateInstance(type);
         }
 
         public Object get(Type type, String key)
         {
-
-            if (!data.ContainsKey(type))
+            bool unknownKey = false;
+            lock (data)
             {
-                plugin.ConsoleError(this.GetType().Name + " has no data of ^b" + type.Name + "^n type");
-                return (Object)Activator.CreateInstance(type);
+                if (data.ContainsKey(type))
+                {
+                    if (!data[type].ContainsKey(key))
+                    {
+                        unknownKey = true;
+                    }
+                    else
+                    {
+                        return data[type][key];
+                    }
+                }
             }
-
-            if (!data[type].ContainsKey(key))
+            if (unknownKey)
             {
                 plugin.ConsoleError(this.GetType().Name + " has no ^b" + type.Name + "^n(" + key + ") key");
                 return (Object)Activator.CreateInstance(type);
             }
-
-            return data[type][key];
+            plugin.ConsoleError(this.GetType().Name + " has no data of ^b" + type.Name + "^n type");
+            return (Object)Activator.CreateInstance(type);
         }
 
         public Object unset(Type type, String key)
         {
-
-            if (!data.ContainsKey(type))
+            bool unknownKey = false;
+            lock (data)
             {
-                plugin.ConsoleError(this.GetType().Name + " has no data of ^b" + type.Name + "^n type");
-                return (Object)Activator.CreateInstance(type);
-            }
+                if (data.ContainsKey(type))
+                {
+                    if (!data[type].ContainsKey(key))
+                    {
+                        unknownKey = true;
+                    }
+                    else
+                    {
+                        Object value = data[type][key];
+                        data[type].Remove(key);
 
-            if (!data[type].ContainsKey(key))
+                        return value;
+                    }
+                }
+            }
+            if (unknownKey)
             {
                 plugin.ConsoleWarn(this.GetType().Name + " has no ^b" + type.Name + "^n(" + key + ") key");
                 return (Object)Activator.CreateInstance(type);
             }
-
-            Object value = data[type][key];
-            data[type].Remove(key);
-
-            return value;
+            plugin.ConsoleError(this.GetType().Name + " has no data of ^b" + type.Name + "^n type");
+            return (Object)Activator.CreateInstance(type);
         }
 
         public List<string> getKeys(Type type)
         {
-            if (!data.ContainsKey(type))
+            lock (data)
             {
-                plugin.ConsoleError(this.GetType().Name + " has no data of ^b" + type.Name + "^n type");
-                return new List<string>();
+                if (data.ContainsKey(type))
+                {
+                    return new List<string>(data[type].Keys);
+                }
             }
-
-            return new List<string>(data[type].Keys);
+            plugin.ConsoleError(this.GetType().Name + " has no data of ^b" + type.Name + "^n type");
+            return new List<string>();
         }
 
         public void Clear()
         {
-            data.Clear();
-            Init();
+            lock (data)
+            {
+                data.Clear();
+                Init();
+            }
         }
 
 
         public bool isset(Type type, String key)
         {
-
-            if (!data.ContainsKey(type))
+            lock (data)
             {
-                plugin.ConsoleError(this.GetType().Name + " has no data of ^b" + type.Name + "^n type");
-                return false;
+                if (data.ContainsKey(type))
+                {
+                    return data[type].ContainsKey(key);
+                }
             }
-
-            return data[type].ContainsKey(key);
-
+            plugin.ConsoleError(this.GetType().Name + " has no data of ^b" + type.Name + "^n type");
+            return false;
         }
 
         /* String Data */
@@ -15271,6 +15438,8 @@ public interface DataDictionaryInterface
 
             bool EventWeapon = false;
             if (name.StartsWith(":") && (name = name.Substring(1)).Length > 0)
+                EventWeapon = true;
+            else if (name.StartsWith("U_")) // BF4
                 EventWeapon = true;
 
 
