@@ -3751,7 +3751,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.9.15.0";
+            return "0.9.15.1";
         }
 
         public string GetPluginAuthor()
@@ -14042,7 +14042,7 @@ public interface DataDictionaryInterface
                         if (!wstat.ContainsKey(key) || wstat[key] == null)
                         {
                             // For BF4, knife and similar weapons don't have the "headshots" property, so add a dummy
-                            if (plugin.game_version == "BF4" || key == "headshots") {
+                            if (plugin.game_version == "BF4" && key == "headshots") {
                                 wstat[key] = 0.0;
                             } else {
                                 plugin.DebugWrite("JSON structure of weapon stat for ^b" + itemName + "^n does not contain ^b" + key + "^n, for " + player, 5);
