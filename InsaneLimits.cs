@@ -435,6 +435,9 @@ namespace PRoConEvents
         String Name { get; } // weapon name or reason, like "Suicide"
         String Detail { get; } // BF4: ammo or attachment
         String AttachedTo { get; } // BF4: main weapon when Name is a secondary attachment, like M320
+        String Category { get; } // BF4: ToString of DamageTypes
+        String VehicleName { get; } // BF4: if Name is "Death", this is the vehicle's name
+        String VehicleDetail { get; } // BF4: if Name is "Death", this is the vehicles detail (stuff after final slash)
     }
 
     public interface PlayerInfoInterface
@@ -703,6 +706,7 @@ namespace PRoConEvents
         KillReasonInterface FriendlyWeaponName(String killWeapon); 
             // BF3 example: "Weapons/XP2_L86/L86" => KillReason("L86", null, null)
             // BF4 example: "U_AK12_M320_HE" => KillReason("M320", "HE", "AK12")
+            // BF4 vehicle example: "Gameplay/Vehicles/AH6/AH6_Littlebird" => KillReason("Death", null, null, "AH6", "AH6_Littlebird")
 
         /* External plugin support */
         bool IsOtherPluginEnabled(String className, String methodName);
@@ -1039,7 +1043,7 @@ namespace PRoConEvents
         private List<String> lockedSquads = new List<String>();
         private Dictionary<String, String> squadLeaders = new Dictionary<string,string>();
 
-        public Dictionary<String, bool> WeaponsDict = null;
+        public Dictionary<String, DamageTypes> WeaponsDict = null;
 
         public BattleLog blog = null;
         public Dictionary<string, float> floatVariables;
@@ -3751,7 +3755,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.9.15.1";
+            return "0.9.16.0";
         }
 
         public string GetPluginAuthor()
@@ -4171,6 +4175,20 @@ public interface KillInfoInterface
     DateTime Time { get; }
 }
 </pre>
+       <br />
+       The <b>KillReasonInterface</b> object represents the friendly weapon name, broken down into separate fields:<br />
+       <br />
+<pre>
+public interface KillReasonInterface
+{
+    String Name { get; } // weapon name or reason, like Suicide
+    String Detail { get; } // BF4: ammo or attachment
+    String AttachedTo { get; } // BF4: main weapon when Name is a secondary attachment, like M320
+    String Category { get; } // BF3.defs or BF4.defs weapon category, such as SniperRifle or VehicleAir
+    String VehicleName { get; } // BF4: if Name is Death, this is the vehicle's name
+    String VehicleDetail { get; } // BF4: if Name is Death, this is the vehicle's detail (stuff after final slash)
+}
+</pre>
        <h2>Player, Killer, Victim Objects</h2>
        The <b>player</b> object represents the state of player for which the current limit is being evaluated. The <b>player</b> object implements the following interface:<br />
        <br />
@@ -4433,6 +4451,7 @@ public interface PluginInterface
     KillReasonInterface FriendlyWeaponName(String killWeapon); 
         // BF3 example: ""Weapons/XP2_L86/L86"" => KillReasonInterface(""L86"", null, null)
         // BF4 example: ""U_AK12_M320_HE"" => KillReasonInterface(""M320"", ""HE"", ""AK12"")
+        // BF4 vehicle example: ""Gameplay/Vehicles/AH6/AH6_Littlebird"" => KillReasonInterface(""Death"", null, null, ""AH6"", ""AH6_Littlebird"")
 
     /* External plugin support */
     bool IsOtherPluginEnabled(String className, String methodName);
@@ -5100,10 +5119,10 @@ public interface DataDictionaryInterface
             // initialize values for all known weapons
 
             WeaponDictionary dic = GetWeaponDefines();
-            WeaponsDict = new Dictionary<string, bool>();
+            WeaponsDict = new Dictionary<string, DamageTypes>();
             foreach (Weapon weapon in dic)
                 if (weapon != null && !WeaponsDict.ContainsKey(weapon.Name))
-                    WeaponsDict.Add(weapon.Name, true);
+                    WeaponsDict.Add(weapon.Name, weapon.Damage);
 
             DebugWrite("^b" + WeaponsDict.Count + "^n weapons in dictionary", 5);
 
@@ -5351,6 +5370,8 @@ public interface DataDictionaryInterface
                             {
                                 KillReasonInterface kr = FriendlyWeaponName(kill.Weapon);
                                 dict[key] = kr.Name;
+                                if (kr.Name == "Death" && !String.IsNullOrEmpty(kr.VehicleName))
+                                    dict[key] = kr.VehicleName;
                             }
                             break;
                         case "%w_p_x%":
@@ -12252,6 +12273,13 @@ public interface DataDictionaryInterface
         {
             KillReason r = new KillReason();
             r._name = killWeapon;
+            DamageTypes category = DamageTypes.None;
+            bool hasCategory = false;
+
+            if (WeaponsDict.TryGetValue(killWeapon, out category)) {
+                hasCategory = true;
+                r._category = category.ToString();
+            }
 
             if (game_version == "BF3")
             {
@@ -12259,7 +12287,7 @@ public interface DataDictionaryInterface
                 r._name = killWeapon;
                 if (m.Success) r._name = m.Groups[1].Value;
             }
-            else if (killWeapon.StartsWith("U_"))
+            else if (killWeapon.StartsWith("U_")) // BF4 weapons
             {
                 String[] tParts = killWeapon.Split(new[]{'_'});
 
@@ -12274,6 +12302,25 @@ public interface DataDictionaryInterface
                     r._attachedTo = tParts[1];
                 } else {
                     DebugWrite("Warning: unrecognized weapon code: " + killWeapon, 5);
+                }
+            }
+            else if (killWeapon != "Death" && hasCategory) // BF4 vehicles?
+            {
+                if (category == DamageTypes.VehicleAir 
+                || category == DamageTypes.VehicleHeavy
+                || category == DamageTypes.VehicleLight 
+                || category == DamageTypes.VehiclePersonal
+                || category == DamageTypes.VehicleStationary
+                || category == DamageTypes.VehicleTransport
+                || category == DamageTypes.VehicleWater)
+                {
+                    r._name = "Death";
+                    r._vName = killWeapon;
+                    Match m = Regex.Match(killWeapon, @"/([^/]+)/([^/]+)$");
+                    if (m.Success) {
+                        r._vName = m.Groups[1].Value;
+                        r._vDetail = m.Groups[2].Value;
+                    }
                 }
             }
             return r;
@@ -14236,18 +14283,34 @@ public interface DataDictionaryInterface
         public String _name = String.Empty;
         public String _detail = null;
         public String _attachedTo = null;
+        public String _vName = null;
+        public String _vDetail = null;
+        public String _category = null;
 
         public String Name { get { return _name;} } // weapon name or reason, like "Suicide"
         public String Detail { get { return _detail;} } // BF4: ammo or attachment
         public String AttachedTo { get { return _attachedTo; } } // BF4: main weapon when Name is a secondary attachment, like M320
+        public String Category { get { return _category; } } // ToString of DamageTypes
+        public String VehicleName { get { return _vName; } } // BF4: if Name is "Death", this is the vehicle's name
+        public String VehicleDetail { get { return _vDetail; } } // BF4: if Name is "Death", this is the vehicle's detail (stuff after final slash)
         
         public KillReason() {}
+        /*
         public KillReason(String name, String detail, String attachedTo)
         {
             _name = name;
             _detail = detail;
             _attachedTo = attachedTo;
         }
+        public KillReason(String name, String detail, String attachedTo, String vehicleName, String vehicleDetail)
+        {
+            _name = name;
+            _detail = detail;
+            _attachedTo = attachedTo;
+            _vName = vehicleName;
+            _vDetail = vehicleDetail;
+        }
+        */
     }
 
 
@@ -15448,7 +15511,7 @@ public interface DataDictionaryInterface
             else if (EventWeapon)
             {
                 plugin.DebugWrite("detected that weapon ^b" + name + "^n is not in dictionary, adding it", 4);
-                try { plugin.WeaponsDict.Add(name, true); }
+                try { plugin.WeaponsDict.Add(name, DamageTypes.None); }
                 catch (Exception) { }
                 return name;
             }
