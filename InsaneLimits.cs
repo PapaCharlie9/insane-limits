@@ -428,6 +428,7 @@ namespace PRoConEvents
         DateTime Time { get; }
         String Weapon { get; }
         bool Headshot { get; }
+        String Category { get; } // ToString of DamageTypes
     }
 
     public interface KillReasonInterface
@@ -435,7 +436,6 @@ namespace PRoConEvents
         String Name { get; } // weapon name or reason, like "Suicide"
         String Detail { get; } // BF4: ammo or attachment
         String AttachedTo { get; } // BF4: main weapon when Name is a secondary attachment, like M320
-        String Category { get; } // BF4: ToString of DamageTypes
         String VehicleName { get; } // BF4: if Name is "Death", this is the vehicle's name
         String VehicleDetail { get; } // BF4: if Name is "Death", this is the vehicles detail (stuff after final slash)
     }
@@ -4173,6 +4173,7 @@ public interface KillInfoInterface
     String Weapon { get; }
     bool Headshot { get; }
     DateTime Time { get; }
+    String Category { get; } // BF3.defs or BF4.defs weapon category, such as SniperRifle or VehicleAir
 }
 </pre>
        <br />
@@ -4184,7 +4185,6 @@ public interface KillReasonInterface
     String Name { get; } // weapon name or reason, like Suicide
     String Detail { get; } // BF4: ammo or attachment
     String AttachedTo { get; } // BF4: main weapon when Name is a secondary attachment, like M320
-    String Category { get; } // BF3.defs or BF4.defs weapon category, such as SniperRifle or VehicleAir
     String VehicleName { get; } // BF4: if Name is Death, this is the vehicle's name
     String VehicleDetail { get; } // BF4: if Name is Death, this is the vehicle's detail (stuff after final slash)
 }
@@ -5248,7 +5248,7 @@ public interface DataDictionaryInterface
                 killer = player;
                 victim = player;
                 CPlayerInfo dummy = new CPlayerInfo(player.Name, player.Tag, player.TeamId, player.SquadId);
-                kill = new KillInfo(new Kill(dummy, dummy, "UnkownWeapon", false, new Point3D(), new Point3D()), BaseEvent.Kill);
+                kill = new KillInfo(new Kill(dummy, dummy, "UnkownWeapon", false, new Point3D(), new Point3D()), BaseEvent.Kill, "None");
             }
             else if ((limit.Evaluation & kd_e) > 0 && kill != null)
             {
@@ -7667,7 +7667,7 @@ public interface DataDictionaryInterface
         {
             DebugWrite("+++ Evaluating all ^b" + type + "^n limits ...", 6);
 
-            KillInfo kill = new KillInfo(info, type);
+            KillInfo kill = new KillInfo(info, type, GetCategory(info));
 
             // first reset the sprees if needed
             ResetPlayerSprees(type, player, killer, victim, info);
@@ -11261,7 +11261,7 @@ public interface DataDictionaryInterface
                 status = status.Substring(0, MAX_STATUS_LENGTH - suffix.Length) + suffix;
 
 
-            OAuthRequest orequest = new OAuthRequest(this, "http://api.twitter.com/1.1/statuses/update.json");
+            OAuthRequest orequest = new OAuthRequest(this, "https://api.twitter.com/1.1/statuses/update.json"); // Fix #48
             orequest.Method = HTTPMethod.POST;
             orequest.request.ContentType = "application/x-www-form-urlencoded";
 
@@ -11299,7 +11299,7 @@ public interface DataDictionaryInterface
 
         public OAuthRequest TwitterAccessTokenRequest(String verifier, String token, String secret)
         {
-            OAuthRequest orequest = new OAuthRequest(this, "http://api.twitter.com/oauth/access_token");
+            OAuthRequest orequest = new OAuthRequest(this, "https://api.twitter.com/oauth/access_token"); // Fix #48
             orequest.Method = HTTPMethod.POST;
             orequest.request.ContentLength = 0;
 
@@ -11328,7 +11328,7 @@ public interface DataDictionaryInterface
 
         public OAuthRequest TwitterRequestTokenRequest()
         {
-            OAuthRequest orequest = new OAuthRequest(this, "http://api.twitter.com/oauth/request_token");
+            OAuthRequest orequest = new OAuthRequest(this, "https://api.twitter.com/oauth/request_token"); // Fix #48
             orequest.Method = HTTPMethod.POST;
             orequest.request.ContentLength = 0;
 
@@ -11890,10 +11890,12 @@ public interface DataDictionaryInterface
         {
             try
             {
+                FileMode mode = FileMode.CreateNew;
                 if (File.Exists(path))
-                    File.Delete(path);
+                    mode = FileMode.Truncate;
+                    //File.Delete(path);
 
-                using (FileStream fs = File.Open(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.ReadWrite))
+                using (FileStream fs = File.Open(path, mode, FileAccess.ReadWrite, FileShare.ReadWrite))
                 {
                     Byte[] info = new UTF8Encoding(true).GetBytes(s);
                     fs.Write(info, 0, info.Length);
@@ -12269,6 +12271,21 @@ public interface DataDictionaryInterface
             return ret;
         }
 
+        private String GetCategory(Kill info)
+        {
+            DamageTypes category = DamageTypes.None;
+
+            if (info == null || String.IsNullOrEmpty(info.DamageType))
+                return "None";
+
+            if (!WeaponsDict.TryGetValue(info.DamageType, out category)) 
+            {
+                category = DamageTypes.None;
+            }
+
+            return category.ToString();
+        }
+
         public KillReasonInterface FriendlyWeaponName(String killWeapon)
         {
             KillReason r = new KillReason();
@@ -12278,7 +12295,6 @@ public interface DataDictionaryInterface
 
             if (WeaponsDict.TryGetValue(killWeapon, out category)) {
                 hasCategory = true;
-                r._category = category.ToString();
             }
 
             if (game_version == "BF3")
@@ -14262,17 +14278,20 @@ public interface DataDictionaryInterface
     {
         public Kill kill;
         public BaseEvent type;
+        public String _category;
 
         public DateTime _time = DateTime.Now;
 
         public String Weapon { get { return kill.DamageType; } }
         public bool Headshot { get { return kill.Headshot; } }
         public DateTime Time { get { return _time; } }
+        public String Category { get { return _category; } }
 
-        public KillInfo(Kill kill, BaseEvent type)
+        public KillInfo(Kill kill, BaseEvent type, String category)
         {
             this.kill = kill;
             this.type = type;
+            this._category = category;
         }
 
     }
@@ -14285,12 +14304,10 @@ public interface DataDictionaryInterface
         public String _attachedTo = null;
         public String _vName = null;
         public String _vDetail = null;
-        public String _category = null;
 
         public String Name { get { return _name;} } // weapon name or reason, like "Suicide"
         public String Detail { get { return _detail;} } // BF4: ammo or attachment
         public String AttachedTo { get { return _attachedTo; } } // BF4: main weapon when Name is a secondary attachment, like M320
-        public String Category { get { return _category; } } // ToString of DamageTypes
         public String VehicleName { get { return _vName; } } // BF4: if Name is "Death", this is the vehicle's name
         public String VehicleDetail { get { return _vDetail; } } // BF4: if Name is "Death", this is the vehicle's detail (stuff after final slash)
         
