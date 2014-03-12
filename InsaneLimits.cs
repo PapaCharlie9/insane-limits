@@ -12337,6 +12337,64 @@ public interface DataDictionaryInterface
                         r._vName = m.Groups[1].Value;
                         r._vDetail = m.Groups[2].Value;
                     }
+
+                    // Clean-up heuristics
+                    String vn = r._vName;
+                    if (vn.StartsWith("CH_"))
+                        vn = vn.Replace("CH_", String.Empty);
+                    else if (vn.StartsWith("Ch_"))
+                        vn = vn.Replace("Ch_", String.Empty);
+                    else if (vn.StartsWith("RU_"))
+                        vn = vn.Replace("RU_", String.Empty);
+                    else if (vn.StartsWith("US_"))
+                        vn = vn.Replace("US_", String.Empty);
+                    if (vn == "spec" && r._vDetail != null) {
+                        if (r._vDetail.Contains("Z-11w"))
+                            vn = "Z-11w";
+                        else if (r._vDetail.Contains("DV15"))
+                            vn = "DV15";
+                        else vn = r._vDetail;
+                    }
+                    
+                    if (vn.StartsWith("FAC_"))
+                        vn = vn.Replace("FAC_", "Boat ");
+                    else if (vn.StartsWith("JET_"))
+                        vn = vn.Replace("JET_", "Jet ");
+                    else if (vn.StartsWith("FJET_"))
+                        vn = vn.Replace("FJET_", "Jet ");
+                    
+                    switch (vn) {
+                        case "9K22_Tunguska_M": vn = "AA Tunguska"; break;
+                        case "AC130": vn = "AC130 Gunship"; break;
+                        case "AH1Z": vn = "Chopper AH1Z Viper"; break;
+                        case "AH6": vn = "Chopper AH6 Littlebird"; break;
+                        case "BTR-90": vn = "IFV BTR-90"; break;
+                        case "F35": vn = "Jet F35"; break;
+                        case "HIMARS": vn = "Artillery Truck M142 HIMARS"; break;
+                        case "LAV25": vn = "IFV LAV25"; break;
+                        case "M1A2": vn = "MBT M1A2"; break;
+                        case "Mi28": vn = "Chopper Mi28 Havoc"; break;
+                        case "Pantsir": vn = "AA Pantsir"; break;
+                        case "SU-25TM": vn = "Jet SU-25TM"; break;
+                        case "Venom": vn = "Chopper Venom"; break;
+                        case "Z-11w": vn = "Chopper Z-11w"; break;
+                        case "KLR650": vn = "Bike KLR650"; break;
+                        case "DPV": vn = "Jeep DPV"; break;
+                        case "LTHE_Z-9": vn = "Chopper Z-9"; break;
+                        case "FAV_LYT2021": vn = "Jeep LYT2021"; break;
+                        case "GrowlerITV": vn = "Jeep Growler ITV"; break;
+                        case "Ka-60": vn = "Chopper Ka-60"; break;
+                        case "VDV Buggy": vn = "Jeep VDV Buggy"; break;
+                        case "T90": vn = "MBT T90"; break;
+                        case "A-10_THUNDERBOLT": vn = "Jet A-10 Thunderbolt"; break;
+                        case "B1Lancer": vn = "Jet B1 Lancer"; break;
+                        case "H6K": vn = "Jet H6K"; break;
+                        case "Z-10w": vn = "Chopper Z-10w"; break;
+                        case "RHIB": vn = "Boat RHIB"; break;
+                        default: break;
+                    }
+
+                    r._vName = vn.Replace('_', ' ');
                 }
             }
             return r;
