@@ -3755,7 +3755,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.9.16.0";
+            return "0.9.16.1";
         }
 
         public string GetPluginAuthor()
@@ -12348,6 +12348,7 @@ public interface DataDictionaryInterface
                         vn = vn.Replace("RU_", String.Empty);
                     else if (vn.StartsWith("US_"))
                         vn = vn.Replace("US_", String.Empty);
+
                     if (vn == "spec" && r._vDetail != null) {
                         if (r._vDetail.Contains("Z-11w"))
                             vn = "Z-11w";
@@ -12364,6 +12365,14 @@ public interface DataDictionaryInterface
                         vn = vn.Replace("JET_", "Jet ");
                     else if (vn.StartsWith("FJET_"))
                         vn = vn.Replace("FJET_", "Jet ");
+
+                    if (vn == "LAV25" && r._vDetail != null) {
+                        if (r._vDetail == "LAV_AD") {
+                            vn = "AA LAV_AD";
+                        } else {
+                            vn = "IFV LAV25";
+                        }
+                    }
                     
                     switch (vn) {
                         case "9K22_Tunguska_M": vn = "AA Tunguska"; break;
@@ -12373,10 +12382,8 @@ public interface DataDictionaryInterface
                         case "BTR-90": vn = "IFV BTR-90"; break;
                         case "F35": vn = "Jet F35"; break;
                         case "HIMARS": vn = "Artillery Truck M142 HIMARS"; break;
-                        case "LAV25": vn = "IFV LAV25"; break;
                         case "M1A2": vn = "MBT M1A2"; break;
                         case "Mi28": vn = "Chopper Mi28 Havoc"; break;
-                        case "Pantsir": vn = "AA Pantsir"; break;
                         case "SU-25TM": vn = "Jet SU-25TM"; break;
                         case "Venom": vn = "Chopper Venom"; break;
                         case "Z-11w": vn = "Chopper Z-11w"; break;
