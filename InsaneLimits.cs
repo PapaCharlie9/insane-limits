@@ -12358,6 +12358,8 @@ public interface DataDictionaryInterface
                     
                     if (vn.StartsWith("FAC_"))
                         vn = vn.Replace("FAC_", "Boat ");
+                    else if (vn.StartsWith("FAC-"))
+                        vn = vn.Replace("FAC-", "Boat ");
                     else if (vn.StartsWith("JET_"))
                         vn = vn.Replace("JET_", "Jet ");
                     else if (vn.StartsWith("FJET_"))
