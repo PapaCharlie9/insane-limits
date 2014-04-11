@@ -3755,7 +3755,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.9.16.1";
+            return "0.9.16.2";
         }
 
         public string GetPluginAuthor()
@@ -13837,7 +13837,14 @@ public interface DataDictionaryInterface
                         throw new StatsException("fetchStats aborted, disabling plugin ...");
                     }
 
-                    fetchWebPage(ref result, "http://battlelog.battlefield.com/bf3/user/" + player);
+                    String purl = null;
+                    if (plugin.game_version == "BF4") {
+                        purl = "http://battlelog.battlefield.com/bf4/user/";
+                    } else {
+                        purl = "http://battlelog.battlefield.com/bf3/user/";
+                    }
+
+                    fetchWebPage(ref result, purl + player);
 
                     if (!plugin.plugin_enabled) {
                         throw new StatsException("fetchStats aborted, disabling plugin ...");
