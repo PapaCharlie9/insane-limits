@@ -3730,10 +3730,12 @@ namespace PRoConEvents
             parameters.ReferencedAssemblies.Add("System.Windows.Forms.dll");
             parameters.ReferencedAssemblies.Add("System.Xml.dll");
             //parameters.ReferencedAssemblies.Add("System.Linq.dll");
-            if (game_version == "BF4")
-                parameters.ReferencedAssemblies.Add("Plugins/BF4/InsaneLimits.dll");
-            else
+            if (game_version == "BF3")
                 parameters.ReferencedAssemblies.Add("Plugins/BF3/InsaneLimits.dll");
+            else if (game_version == "BFHL")
+                parameters.ReferencedAssemblies.Add("Plugins/BFHL/InsaneLimits.dll");
+            else
+                parameters.ReferencedAssemblies.Add("Plugins/BF4/InsaneLimits.dll");
 
             parameters.GenerateInMemory = true;
             parameters.IncludeDebugInformation = false;
@@ -3755,7 +3757,7 @@ namespace PRoConEvents
 
         public string GetPluginVersion()
         {
-            return "0.9.16.2";
+            return "0.9.17.0";
         }
 
         public string GetPluginAuthor()
@@ -8882,7 +8884,17 @@ public interface DataDictionaryInterface
         {
             if (!plugin_activated) return;
 
-            if (game_version == "BF4")
+            if (game_version == "BF3")
+            {
+                ServerCommand("vars.bulletDamage");
+                ServerCommand("vars.friendlyFire");
+                ServerCommand("vars.gunMasterWeaponsPreset");
+                ServerCommand("vars.idleTimeout");
+                ServerCommand("vars.soldierHealth");
+                ServerCommand("vars.vehicleSpawnAllowed");
+                ServerCommand("vars.vehicleSpawnDelay");
+            }
+            else
             {
                 ServerCommand("vars.bulletDamage");
                 ServerCommand("vars.friendlyFire");
@@ -8894,16 +8906,6 @@ public interface DataDictionaryInterface
                 ServerCommand("vars.serverType");
                 ServerCommand("vars.maxSpectators");
                 ServerCommand("vars.teamFactionOverride");
-            }
-            else
-            {
-                ServerCommand("vars.bulletDamage");
-                ServerCommand("vars.friendlyFire");
-                ServerCommand("vars.gunMasterWeaponsPreset");
-                ServerCommand("vars.idleTimeout");
-                ServerCommand("vars.soldierHealth");
-                ServerCommand("vars.vehicleSpawnAllowed");
-                ServerCommand("vars.vehicleSpawnDelay");
             }
 
             resetUpdateTimer(WhichTimer.Vars);
@@ -10322,7 +10324,20 @@ public interface DataDictionaryInterface
         // Battlelog JSON key name, to Plugin field name
         public static String JSON2Key(String key, String game_version)
         {
-            Dictionary<String,String> j2k = (game_version == "BF4") ? json2keyBF4 : json2key;
+            Dictionary<String,String> j2k = null;
+            switch (game_version) {
+                case "BF3":
+                    j2k = json2key;
+                    break;
+                case "BF4":
+                    j2k = json2keyBF4;
+                    break;
+                case "BFHL":
+                default:
+                    j2k = json2keyBF4; // TBH BFH
+                    break;
+            }
+
             if (!j2k.ContainsKey(key))
                 throw new StatsException("unknown JSON field ^b" + key + "^b");
             return j2k[key];
@@ -10340,7 +10355,7 @@ public interface DataDictionaryInterface
             if (game_version == "BF3")
                 return new List<string>(json2key.Keys);
             else
-                return new List<String>(json2keyBF4.Keys);
+                return new List<String>(json2keyBF4.Keys); // TBD BFH
         }
 
         public static List<String> getBasicWJSONFieldKeys()
@@ -10350,10 +10365,10 @@ public interface DataDictionaryInterface
 
         public static List<String> getBasicFieldKeys(String game_version)
         {
-            if (game_version == "BF4")
-                return new List<string>(json2keyBF4.Values); 
+            if (game_version == "BF3")
+                return new List<string>(json2key.Values); 
             else
-                return new List<string>(json2key.Values);
+                return new List<string>(json2keyBF4.Values); // TBD BFH
         }
 
         public static List<String> getBasicWeaponFieldProps()
@@ -12303,7 +12318,7 @@ public interface DataDictionaryInterface
                 r._name = killWeapon;
                 if (m.Success) r._name = m.Groups[1].Value;
             }
-            else if (killWeapon.StartsWith("U_")) // BF4 weapons
+            else if (killWeapon.StartsWith("U_")) // BF4 weapons // TBD BFH
             {
                 String[] tParts = killWeapon.Split(new[]{'_'});
 
@@ -13553,7 +13568,7 @@ public interface DataDictionaryInterface
 
         // BF4
 
-        public override void OnCommander(bool isEnabled)
+        public override void OnCommander(bool isEnabled) // TBD BFH
         {
             DebugWrite("Got ^bOnCommander^n: " + isEnabled, 8);
 
@@ -13838,7 +13853,9 @@ public interface DataDictionaryInterface
                     }
 
                     String purl = null;
-                    if (plugin.game_version == "BF4") {
+                    if (plugin.game_version == "BFHL") {
+                        purl = "http://battlelog.battlefield.com/bfh/user/";
+                    } else if (plugin.game_version == "BF4") {
                         purl = "http://battlelog.battlefield.com/bf4/user/";
                     } else {
                         purl = "http://battlelog.battlefield.com/bf3/user/";
@@ -13852,25 +13869,55 @@ public interface DataDictionaryInterface
 
                     /* Extract the persona id */
                     MatchCollection pid = null;
+                    Match spid = null;
                     
-                    if (plugin.game_version == "BF4") {
+                    if (plugin.game_version == "BFHL") {
+                        spid = Regex.Match(result, @"agent\/" + player + @"\/stats\/(\d+)");
+                    } else if (plugin.game_version == "BF4") {
                         pid = Regex.Matches(result, @"bf4/soldier/" + player + @"/stats/(\d+)(['""]|/\s*['""]|/[^/'""]+)", RegexOptions.IgnoreCase | RegexOptions.Singleline);
                     } else {
                         pid = Regex.Matches(result, @"bf3/soldier/" + player + @"/stats/(\d+)(['""]|/\s*['""]|/[^/'""]+)", RegexOptions.IgnoreCase | RegexOptions.Singleline);
                     }
 
-
-                    foreach (Match match in pid)
-                        if (match.Success && !Regex.Match(match.Groups[2].Value.Trim(), @"(ps3|xbox)", RegexOptions.IgnoreCase).Success) {
-                            personaId = match.Groups[1].Value.Trim();
-                            break;
+                    if (spid == null) {
+                        foreach (Match match in pid)
+                            if (match.Success && !Regex.Match(match.Groups[2].Value.Trim(), @"(ps3|xbox)", RegexOptions.IgnoreCase).Success) {
+                                personaId = match.Groups[1].Value.Trim();
+                                break;
+                            }
+                    } else {
+                        if (spid.Success)
+                        {
+                            personaId = spid.Groups[1].Value.Trim();
                         }
+                    }
 
 
                     if (String.IsNullOrEmpty(personaId))
-                        throw new StatsException("could not find persona-id for ^b" + player);
+                        throw new StatsException("could not find persona-id for ^b" + player + "^n");
 
-                    if (plugin.game_version == "BF4") {
+                    if (plugin.game_version == "BFHL") {
+                        // Get the stats page
+                        if (!plugin.plugin_enabled) return pinfo;
+                        String bfhfurl = "http://battlelog.battlefield.com/bfh/agent/" + player + "/stats/" + personaId + "/pc/" + "?nocacherandom=" + Environment.TickCount;
+                        fetchWebPage(ref result, bfhfurl);
+                        if (!plugin.plugin_enabled) return pinfo;
+
+                        // Extract the player tag
+                        String bfhTag = String.Empty;         
+                        Match tag = Regex.Match(result, @"\[\s*([a-zA-Z0-9]+)\s*\]\s*</span>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+
+                        if (tag.Success) {
+                            bfhTag = tag.Groups[1].Value.Trim();
+                        }
+                        if (String.IsNullOrEmpty(bfhTag)) {
+                            // No tag
+                            pinfo.tag = String.Empty;
+                            plugin.DebugWrite("^4Battlelog says ^b" + player + "^n has no BFHL tag", 5);
+                        } else {
+                            pinfo.tag = bfhTag;
+                        }
+                    } else if (plugin.game_version == "BF4") {
 
                         if (!plugin.plugin_enabled) {
                             throw new StatsException("fetchStats aborted, disabling plugin ...");
@@ -13923,7 +13970,9 @@ public interface DataDictionaryInterface
                 }
 
                 String furl = null;
-                if (plugin.game_version == "BF4") {
+                if (plugin.game_version == "BFHL") {
+                    furl = "http://battlelog.battlefield.com/bfh/warsawdetailedstatspopulate/" + personaId + "/1/";
+                } else if (plugin.game_version == "BF4") {
                     furl = "http://battlelog.battlefield.com/bf4/warsawdetailedstatspopulate/" + personaId + "/1/";
                 } else {
                     furl = "http://battlelog.battlefield.com/bf3/overviewPopulateStats/" + personaId + "/bf3-us-engineer/1/";
@@ -13948,7 +13997,7 @@ public interface DataDictionaryInterface
 
                 /* verify there is stats structure */
                 Hashtable stats = null;
-                String jsonOverviewStatsKey = (plugin.game_version == "BF4") ? "generalStats" : "overviewStats";
+                String jsonOverviewStatsKey = (plugin.game_version == "BF3") ? "overviewStats" : "generalStats";
                 if (!data.ContainsKey(jsonOverviewStatsKey) || (stats = (Hashtable)data[jsonOverviewStatsKey]) == null)
                     throw new StatsException("JSON response ^bdata^n does not contain ^b" + jsonOverviewStatsKey + "^n, for " + player, furl);
 
@@ -14024,10 +14073,10 @@ public interface DataDictionaryInterface
                     
                     /* extract weapon level statistics */
                     List<BattlelogWeaponStats> wstats = null;
-                    if (plugin.getBooleanVarValue("use_slow_weapon_stats")) {
+                    if (plugin.getBooleanVarValue("use_slow_weapon_stats") && plugin.game_version != "BFHL") {
                         wstats = extractWeaponStats(pinfo, personaId);
                     } else {
-                        plugin.DebugWrite("^1^buse_slow_weapon_stats^n is ^bFalse^n, skipping fetch of weapon stats", 5);
+                        plugin.DebugWrite("^1^buse_slow_weapon_stats^n is ^bFalse^n of BFHL, skipping fetch of weapon stats", 5);
                     }
 
                     pinfo.BWS.setWeaponData(wstats);
@@ -14236,38 +14285,42 @@ public interface DataDictionaryInterface
 
         public void extractBasicFields(Hashtable stats, PlayerInfo pinfo)
         {
-            if (stats == null) {
-                plugin.DebugWrite("extractBasicFields, overviewStats Hashtable is null", 5);
-                return;
-            }
-            List<String> keys = InsaneLimits.getBasicJSONFieldKeys(plugin.game_version);
-            foreach (DictionaryEntry entry in stats)
-            {
-                String entry_key = (String)(entry.Key.ToString());
-
-                try {
-
-                    /* skip entries we are not interested in */
-                    if (!keys.Contains(entry_key))
-                        continue;
-
-                    String entry_value = (String)(entry.Value.ToString());
-
-                    double dValue = double.NaN;
-                    if (Double.TryParse(entry_value, out dValue))
-                        pinfo.ovalue[InsaneLimits.JSON2Key(entry_key, plugin.game_version)] = dValue;
-                } catch (Exception e) {
-                    plugin.DebugWrite("^1^bNOTE^n^0: overviewStats problem with key ^b" + entry_key + "^n: " + e.Message, 5);
+            try {
+                if (stats == null) {
+                    plugin.DebugWrite("extractBasicFields, overviewStats Hashtable is null", 5);
+                    return;
                 }
-            }
-            // After June 2013 Battlelog stats update, need to fix up kdRatio
-            double kills = 0;
-            double deaths = 0;
-            if (Double.IsNaN(pinfo.ovalue[InsaneLimits.JSON2Key("kdRatio", plugin.game_version)])
-            && !Double.IsNaN(kills = pinfo.ovalue[InsaneLimits.JSON2Key("kills", plugin.game_version)])
-            && !Double.IsNaN(deaths = pinfo.ovalue[InsaneLimits.JSON2Key("deaths", plugin.game_version)])) {
-                deaths = (deaths == 0) ? 1 : deaths;
-                pinfo.ovalue[InsaneLimits.JSON2Key("kdRatio", plugin.game_version)] = (kills / deaths);
+                List<String> keys = InsaneLimits.getBasicJSONFieldKeys(plugin.game_version);
+                foreach (DictionaryEntry entry in stats)
+                {
+                    String entry_key = (String)(entry.Key.ToString());
+
+                    try {
+
+                        /* skip entries we are not interested in */
+                        if (!keys.Contains(entry_key))
+                            continue;
+
+                        String entry_value = (String)(entry.Value.ToString());
+
+                        double dValue = double.NaN;
+                        if (Double.TryParse(entry_value, out dValue))
+                            pinfo.ovalue[InsaneLimits.JSON2Key(entry_key, plugin.game_version)] = dValue;
+                    } catch (Exception e) {
+                        plugin.DebugWrite("^1^bNOTE^n^0: overviewStats problem with key ^b" + entry_key + "^n: " + e.Message, 5);
+                    }
+                }
+                // After June 2013 Battlelog stats update, need to fix up kdRatio
+                double kills = 0;
+                double deaths = 0;
+                if (Double.IsNaN(pinfo.ovalue[InsaneLimits.JSON2Key("kdRatio", plugin.game_version)])
+                && !Double.IsNaN(kills = pinfo.ovalue[InsaneLimits.JSON2Key("kills", plugin.game_version)])
+                && !Double.IsNaN(deaths = pinfo.ovalue[InsaneLimits.JSON2Key("deaths", plugin.game_version)])) {
+                    deaths = (deaths == 0) ? 1 : deaths;
+                    pinfo.ovalue[InsaneLimits.JSON2Key("kdRatio", plugin.game_version)] = (kills / deaths);
+                }
+            } catch (Exception e) {
+                plugin.DebugWrite("^1^bNOTE^n^0: extractBasicFields problem: " + e.Message, 5);
             }
         }
 
@@ -15826,7 +15879,7 @@ public interface DataDictionaryInterface
             // User mapping
             if (plugin.rcon2bw_user.ContainsKey(name)) return plugin.rcon2bw_user[shortName];
 
-            if (plugin.game_version == "BF4") {
+            if (plugin.game_version == "BF4" || plugin.game_version == "BFHL") {
                 KillReasonInterface kr = plugin.FriendlyWeaponName(bf4Normalized);
                 shortName = kr.Name.ToUpper();
                 bf4Normalized = "WARSAW_ID_P_WNAME_" + shortName;
@@ -15834,7 +15887,7 @@ public interface DataDictionaryInterface
             }
             
             // Exact match?
-            if (plugin.game_version == "BF4") {
+            if (plugin.game_version == "BF4" || plugin.game_version == "BFHL") {
                 if (data.ContainsKey(bf4Normalized)) return bf4Normalized;
                 // Try alternative name
                 bf4Normalized = "WARSAW_ID_I_NAME_" + shortName;
@@ -15845,7 +15898,7 @@ public interface DataDictionaryInterface
             }
             
             // Special cases
-            if (plugin.game_version == "BF4") {
+            if (plugin.game_version == "BF4" || plugin.game_version == "BFHL") {
                 if (plugin.rcon2bwbf4.ContainsKey(shortName)) return plugin.rcon2bwbf4[shortName];
             } else {
                 if (plugin.rcon2bw.ContainsKey(shortName)) return plugin.rcon2bw[shortName];
@@ -15872,7 +15925,7 @@ public interface DataDictionaryInterface
             
             // Last resort, do fuzzy match
             int distance = 0;
-            String new_name = plugin.bestMatch((plugin.game_version == "BF4") ? bf4Normalized : shortName, subKeys, out distance, true);
+            String new_name = plugin.bestMatch((plugin.game_version == "BF4" || plugin.game_version == "BFHL") ? bf4Normalized : shortName, subKeys, out distance, true);
             if (new_name == null)
             {
                 if (verbose)
