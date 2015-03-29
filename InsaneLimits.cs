@@ -15200,10 +15200,12 @@ public interface DataDictionaryInterface
 
         public double ratio(double left, double right)
         {
-            if (left == 0)
+            if (Double.IsNaN(left) || Double.IsNaN(right) || left <= 0)
                 return 0;
+            if (right <= 0)
+                right = 1;
 
-            return (left + 1) / (right + 1);
+            return left / right;
 
         }
 
