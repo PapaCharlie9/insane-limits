@@ -8902,10 +8902,14 @@ public interface DataDictionaryInterface
                 ServerCommand("vars.soldierHealth");
                 ServerCommand("vars.vehicleSpawnAllowed");
                 ServerCommand("vars.vehicleSpawnDelay");
-                ServerCommand("vars.commander");
+                if (game_version == "BF4")
+                    ServerCommand("vars.commander");
+                else if (game_version == "BFHL")
+                    ServerCommand("vars.hacker");
                 ServerCommand("vars.serverType");
                 ServerCommand("vars.maxSpectators");
-                ServerCommand("vars.teamFactionOverride");
+                if (game_version == "BF4")
+                    ServerCommand("vars.teamFactionOverride");
             }
 
             resetUpdateTimer(WhichTimer.Vars);
@@ -13568,9 +13572,9 @@ public interface DataDictionaryInterface
 
         // BF4
 
-        public override void OnCommander(bool isEnabled) // TBD BFH
+        public override void OnCommander(bool isEnabled)
         {
-            DebugWrite("Got ^bOnCommander^n: " + isEnabled, 8);
+            DebugWrite("Got ^bOnCommander^n: " + isEnabled, 5);
 
             this.varCommander = isEnabled;
 
@@ -14076,7 +14080,7 @@ public interface DataDictionaryInterface
                     if (plugin.getBooleanVarValue("use_slow_weapon_stats") && plugin.game_version != "BFHL") {
                         wstats = extractWeaponStats(pinfo, personaId);
                     } else {
-                        plugin.DebugWrite("^1^buse_slow_weapon_stats^n is ^bFalse^n of BFHL, skipping fetch of weapon stats", 5);
+                        plugin.DebugWrite("^1^buse_slow_weapon_stats^n is ^bFalse^n or BFHL, skipping fetch of weapon stats", 5);
                     }
 
                     pinfo.BWS.setWeaponData(wstats);
@@ -15169,7 +15173,7 @@ public interface DataDictionaryInterface
             List<String> fields = InsaneLimits.getBasicFieldKeys(plugin.game_version);
             fields.AddRange(InsaneLimits.getExtraFields());
             foreach (String field_name in fields)
-                ovalue.Add(field_name, Double.NaN);
+                ovalue.Add(field_name, /* Double.NaN */ 0);
 
             // fields for game stats
             List<String> gfields = InsaneLimits.getGameFieldKeys();
