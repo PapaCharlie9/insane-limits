@@ -1630,6 +1630,27 @@ namespace PRoConEvents
             setStringVarValue("twitter_screen_name", default_twitter_screen_name);
         }
 
+        /// <summary>
+        /// Checks if we are using Mono on Linux.
+        /// http://stackoverflow.com/a/5117005/1763937
+        /// </summary>
+        public static bool IsRunningOnLinux() {
+            int p = (int) Environment.OSVersion.Platform;
+            return (p == 4) || (p == 6) || (p == 128);
+        }
+
+        /// <summary>
+        /// Appends a "/" to the start of a file path if we are running
+        /// on Linux
+        /// </summary>
+        public static String LinuxPathSupportHack(string file) {
+            if(IsRunningOnLinux() && !file.StartsWith("./")) {
+                return ("./" + file);
+            }
+
+            return file;
+        }
+
         public class CustomList
         {
             public enum ListState
@@ -3742,6 +3763,11 @@ namespace PRoConEvents
 
             String procon_path = Directory.GetParent(Application.ExecutablePath).FullName;
             String plugins_path = Path.Combine(procon_path, Path.Combine("Plugins", "BF3"));
+
+            // fixes compilation issues on Linux under mono
+            if(IsRunningOnLinux()) {
+                plugins_path = Directory.GetParent(Assembly.GetExecutingAssembly().Location).FullName;
+            }
 
             parameters.TempFiles = new TempFileCollection(plugins_path);
             //parameters.TempFiles.KeepFiles = false;
@@ -11431,6 +11457,7 @@ public interface DataDictionaryInterface
         {
 
             String file = getStringVarValue("limits_file");
+            file = LinuxPathSupportHack(file);
 
             try
             {
@@ -11517,6 +11544,7 @@ public interface DataDictionaryInterface
                 lock (settings_mutex)
                 {
                     String file = getStringVarValue("limits_file");
+                    file = LinuxPathSupportHack(file);
 
                     bool exist = File.Exists(file);
 
@@ -11905,8 +11933,9 @@ public interface DataDictionaryInterface
             DumpData(s, path);
         }
 
-        public void DumpData(string s, string path)
+        public void DumpData(string s, string pathUnchecked)
         {
+            String path = LinuxPathSupportHack(pathUnchecked);
             try
             {
                 FileMode mode = FileMode.CreateNew;
